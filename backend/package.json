@@ -1,0 +1,29 @@
+{
+  "name": "ai-quiz-generated",
+  "version": "1.0.0",
+  "description": "��#\u0000 \u0000S\u0000E\u00002\u0000P\u0000R\u0000O\u0000J\u0000E\u0000C\u0000T\u0000\r\u0000 \u0000",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/GLEN2004-TOQUE/SE2PROJECT.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/GLEN2004-TOQUE/SE2PROJECT/issues"
+  },
+  "homepage": "https://github.com/GLEN2004-TOQUE/SE2PROJECT#readme",
+  "dependencies": {
+    "bcrypt": "^6.0.0",
+    "cors": "^2.8.6",
+    "dotenv": "^17.3.1",
+    "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3",
+    "pg": "^8.18.0"
+  }
+}
