@@ -1,29 +1,47 @@
-const pdfParse = require("pdf-parse");
-const mammoth = require("mammoth");
-const path = require("path");
-const getSupabase = require("../utils/supabaseClient");
+import { Response } from 'express';
+import pdfParse from 'pdf-parse';
+import * as mammoth from 'mammoth';
+import * as path from 'path';
+import getSupabase from '../utils/supabaseClient';
+import { SupabaseClient } from '@supabase/supabase-js';
+import { AuthRequest } from '../middleware/authMiddleware';
+
+interface MulterFile {
+  originalname: string;
+  mimetype: string;
+  buffer: Buffer;
+  size: number;
+  fieldname?: string;
+  encoding?: string;
+}
 
 // =====================================
 // Upload Lecture
 // =====================================
-exports.uploadLecture = async (req, res) => {
+export const uploadLecture = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const token = req.headers.authorization?.split(" ")[1];
-    const supabase = getSupabase(token);
+    const supabase = getSupabase(token || undefined) as SupabaseClient;
 
-    const file = req.file;
-    const title = req.body.title;
-    const user = req.user; // already verified by middleware
+    const file = req.file as MulterFile | undefined;
+    const title = (req.body as { title?: string }).title;
+    const user = req.user;
 
-    if (!file) return res.status(400).json({ message: "No file uploaded" });
-    if (!title) return res.status(400).json({ message: "Title missing" });
+    if (!file) {
+      res.status(400).json({ message: "No file uploaded" });
+      return;
+    }
+    if (!title) {
+      res.status(400).json({ message: "Title missing" });
+      return;
+    }
 
     let extractedText = "";
     const ext = path.extname(file.originalname).toLowerCase();
 
     // Extract text based on file type
     if (ext === ".pdf") {
-      const data = await pdfParse(file.buffer);
+      const data = await (pdfParse as any)(file.buffer);
       extractedText = data.text;
     } else if (ext === ".docx") {
       const result = await mammoth.extractRawText({ buffer: file.buffer });
@@ -31,12 +49,13 @@ exports.uploadLecture = async (req, res) => {
     } else if (ext === ".pptx") {
       extractedText = "PPTX text extraction not implemented yet";
     } else {
-      return res.status(400).json({ message: "Unsupported file type" });
+      res.status(400).json({ message: "Unsupported file type" });
+      return;
     }
 
     // Upload file to Supabase Storage
     const fileName = `${Date.now()}-${file.originalname}`;
-    const filePath = `${user.id}/${fileName}`;
+    const filePath = `${user?.id}/${fileName}`;
 
     const { error: uploadError } = await supabase.storage
       .from("lectures")
@@ -46,7 +65,10 @@ exports.uploadLecture = async (req, res) => {
         upsert: false,
       });
 
-    if (uploadError) return res.status(400).json({ error: uploadError.message });
+    if (uploadError) {
+      res.status(400).json({ error: uploadError.message });
+      return;
+    }
 
     // Get public URL
     const { data: publicUrlData } = supabase.storage
@@ -63,7 +85,7 @@ exports.uploadLecture = async (req, res) => {
         file_url: fileUrl,
         file_path: filePath,
         extracted_text: extractedText,
-        teacher_id: user.id,
+        teacher_id: user?.id,
         file_size: file.size,
         file_type: ext,
         created_at: new Date().toISOString(),
@@ -74,48 +96,52 @@ exports.uploadLecture = async (req, res) => {
 
     if (error) {
       await supabase.storage.from("lectures").remove([filePath]);
-      return res.status(400).json({ error: error.message });
+      res.status(400).json({ error: error.message });
+      return;
     }
 
     res.json({ message: "Lecture uploaded successfully", lecture: data });
 
   } catch (err) {
     console.error("Upload error:", err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: (err as Error).message });
   }
 };
 
 // =====================================
 // Get All Lectures (Per Teacher)
 // =====================================
-exports.getLectures = async (req, res) => {
+export const getLectures = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const token = req.headers.authorization?.split(" ")[1];
-    const supabase = getSupabase(token);
+    const supabase = getSupabase(token || undefined) as SupabaseClient;
     const user = req.user;
 
     const { data, error } = await supabase
       .from("lectures")
       .select("*")
-      .eq("teacher_id", user.id)
+      .eq("teacher_id", user?.id)
       .order("created_at", { ascending: false });
 
-    if (error) return res.status(400).json({ error: error.message });
+    if (error) {
+      res.status(400).json({ error: error.message });
+      return;
+    }
 
     res.json(data);
 
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: (err as Error).message });
   }
 };
 
 // =====================================
 // Delete Lecture
 // =====================================
-exports.deleteLecture = async (req, res) => {
+export const deleteLecture = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const token = req.headers.authorization?.split(" ")[1];
-    const supabase = getSupabase(token);
+    const supabase = getSupabase(token || undefined) as SupabaseClient;
     const user = req.user;
     const { id } = req.params;
 
@@ -124,11 +150,12 @@ exports.deleteLecture = async (req, res) => {
       .from("lectures")
       .select("*")
       .eq("id", id)
-      .eq("teacher_id", user.id)
+      .eq("teacher_id", user?.id)
       .single();
 
     if (fetchError || !lecture) {
-      return res.status(404).json({ message: "Lecture not found" });
+      res.status(404).json({ message: "Lecture not found" });
+      return;
     }
 
     // Delete file from storage
@@ -139,13 +166,16 @@ exports.deleteLecture = async (req, res) => {
       .from("lectures")
       .delete()
       .eq("id", id)
-      .eq("teacher_id", user.id);
+      .eq("teacher_id", user?.id);
 
-    if (deleteError) return res.status(400).json({ error: deleteError.message });
+    if (deleteError) {
+      res.status(400).json({ error: deleteError.message });
+      return;
+    }
 
     res.json({ message: "Lecture deleted successfully" });
 
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: (err as Error).message });
   }
 };
