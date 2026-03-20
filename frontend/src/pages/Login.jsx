@@ -1,45 +1,364 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 
+/* ─── Inline styles & keyframes injected once ─── */
+const GlobalStyles = () => (
+  <style>{`
+    @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;700&family=DM+Sans:wght@300;400;500&display=swap');
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    @keyframes floatUp {
+      from { opacity: 0; transform: translateY(28px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to   { opacity: 1; }
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    @keyframes shimmer {
+      0%   { background-position: -200% center; }
+      100% { background-position:  200% center; }
+    }
+    @keyframes pulse-ring {
+      0%   { transform: scale(0.92); opacity: .6; }
+      50%  { transform: scale(1.04); opacity: .15; }
+      100% { transform: scale(0.92); opacity: .6; }
+    }
+
+    .login-root {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem 1rem;
+      background-color: #1a0a0a;
+      background-image:
+        radial-gradient(ellipse 80% 60% at 10% 10%,  rgba(120,20,20,.55) 0%, transparent 70%),
+        radial-gradient(ellipse 60% 50% at 90% 90%,  rgba(180,130,20,.25) 0%, transparent 65%),
+        radial-gradient(ellipse 40% 40% at 50% 50%,  rgba(80,10,10,.4)   0%, transparent 80%);
+      font-family: 'DM Sans', sans-serif;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* subtle grain overlay */
+    .login-root::before {
+      content: '';
+      position: fixed; inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.06'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 0;
+      opacity: .45;
+    }
+
+    /* decorative gold ring */
+    .deco-ring {
+      position: fixed;
+      width: 600px; height: 600px;
+      border-radius: 50%;
+      border: 1px solid rgba(200,160,40,.12);
+      top: -200px; right: -200px;
+      animation: pulse-ring 6s ease-in-out infinite;
+      pointer-events: none;
+    }
+    .deco-ring-2 {
+      width: 360px; height: 360px;
+      bottom: -120px; left: -120px;
+      top: auto; right: auto;
+      animation-delay: -3s;
+    }
+
+    /* card */
+    .card-wrap {
+      position: relative; z-index: 1;
+      width: 100%; max-width: 440px;
+      animation: floatUp .65s cubic-bezier(.22,1,.36,1) both;
+    }
+
+    /* card style */
+    .card {
+      background: rgba(255,255,255,.045);
+      backdrop-filter: blur(18px) saturate(1.4);
+      -webkit-backdrop-filter: blur(18px) saturate(1.4);
+      border: 1px solid rgba(255,230,160,.1);
+      border-radius: 20px;
+      padding: 2.4rem 2.2rem 2rem;
+      box-shadow:
+        0 2px 0 rgba(255,220,100,.06) inset,
+        0 32px 64px rgba(0,0,0,.55),
+        0 0 0 1px rgba(0,0,0,.3);
+    }
+
+    /* logo badge inside card */
+    .logo-badge {
+      width: 76px; height: 76px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #7a1515 0%, #4a0c0c 100%);
+      box-shadow: 0 0 0 6px rgba(190,140,30,.18), 0 8px 28px rgba(0,0,0,.55);
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 1.4rem;
+      overflow: hidden;
+    }
+    .logo-badge img { width: 52px; height: 52px; object-fit: contain; }
+
+    .headline {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 1.75rem;
+      font-weight: 700;
+      color: #f5e6c8;
+      text-align: center;
+      line-height: 1.25;
+      letter-spacing: -.01em;
+      margin-bottom: .45rem;
+    }
+    .subline {
+      text-align: center;
+      font-size: .85rem;
+      font-weight: 300;
+      color: rgba(200,170,100,.7);
+      letter-spacing: .03em;
+      margin-bottom: 2.2rem;
+      animation: fadeIn .8s .3s both;
+    }
+
+    /* field group */
+    .field { margin-bottom: 1.35rem; }
+    .field label {
+      display: block;
+      font-size: .72rem;
+      font-weight: 500;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: rgba(220,190,110,.75);
+      margin-bottom: .5rem;
+    }
+
+    .input-wrap {
+      position: relative;
+    }
+    .input-icon {
+      position: absolute; left: .95rem; top: 50%;
+      transform: translateY(-50%);
+      color: rgba(200,160,60,.5);
+      pointer-events: none;
+      width: 16px; height: 16px;
+    }
+    .toggle-password {
+      position: absolute;
+      right: .95rem;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: rgba(200,160,60,.5);
+      width: 18px;
+      height: 18px;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: color .2s;
+    }
+    .toggle-password:hover {
+      color: rgba(220,180,80,.8);
+    }
+
+    .field input {
+      width: 100%;
+      padding: .75rem .95rem .75rem 2.6rem;
+      background: rgba(255,255,255,.055);
+      border: 1px solid rgba(200,160,50,.2);
+      border-radius: 10px;
+      color: #f5e6c8;
+      font-family: 'DM Sans', sans-serif;
+      font-size: .9rem;
+      font-weight: 300;
+      outline: none;
+      transition: border-color .2s, box-shadow .2s, background .2s;
+    }
+    .field input::placeholder { color: rgba(200,170,100,.28); }
+    .field input:focus {
+      border-color: rgba(200,160,50,.55);
+      background: rgba(255,255,255,.085);
+      box-shadow: 0 0 0 3px rgba(190,140,30,.13);
+    }
+    .field input:-webkit-autofill,
+    .field input:-webkit-autofill:focus {
+      -webkit-box-shadow: 0 0 0 1000px #2a0f0f inset;
+      -webkit-text-fill-color: #f5e6c8;
+      caret-color: #f5e6c8;
+    }
+    /* add right padding when eye icon present */
+    .password-input {
+      padding-right: 2.6rem;
+    }
+
+    /* submit */
+    .btn-submit {
+      width: 100%;
+      margin-top: .5rem;
+      padding: .8rem 1rem;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      font-family: 'DM Sans', sans-serif;
+      font-size: .9rem;
+      font-weight: 500;
+      letter-spacing: .04em;
+      color: #fff8e8;
+      position: relative;
+      overflow: hidden;
+      transition: transform .15s, box-shadow .2s, opacity .2s;
+      background: linear-gradient(135deg, #8b1a1a 0%, #6b1010 50%, #8b1a1a 100%);
+      background-size: 200% auto;
+      box-shadow: 0 4px 20px rgba(120,20,20,.55), 0 1px 0 rgba(255,200,80,.15) inset;
+    }
+    .btn-submit:not(:disabled):hover {
+      animation: shimmer .9s linear infinite;
+      transform: translateY(-1px);
+      box-shadow: 0 8px 28px rgba(140,30,30,.65), 0 1px 0 rgba(255,200,80,.2) inset;
+    }
+    .btn-submit:not(:disabled):active { transform: translateY(0); }
+    .btn-submit:disabled { opacity: .5; cursor: not-allowed; }
+
+    .spinner {
+      display: inline-block;
+      width: 16px; height: 16px;
+      border: 2px solid rgba(255,255,255,.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+      vertical-align: middle;
+      margin-right: .5rem;
+    }
+
+    /* divider */
+    .divider {
+      display: flex; align-items: center;
+      gap: .85rem;
+      margin: 1.6rem 0 1.2rem;
+    }
+    .divider::before, .divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: rgba(200,160,50,.15);
+    }
+    .divider span {
+      font-size: .7rem;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: rgba(200,160,60,.4);
+      white-space: nowrap;
+    }
+
+    /* footer links */
+    .register-line {
+      text-align: center;
+      font-size: .82rem;
+      color: rgba(200,170,100,.55);
+    }
+    .register-line a {
+      color: #c8a040;
+      text-decoration: none;
+      font-weight: 500;
+      border-bottom: 1px solid rgba(200,160,40,.3);
+      padding-bottom: 1px;
+      transition: color .15s, border-color .15s;
+    }
+    .register-line a:hover {
+      color: #e8c060;
+      border-color: rgba(220,180,60,.6);
+    }
+
+    .footer-note {
+      text-align: center;
+      margin-top: 1.8rem;
+      font-size: .7rem;
+      letter-spacing: .06em;
+      color: rgba(180,140,60,.3);
+      animation: fadeIn .8s .5s both;
+    }
+
+    /* secure badge */
+    .secure-badge {
+      display: flex; align-items: center; justify-content: center;
+      gap: .4rem;
+      margin-top: 1.5rem;
+      font-size: .7rem;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: rgba(180,140,60,.35);
+    }
+    .secure-badge svg { width: 11px; height: 11px; }
+  `}</style>
+);
+
+/* ─── SVG icon helpers ─── */
+const IconMail = () => (
+  <svg className="input-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6">
+    <rect x="2" y="5" width="16" height="11" rx="2"/>
+    <path d="M2 7l8 5 8-5"/>
+  </svg>
+);
+const IconLock = () => (
+  <svg className="input-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6">
+    <rect x="5" y="9" width="10" height="8" rx="2"/>
+    <path d="M7 9V6a3 3 0 016 0v3"/>
+  </svg>
+);
+const IconShield = () => (
+  <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6">
+    <path d="M10 2l7 3v5c0 4-3 7-7 8C7 17 3 14 3 10V5l7-3z"/>
+    <path d="M7 10l2 2 4-4"/>
+  </svg>
+);
+const IconEyeOpen = () => (
+  <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5">
+    <path d="M10 5C5 5 2 10 2 10s3 5 8 5 8-5 8-5-3-5-8-5z" />
+    <circle cx="10" cy="10" r="3" />
+  </svg>
+);
+const IconEyeClosed = () => (
+  <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5">
+    <path d="M2 2L18 18M6.712 6.712C4.033 8.032 2 10 2 10s3 5 8 5c1.406 0 2.731-.331 3.93-.87M10 15c.884 0 1.736-.138 2.537-.395M16.103 12.103C17.434 10.934 18 10 18 10s-3-5-8-5c-.503 0-.996.042-1.48.12" />
+  </svg>
+);
+
+/* ─── Main Component ─── */
 function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
 
   const handleLogin = async (e) => {
     e.preventDefault();
     setIsLoading(true);
-    console.log("Login clicked");
-
     try {
       const res = await fetch("http://localhost:5000/login", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
-
       const data = await res.json();
-      console.log(data);
 
       if (data.token) {
         localStorage.setItem("token", data.token);
         const payload = JSON.parse(atob(data.token.split(".")[1]));
         const userRole = payload.role;
-
-        if (userRole === "teacher") {
-          navigate("/teacher");
-        } else if (userRole === "student") {
-          navigate("/student");
-        } else {
-          console.log("Unknown role:", userRole);
-        }
+        if (userRole === "teacher") navigate("/teacher");
+        else if (userRole === "student") navigate("/student");
+        else console.log("Unknown role:", userRole);
       } else {
         alert(data.message || "Login failed");
       }
-
     } catch (error) {
       console.log(error);
       alert("Server error occurred");
@@ -48,122 +367,106 @@ function Login() {
     }
   };
 
+  const togglePasswordVisibility = () => {
+    setShowPassword(!showPassword);
+  };
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#4A0404] to-[#800000] flex items-center justify-center px-4 relative overflow-hidden">
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-20 -right-20 w-64 h-64 bg-[#FFD700] opacity-10 rounded-full blur-3xl"></div>
-        <div className="absolute -bottom-20 -left-20 w-80 h-80 bg-[#FFD700] opacity-10 rounded-full blur-3xl"></div>
-        <svg className="absolute top-1/4 left-10 text-[#FFD700] opacity-20 w-24 h-24" fill="currentColor" viewBox="0 0 24 24">
-          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
-        </svg>
-        <svg className="absolute bottom-1/4 right-10 text-[#FFD700] opacity-20 w-20 h-20" fill="currentColor" viewBox="0 0 24 24">
-          <path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 22 12 18.07 5.82 22 7 14.14 2 9.27l6.91-1.01L12 2z" />
-        </svg>
-      </div>
+    <>
+      <GlobalStyles />
+      <div className="login-root">
+        {/* Decorative rings */}
+        <div className="deco-ring" />
+        <div className="deco-ring deco-ring-2" />
 
-      <div className="max-w-md w-full relative z-10">
-        {/* Header with Quiz Icon */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-20 h-20 bg-[#FFD700] rounded-full mb-4 shadow-lg border-4 border-white">
-            <svg className="w-10 h-10 text-[#4A0404]" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
-            </svg>
-          </div>
-          <h1 className="text-4xl font-bold text-white mb-2">Quiz Master</h1>
-          <p className="text-[#FFD700]/90 text-lg">Sign in to challenge yourself</p>
-        </div>
-
-        {/* Login Card */}
-        <div className="bg-white/95 backdrop-blur-sm rounded-3xl shadow-2xl p-8 border-2 border-[#FFD700]">
-          <form onSubmit={handleLogin} className="space-y-6">
-            {/* Email Input */}
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-[#4A0404] mb-2">
-                Email Address
-              </label>
-              <input
-                id="email"
-                type="email"
-                placeholder="you@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl border-2 border-[#800000]/20 focus:border-[#FFD700] focus:ring-4 focus:ring-[#FFD700]/30 transition-all duration-200 outline-none text-gray-800 placeholder-gray-400 bg-white"
-                required
-              />
+        <div className="card-wrap">
+          {/* Card containing everything */}
+          <div className="card">
+            {/* Logo */}
+            <div className="logo-badge">
+              <img src="/image/logo.png" alt="School Quiz Logo" />
             </div>
 
-            {/* Password Input */}
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-[#4A0404] mb-2">
-                Password
-              </label>
-              <input
-                id="password"
-                type="password"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl border-2 border-[#800000]/20 focus:border-[#FFD700] focus:ring-4 focus:ring-[#FFD700]/30 transition-all duration-200 outline-none text-gray-800 placeholder-gray-400 bg-white"
-                required
-              />
-            </div>
+            {/* Headline */}
+            <h1 className="headline">Welcome Back</h1>
+            <p className="subline">Sign in to continue your quiz journey</p>
 
-            {/* Submit Button */}
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full py-3 px-4 bg-[#FFD700] hover:bg-[#E5C100] text-[#4A0404] font-bold rounded-xl shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed text-lg border-2 border-[#4A0404]"
-            >
-              {isLoading ? (
-                <span className="flex items-center justify-center gap-2">
-                  <svg className="animate-spin h-5 w-5 text-[#4A0404]" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                  </svg>
-                  Starting Quiz...
-                </span>
-              ) : (
-                "Let's Play!"
-              )}
-            </button>
-          </form>
+            {/* Form */}
+            <form onSubmit={handleLogin}>
+              {/* Email */}
+              <div className="field">
+                <label htmlFor="email">Email Address</label>
+                <div className="input-wrap">
+                  <IconMail />
+                  <input
+                    id="email"
+                    type="email"
+                    placeholder="student@school.edu"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
 
-          {/* Register Link */}
-          <div className="mt-6 text-center">
-            <p className="text-gray-600">
-              New here?{" "}
-              <Link
-                to="/register"
-                className="text-[#800000] hover:text-[#4A0404] font-semibold hover:underline transition-colors"
-              >
-                Create an account
-              </Link>
+              {/* Password with show/hide */}
+              <div className="field">
+                <label htmlFor="password">Password</label>
+                <div className="input-wrap">
+                  <IconLock />
+                  <input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    className="password-input"
+                  />
+                  <button
+                    type="button"
+                    className="toggle-password"
+                    onClick={togglePasswordVisibility}
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                  >
+                    {showPassword ? <IconEyeOpen /> : <IconEyeClosed />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Submit */}
+              <button type="submit" className="btn-submit" disabled={isLoading}>
+                {isLoading ? (
+                  <><span className="spinner" />Signing in…</>
+                ) : (
+                  "Sign In"
+                )}
+              </button>
+            </form>
+
+            {/* Divider */}
+            <div className="divider"><span>New here?</span></div>
+
+            {/* Register link */}
+            <p className="register-line">
+              Don't have an account?{" "}
+              <Link to="/register">Create one now</Link>
             </p>
+
+            {/* Secure badge */}
+            <div className="secure-badge">
+              <IconShield />
+              Secure, encrypted connection
+            </div>
           </div>
 
-          {/* Quiz Stats Placeholder (just for fun) */}
-          <div className="mt-6 pt-4 border-t border-gray-200 flex justify-center gap-4 text-sm text-gray-500">
-            <span className="flex items-center gap-1">
-              <svg className="w-4 h-4 text-[#FFD700]" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 22 12 18.07 5.82 22 7 14.14 2 9.27l6.91-1.01L12 2z" />
-              </svg>
-              10k+ quizzes
-            </span>
-            <span className="flex items-center gap-1">
-              <svg className="w-4 h-4 text-[#FFD700]" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-1 .05 1.16.84 2 1.87 2 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" />
-              </svg>
-              5k+ active users
-            </span>
-          </div>
+          {/* Footer */}
+          <p className="footer-note">
+            © {new Date().getFullYear()} School Quiz System · All rights reserved
+          </p>
         </div>
-
-        {/* Footer */}
-        <p className="text-center text-white/60 mt-8 text-sm">
-          © 2024 Quiz Generator. Ready to test your knowledge? 🧠
-        </p>
       </div>
-    </div>
+    </>
   );
 }
 
