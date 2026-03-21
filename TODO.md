@@ -1,1 +1,0 @@
-# Railway Deployment Fix&#10;&#10;- [x] Step 1: Update backend/package.json scripts for production (node app.js)&#10;- [x] Step 2: Create backend/railway.json config&#10;- [ ] Step 3: Commit and push changes&#10;- [ ] Step 4: Test locally: cd backend &amp;&amp; npm ci &amp;&amp; npm start&#10;- [ ] Step 5: Redeploy on Railway and verify logs
