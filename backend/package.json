@@ -2,11 +2,11 @@
   "name": "ai-quiz-generated",
   "version": "1.0.0",
   "description": "SE2 PROJECT",
-  "main": "dist/app.js",
+"main": "app.js"
   "scripts": {
-    "start": "ts-node app.ts",
-    "build": "tsc",
-    "dev": "ts-node app.ts",
+"start": "node app.js"
+""
+"dev": "node app.js"
     "test": "echo \\\"Error: no test specified\\\" &amp;&amp; exit 1",
     "start:js": "node app.js"
   },
