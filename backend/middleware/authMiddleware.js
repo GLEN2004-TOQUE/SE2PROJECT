@@ -1,4 +1,4 @@
-const getSupabase = require("../utils/supabaseClient");
+const getSupabase = require("../supabaseClient");
 const jwt = require("jsonwebtoken");
 require("dotenv").config();
 

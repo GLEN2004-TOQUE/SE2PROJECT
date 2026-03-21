@@ -3,7 +3,7 @@ const cors = require('cors');
 require('dotenv').config();
 
 const authController = require('./controllers/authController');
-const loginController = require('./controllers/loginController'); 
+
 const { verifyToken, authorizeRole } = require('./middleware/authMiddleware');
 const lectureRoutes = require('./routes/lectureRoutes'); // ADD THIS
 
@@ -12,7 +12,8 @@ app.use(cors({origin: "http://localhost:3000"}));
 app.use(express.json());
 
 app.post('/register', authController.register);
-app.post('/login', loginController.login); 
+app.post('/login', authController.login); 
+
 
 app.use('/lectures', lectureRoutes); // ADD THIS
 
