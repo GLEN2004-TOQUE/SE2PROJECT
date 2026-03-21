@@ -387,7 +387,7 @@ function Register() {
     e.preventDefault();
     setIsLoading(true);
     try {
-      const res = await fetch("http://localhost:5000/register", {
+      const res = await fetch("https://backend-t3hu.onrender.com/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ fullName, email, password, role }),
