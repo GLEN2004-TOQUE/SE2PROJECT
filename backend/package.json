@@ -2,12 +2,11 @@
   "name": "ai-quiz-generated",
   "version": "1.0.0",
   "description": "SE2 PROJECT",
-"main": "app.js"
+  "main": "app.js",
   "scripts": {
-"start": "node app.js"
-""
-"dev": "node app.js"
-    "test": "echo \\\"Error: no test specified\\\" &amp;&amp; exit 1",
+    "start": "node app.js",
+    "dev": "nodemon app.js",
+    "test": "echo \"Error: no test specified\" && exit 1",
     "start:js": "node app.js"
   },
   "repository": {
@@ -30,7 +29,7 @@
     "express": "^5.2.1",
     "jsonwebtoken": "^9.0.3",
     "mammoth": "^1.11.0",
-    "multer": "^2.0.2",
+    "multer": "^1.0.2",
     "pdf-parse": "^1.1.1",
     "pg": "^8.18.0"
   },
@@ -43,6 +42,7 @@
     "@types/node": "^25.3.3",
     "@types/pdf-parse": "^1.1.5",
     "@types/pg": "^8.18.0",
+    "nodemon": "^3.1.7",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3"
   }
