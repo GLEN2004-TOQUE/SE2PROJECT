@@ -32,7 +32,7 @@ const uploadLecture = async (req, res) => {
     const storagePath = `${teacherId}/${Date.now()}-${file.originalname}`;
 
     // Upload to Supabase Storage
-    const { data: uploadData, error: uploadError } = await supabase.storage
+    const { data: uploadData, error: uploadError } = await supabaseAdmin.storage
       .from("lectures")
       .upload(storagePath, file.buffer, {
         contentType: file.mimetype,
@@ -43,7 +43,7 @@ const uploadLecture = async (req, res) => {
     }
 
     // Get public URL
-    const { data: publicUrlData } = supabase.storage
+    const { data: publicUrlData } = supabaseAdmin.storage
       .from("lectures")
       .getPublicUrl(storagePath);
 
@@ -64,7 +64,7 @@ const uploadLecture = async (req, res) => {
 
     if (dbError) {
       // Optionally delete the uploaded file if DB insert fails
-      await supabase.storage.from("lectures").remove([storagePath]);
+      await supabaseAdmin.storage.from("lectures").remove([storagePath]);
       return res.status(400).json({ message: dbError.message });
     }
 
@@ -77,7 +77,7 @@ const uploadLecture = async (req, res) => {
 
 const getLectures = async (req, res) => {
   try {
-    const { data: lectures, error } = await supabase
+    const { data: lectures, error } = await supabaseAdmin
       .from('lectures')
       .select('*')
       .eq('teacher_id', req.user.id)
@@ -97,7 +97,7 @@ const deleteLecture = async (req, res) => {
     const { id } = req.params;
 
     // Fetch lecture to ensure ownership and get file_path
-    const { data: lecture, error: fetchError } = await supabase
+    const { data: lecture, error: fetchError } = await supabaseAdmin
       .from('lectures')
       .select('file_path, teacher_id')
       .eq('id', id)
@@ -109,7 +109,7 @@ const deleteLecture = async (req, res) => {
     }
 
     // Delete file from storage
-    const { error: deleteStorageError } = await supabase.storage
+    const { error: deleteStorageError } = await supabaseAdmin.storage
       .from('lectures')
       .remove([lecture.file_path]);
 
@@ -120,7 +120,7 @@ const deleteLecture = async (req, res) => {
     }
 
     // Delete from DB
-    const { error: dbError } = await supabase
+    const { error: dbError } = await supabaseAdmin
       .from('lectures')
       .delete()
       .eq('id', id);
