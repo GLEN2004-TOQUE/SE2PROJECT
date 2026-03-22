@@ -1,7 +1,7 @@
 const pdfParse = require("pdf-parse");
 const mammoth = require("mammoth");
 const path = require("path");
-const { supabase } = require("../supabaseClient");
+const { supabaseAdmin } = require("../supabaseClient");
 
 const uploadLecture = async (req, res) => {
   try {
@@ -50,7 +50,7 @@ const uploadLecture = async (req, res) => {
     const fileUrl = publicUrlData.publicUrl;
 
     // Insert into lectures table with all required fields
-    const { error: dbError } = await supabase.from("lectures").insert([
+    const { error: dbError } = await supabaseAdmin.from("lectures").insert([
       {
         title,
         file_url: fileUrl,
