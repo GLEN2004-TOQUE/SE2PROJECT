@@ -1,5 +1,4 @@
-const { generateQuestions } = require("../services/aiServices");
-const { supabaseAdmin } = require("../supabaseClient");
+const { supabaseAdmin, supabase } = require("../supabaseClient");\n
 
 exports.generateQuiz = async (req, res) => {
   try {
@@ -118,72 +117,7 @@ exports.getQuiz = async (req, res) => {
   }
 };
 
-exports.submitQuiz = async (req, res) => {
-  try {
-    const { quizId, answers } = req.body;
-
-    //  Get quiz info
-    const { data: quiz } = await supabase
-      .from("quizzes")
-      .select("*")
-      .eq("id", quizId)
-      .single();
-
-    const now = new Date();
-
-    //  Check schedule
-    let attendanceStatus = "absent";
-
-    if (
-      now >= new Date(quiz.start_time) &&
-      now <= new Date(quiz.end_time)
-    ) {
-      attendanceStatus = "present";
-    }
-
-    //  Get questions
-    const { data: questions } = await supabase
-      .from("questions")
-      .select("*")
-      .eq("quiz_id", quizId);
-
-    let score = 0;
-
-    questions.forEach(q => {
-      if (answers[q.id] === q.correct_answer) {
-        score++;
-      }
-    });
-
-    //  Save result
-    await supabase.from("results").insert([
-      {
-        user_id: req.user.id,
-        quiz_id: quizId,
-        score,
-        total: questions.length
-      }
-    ]);
-
-    //  Save attendance
-    await supabase.from("attendance").insert([
-      {
-        user_id: req.user.id,
-        quiz_id: quizId,
-        status: attendanceStatus
-      }
-    ]);
-
-    res.json({
-      score,
-      total: questions.length,
-      attendance: attendanceStatus
-    });
-
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-};
+exports.submitQuiz = async (req, res) => {\n  try {\n    const { quizId, answers } = req.body;\n\n    // Get quiz info\n    const { data: quiz } = await supabaseAdmin\n      .from("quizzes")\n      .select("*")\n      .eq("id", quizId)\n      .single();\n\n    const now = new Date();\n\n    // Determine attendance\n    let attendanceStatus = "absent";\n    if (now >= new Date(quiz.start_time) && now <= new Date(quiz.end_time)) {\n      attendanceStatus = "present";\n    }\n\n    // Get questions\n    const { data: questions } = await supabaseAdmin\n      .from("questions")\n      .select("*")\n      .eq("quiz_id", quizId);\n\n    // Count correct answers\n    let correctCount = 0;\n    questions.forEach((q) => {\n      if (answers[q.id] === q.correct_answer) {\n        correctCount++;\n      }\n    });\n\n    // ---- Points computation ----\n    const scoring = computePoints(correctCount, questions.length, attendanceStatus);\n    const badge = getBadge(scoring);\n\n    // Save result with points\n    await supabaseAdmin.from("results").insert([\n      {\n        user_id: req.user.id,\n        quiz_id: quizId,\n        score: correctCount,\n        total: questions.length,\n        points: scoring.totalPoints,\n        accuracy: scoring.accurity,\n        grade: scoring.grade,\n        badge: badge,\n      },\n    ]);\n\n    // Save attendance\n    await supabaseAdmin.from("attendance").insert([\n      {\n        user_id: req.user.id,\n        quiz_id: quizId,\n        status: attendanceStatus,\n      },\n    ]);\n\n    res.json({\n      score: correctCount,\n      total: questions.length,\n      attendance: attendanceStatus,\n      scoring,         // full breakdown\n      badge,           // badge earned (or null)\n    });\n\n  } catch (err) {\n    res.status(500).json({ error: err.message });\n  }\n};
 
 exports.getAttendanceReport = async (req, res) => {
   try {

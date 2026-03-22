@@ -1,7 +1,12 @@
-# Task: Fix error in scoringServices.js
+# Fix quizController.js Syntax Error & Missing Dependencies
 
-## Steps from approved plan:
-- [ ] Step 1: Edit backend/services/scoringServices.js to remove the accuracyBonus=0 special case for 100% accuracy.
-- [ ] Step 2: Verify the fix (manual test or integration).
-- [ ] Complete: Use attempt_completion.
+- [x] Step 0: Plan confirmed
+- [x] Step 1: Created backend/supabaseClient.js ✓
+- [x] Step 2: Fixed quizController.js syntax/imports/error handling ✓
+- [ ] Step 3: Mount routes in backend/app.js
+- [ ] Step 4: Test server
 
+- [ ] Complete
+
+**Next:** Install `@supabase/supabase-js` if needed: `cd backend && npm i @supabase/supabase-js`
+**DB:** Create Supabase tables: quizzes, questions, results, attendance, users.
