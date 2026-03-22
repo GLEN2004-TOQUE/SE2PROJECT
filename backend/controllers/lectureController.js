@@ -1,7 +1,7 @@
 const pdfParse = require("pdf-parse");
 const mammoth = require("mammoth");
 const path = require("path");
-const { supabaseAdmin } = require("../supabaseClient");
+const { supabase, supabaseAdmin } = require("../supabaseClient");
 
 const uploadLecture = async (req, res) => {
   try {
