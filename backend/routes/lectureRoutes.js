@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const { uploadLecture, getLectures, deleteLecture } = require("../controllers/lectureController");
-const { verifyToken, authorizeRole } = require("../middleware/authMiddleware"); // FIXED
+const { verifyToken, authorizeRole } = require("../middleware/authMiddleware"); 
 const upload = require("../middleware/upload");
 
 router.post("/upload", verifyToken, authorizeRole("teacher"), upload.single("file"), uploadLecture);
