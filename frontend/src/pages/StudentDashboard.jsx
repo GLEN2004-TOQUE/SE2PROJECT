@@ -106,9 +106,9 @@ function StudentDashboard() {
 
         {/* Dashboard Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Take Quiz Card */}
+          {/* Quiz Hub Card */}
           <div
-            onClick={() => navigate("/take-quiz")}
+            onClick={() => navigate("/quiz")}
             className="bg-white/95 backdrop-blur-sm rounded-3xl shadow-2xl p-6 border-2 border-[#FFD700] hover:shadow-xl transform hover:-translate-y-1 transition-all duration-200 cursor-pointer group"
           >
             <div className="flex flex-col items-center text-center">
@@ -117,8 +117,8 @@ function StudentDashboard() {
                   <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 13.5v-7l6 3.5-6 3.5z" />
                 </svg>
               </div>
-              <h2 className="text-xl font-bold text-[#4A0404] mb-2">Take Quiz</h2>
-              <p className="text-gray-600 text-sm">Challenge yourself with new questions</p>
+              <h2 className="text-xl font-bold text-[#4A0404] mb-2">Quiz Hub</h2>
+              <p className="text-gray-600 text-sm">Browse and take available quizzes</p>
             </div>
           </div>
 

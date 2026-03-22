@@ -123,9 +123,9 @@ function TeacherDashboard() {
             </div>
           </div>
 
-          {/* Generate Quiz Card */}
+          {/* Quiz Hub Card */}
           <div
-            onClick={() => navigate("/generate-quiz")}
+            onClick={() => navigate("/quiz")}
             className="bg-white/95 backdrop-blur-sm rounded-3xl shadow-2xl p-6 border-2 border-[#FFD700] hover:shadow-xl transform hover:-translate-y-1 transition-all duration-200 cursor-pointer group"
           >
             <div className="flex flex-col items-center text-center">
@@ -134,8 +134,8 @@ function TeacherDashboard() {
                   <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 13.5v-7l6 3.5-6 3.5z" />
                 </svg>
               </div>
-              <h2 className="text-xl font-bold text-[#4A0404] mb-2">Generate Quiz</h2>
-              <p className="text-gray-600 text-sm">Create interactive quizzes from lectures</p>
+              <h2 className="text-xl font-bold text-[#4A0404] mb-2">Quiz Hub</h2>
+              <p className="text-gray-600 text-sm">View and manage your quizzes</p>
             </div>
           </div>
 
