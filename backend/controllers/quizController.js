@@ -77,3 +77,153 @@ exports.saveQuestions = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+
+exports.getQuiz = async (req, res) => {
+  try {
+    const { quizId } = req.params;
+
+    // Get quiz
+    const { data: quiz } = await supabase
+      .from("quizzes")
+      .select("*")
+      .eq("id", quizId)
+      .single();
+
+    const now = new Date();
+
+    if (new Date(quiz.start_time) > now) {
+      return res.status(400).json({ message: "Quiz not started yet" });
+    }
+
+    if (new Date(quiz.end_time) < now) {
+      return res.status(400).json({ message: "Quiz already ended" });
+    }
+
+    // Get questions
+    const { data: questions } = await supabase
+      .from("questions")
+      .select("*")
+      .eq("quiz_id", quizId);
+
+    // RANDOMIZE
+    const shuffled = questions.sort(() => Math.random() - 0.5);
+
+    res.json({
+      quiz,
+      questions: shuffled
+    });
+
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+exports.submitQuiz = async (req, res) => {
+  try {
+    const { quizId, answers } = req.body;
+
+    //  Get quiz info
+    const { data: quiz } = await supabase
+      .from("quizzes")
+      .select("*")
+      .eq("id", quizId)
+      .single();
+
+    const now = new Date();
+
+    //  Check schedule
+    let attendanceStatus = "absent";
+
+    if (
+      now >= new Date(quiz.start_time) &&
+      now <= new Date(quiz.end_time)
+    ) {
+      attendanceStatus = "present";
+    }
+
+    //  Get questions
+    const { data: questions } = await supabase
+      .from("questions")
+      .select("*")
+      .eq("quiz_id", quizId);
+
+    let score = 0;
+
+    questions.forEach(q => {
+      if (answers[q.id] === q.correct_answer) {
+        score++;
+      }
+    });
+
+    //  Save result
+    await supabase.from("results").insert([
+      {
+        user_id: req.user.id,
+        quiz_id: quizId,
+        score,
+        total: questions.length
+      }
+    ]);
+
+    //  Save attendance
+    await supabase.from("attendance").insert([
+      {
+        user_id: req.user.id,
+        quiz_id: quizId,
+        status: attendanceStatus
+      }
+    ]);
+
+    res.json({
+      score,
+      total: questions.length,
+      attendance: attendanceStatus
+    });
+
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+exports.getAttendanceReport = async (req, res) => {
+  try {
+    const { quizId } = req.params;
+
+    const { data, error } = await supabase
+      .from("attendance")
+      .select("*")
+      .eq("quiz_id", quizId);
+
+    if (error) {
+      return res.status(400).json({ error: error.message });
+    }
+
+    res.json(data);
+
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+exports.getAttendanceStats = async (req, res) => {
+  try {
+    const { quizId } = req.params;
+
+    const { data } = await supabase
+      .from("attendance")
+      .select("*")
+      .eq("quiz_id", quizId);
+
+    const present = data.filter(a => a.status === "present").length;
+    const absent = data.filter(a => a.status === "absent").length;
+
+    res.json({
+      total: data.length,
+      present,
+      absent
+    });
+
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
