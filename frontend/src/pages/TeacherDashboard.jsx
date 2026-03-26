@@ -45,8 +45,8 @@ function UploadLecture() {
                 }));
                 setFiles(prev => [...prev, ...dropped]);
               }}
-              className={`block border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all mb-4 ${
-                dragging ? "border-[#C9A227] bg-[#fdf9ef]" : "border-[#C9A22766] bg-[#FFFDF7] hover:border-[#C9A227]"
+className={`block border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all mb-4 ${
+                dragging ? "border-[#C9A227] bg-[#fdf9ef]" : "border-[#C9A227]/20 bg-[#FFFDF7] hover:border-[#C9A227]"
               }`}
             >
               <svg className="w-10 h-10 text-[#C9A22799] mx-auto mb-2" fill="currentColor" viewBox="0 0 24 24">
@@ -90,22 +90,22 @@ function UploadLecture() {
             </svg>
             <span className="text-sm font-semibold text-[#4A0404]">Uploaded Files</span>
           </div>
-          <div className="p-5 flex flex-col gap-3">
-            {files.map((f, i) => (
-              <div key={i} className="flex items-center gap-3 px-3 py-2 bg-[#FFFDF7] border border-[#e8dfc8] rounded-xl">
-                <div className="w-8 h-8 bg-[#faeeda] rounded-lg flex items-center justify-center flex-shrink-0">
-                  <svg className="w-4 h-4 text-[#C9A227]" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6z"/>
-                  </svg>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium text-gray-700 truncate">{f.name}</p>
-                  <p className="text-xs text-gray-400">{f.subject} · {f.size}</p>
-                </div>
-                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusStyle(f.status)}`}>{f.status}</span>
-              </div>
-            ))}
-          </div>
+<div className="p-5 flex flex-col gap-3">
+  {files.map((f, i) => (
+    <div key={i} className="flex items-center gap-3 px-3 py-2 bg-[#FFFDF7] border border-[#e8dfc8]/50 rounded-xl">
+      <div className="w-8 h-8 bg-[#faeeda] rounded-lg flex items-center justify-center flex-shrink-0">
+        <svg className="w-4 h-4 text-[#C9A227]" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6z"/>
+        </svg>
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-xs font-medium text-gray-700 truncate">{f.name}</p>
+        <p className="text-xs text-gray-400">{f.subject} · {f.size}</p>
+      </div>
+      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusStyle(f.status)}`}>{f.status}</span>
+    </div>
+  ))}
+</div>
         </div>
       </div>
     </div>
@@ -542,11 +542,11 @@ function TeacherDashboard() {
   const navigate = useNavigate();
 
   // Set login time on mount
-  useState(() => {
+  useEffect(() => {
     const now = new Date();
     const opts = { weekday: "short", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" };
     setLoginTime(now.toLocaleString("en-US", opts));
-  });
+  }, []);
 
   const handleLogout = () => {
     navigate("/");
@@ -603,6 +603,7 @@ function TeacherDashboard() {
       { name: "Midterm Slides.pptx", subject: "Physics",   date: "Mar 18", status: "Draft"     },
       { name: "Formula Sheet.docx",  subject: "Math",      date: "Mar 15", status: "Published" },
     ];
+    const lectures = recentFiles;
 
     return (
       <div>
@@ -661,9 +662,9 @@ function TeacherDashboard() {
             </div>
           </div>
         </div>
-
         {/* Uploaded Lectures Section */}
-        <div className="mt-10 bg-white/95 rounded-3xl shadow-2xl p-6 border-2 border-[#FFD700">
+        <div className="mt-10 bg-white/95 rounded-3xl shadow-2xl p-6 border-2 border-[#FFD700]">
+          <h2 className="text-2xl font-bold text-[#4A0404] mb-4">Uploaded Lectures</h2>
           <h2 className="text-2xl font-bold text-[#4A0404] mb-4">Uploaded Lectures</h2>
           {lectures.length > 0 ? (
             <div className="space-y-4">
@@ -697,6 +698,6 @@ function TeacherDashboard() {
           Â© 2024 Quiz Generator. Empower your teaching! ðŸŽ
         </p>
       </div>
-    </div>
   );
+}
 }

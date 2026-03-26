@@ -227,3 +227,12 @@ exports.getAttendanceStats = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+
+// after score compute
+const game = await updateGamification(req.user.id, score, questions.length);
+
+res.json({
+  score,
+  total: questions.length,
+  game
+});
