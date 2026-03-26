@@ -46,6 +46,18 @@ function StudentDashboard() {
     navigate("/");
   };
 
+  const updateProfile = (newName, newPic) => {
+    if (newName) setFullName(newName);
+    if (newPic) setProfilePic(newPic);
+  };
+
+  const initials = fullName
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-[#4A0404] to-[#800000] flex items-center justify-center">
