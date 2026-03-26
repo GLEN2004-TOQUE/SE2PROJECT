@@ -1,14 +1,20 @@
 import { Navigate } from "react-router-dom";
+import { getUser } from "../services/api";
 
 function ProtectedRoute({ children, role }) {
-  const token = localStorage.getItem("token");
+  const user = getUser();
 
-  if (!token) return <Navigate to="/" />;
+  if (!user) return <Navigate to="/" replace />;
 
-  const payload = JSON.parse(atob(token.split(".")[1]));
+  // Token expiry check
+  if (user.exp && Date.now() / 1000 > user.exp) {
+    localStorage.removeItem("token");
+    return <Navigate to="/" replace />;
+  }
 
-  if (payload.role !== role) {
-    return <Navigate to="/" />;
+  if (role && user.role !== role) {
+    // Redirect to the correct dashboard instead of login
+    return <Navigate to={user.role === "teacher" ? "/teacher" : "/student"} replace />;
   }
 
   return children;

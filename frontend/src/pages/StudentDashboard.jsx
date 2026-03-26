@@ -1,189 +1,189 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "../supabaseClient"; 
+import { getUser, logout, getLeaderboard } from "../services/api";
+
 function StudentDashboard() {
-  const [fullName, setFullName] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [user, setUser]             = useState(null);
+  const [leaderboard, setLeaderboard] = useState([]);
+  const [lbType, setLbType]         = useState("overall");
+  const [lbLoading, setLbLoading]   = useState(false);
+  const [quizId, setQuizId]         = useState("");
+  const [quizError, setQuizError]   = useState("");
   const navigate = useNavigate();
 
   useEffect(() => {
-    const fetchUserProfile = async () => {
-      try {
-        setLoading(true);
-        // Get the current user from Supabase auth
-        const { data: { user }, error: userError } = await supabase.auth.getUser();
-        if (userError) throw userError;
-        if (!user) {
-          // If no user, redirect to login
-          navigate("/");
-          return;
-        }
-
-        // Fetch the user's profile from the 'profiles' table
-        const { data, error: profileError } = await supabase
-          .from("profiles")
-          .select("full_name")
-          .eq("id", user.id)
-          .single();
-
-        if (profileError) throw profileError;
-
-        setFullName(data.full_name || "Student");
-      } catch (err) {
-        console.error("Error fetching profile:", err);
-        setError("Could not load profile. Please try again later.");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchUserProfile();
+    const u = getUser();
+    if (!u) { navigate("/"); return; }
+    if (u.role !== "student") { navigate("/teacher"); return; }
+    setUser(u);
   }, [navigate]);
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    navigate("/");
+  useEffect(() => {
+    setLbLoading(true);
+    getLeaderboard(lbType)
+      .then(setLeaderboard)
+      .catch(() => setLeaderboard([]))
+      .finally(() => setLbLoading(false));
+  }, [lbType]);
+
+  const handleLogout = () => { logout(); navigate("/"); };
+
+  const handleTakeQuiz = () => {
+    const id = quizId.trim();
+    if (!id) { setQuizError("Please enter a Quiz ID."); return; }
+    setQuizError("");
+    navigate(`/quiz/${id}`);
   };
 
-  const submitQuiz = async () => {
-  const res = await fetch("/api/quiz/submit", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({ quizId, answers })
-  });
+  const tierColor = (tier) => ({
+    Master:       "text-yellow-300",
+    Advanced:     "text-blue-300",
+    Intermediate: "text-green-300",
+    Beginner:     "text-gray-300",
+  })[tier] || "text-gray-300";
 
-  const data = await res.json();
+  const tierBg = (tier) => ({
+    Master:       "bg-yellow-900/40 border-yellow-500/30",
+    Advanced:     "bg-blue-900/40 border-blue-500/30",
+    Intermediate: "bg-green-900/40 border-green-500/30",
+    Beginner:     "bg-gray-800/40 border-gray-600/30",
+  })[tier] || "bg-gray-800/40 border-gray-600/30";
 
-  alert(`Score: ${data.score}/${data.total}\nAttendance: ${data.attendance}`);
-};
+  if (!user) return null;
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-[#4A0404] to-[#800000] flex items-center justify-center">
-        <div className="text-center">
-          <svg className="animate-spin h-12 w-12 text-[#FFD700] mx-auto mb-4" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-          </svg>
-          <p className="text-white text-xl">Loading your dashboard...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-[#4A0404] to-[#800000] flex items-center justify-center px-4">
-        <div className="bg-white/95 p-8 rounded-3xl shadow-2xl border-2 border-[#FFD700] text-center">
-          <p className="text-red-600 mb-4">{error}</p>
-          <button
-            onClick={() => window.location.reload()}
-            className="px-6 py-2 bg-[#FFD700] text-[#4A0404] rounded-xl font-semibold hover:bg-[#E5C100] transition"
-          >
-            Retry
-          </button>
-        </div>
-      </div>
-    );
-  }
+  const initials = (user.full_name || "?")
+    .split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#4A0404] to-[#800000] flex items-center justify-center px-4 relative overflow-hidden">
-      {/* Decorative Quiz Elements */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-20 -right-20 w-64 h-64 bg-[#FFD700] opacity-10 rounded-full blur-3xl"></div>
-        <div className="absolute -bottom-20 -left-20 w-80 h-80 bg-[#FFD700] opacity-10 rounded-full blur-3xl"></div>
-        <svg className="absolute top-1/4 left-10 text-[#FFD700] opacity-20 w-24 h-24" fill="currentColor" viewBox="0 0 24 24">
-          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
-        </svg>
-        <svg className="absolute bottom-1/4 right-10 text-[#FFD700] opacity-20 w-20 h-20" fill="currentColor" viewBox="0 0 24 24">
-          <path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 22 12 18.07 5.82 22 7 14.14 2 9.27l6.91-1.01L12 2z" />
-        </svg>
-      </div>
-
-      <div className="max-w-4xl w-full relative z-10">
-        {/* Header */}
-        <div className="text-center mb-10">
-          <div className="inline-flex items-center justify-center w-20 h-20 bg-[#FFD700] rounded-full mb-4 shadow-lg border-4 border-white">
-            <svg className="w-10 h-10 text-[#4A0404]" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14c-2.33 0-4.31-1.46-5.11-3.5h10.22c-.8 2.04-2.78 3.5-5.11 3.5z" />
-            </svg>
-          </div>
-          <h1 className="text-4xl font-bold text-white mb-2">Student Dashboard</h1>
-          <p className="text-[#FFD700]/90 text-xl">
-            Welcome, <span className="font-bold">{fullName}</span>! ðŸ‘‹
-          </p>
-        </div>
-
-        {/* Dashboard Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Take Quiz Card */}
-          <div
-            onClick={() => navigate("/take-quiz")}
-            className="bg-white/95 backdrop-blur-sm rounded-3xl shadow-2xl p-6 border-2 border-[#FFD700] hover:shadow-xl transform hover:-translate-y-1 transition-all duration-200 cursor-pointer group"
-          >
-            <div className="flex flex-col items-center text-center">
-              <div className="w-16 h-16 bg-[#FFD700] rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                <svg className="w-8 h-8 text-[#4A0404]" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 13.5v-7l6 3.5-6 3.5z" />
-                </svg>
-              </div>
-              <h2 className="text-xl font-bold text-[#4A0404] mb-2">Take Quiz</h2>
-              <p className="text-gray-600 text-sm">Challenge yourself with new questions</p>
+    <div className="min-h-screen bg-[#0f0a0a] text-white font-sans">
+      {/* Top nav */}
+      <header className="border-b border-white/10 bg-[#1a0a0a]/80 backdrop-blur sticky top-0 z-20">
+        <div className="max-w-6xl mx-auto px-6 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#8b1a1a] to-[#C9A227] flex items-center justify-center text-sm font-bold">
+              {initials}
+            </div>
+            <div>
+              <p className="text-xs text-white/40 uppercase tracking-widest">Student</p>
+              <p className="text-sm font-semibold text-white/90">{user.id}</p>
             </div>
           </div>
-
-          {/* View Badges Card */}
-          <div
-            onClick={() => navigate("/badges")}
-            className="bg-white/95 backdrop-blur-sm rounded-3xl shadow-2xl p-6 border-2 border-[#FFD700] hover:shadow-xl transform hover:-translate-y-1 transition-all duration-200 cursor-pointer group"
-          >
-            <div className="flex flex-col items-center text-center">
-              <div className="w-16 h-16 bg-[#FFD700] rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                <svg className="w-8 h-8 text-[#4A0404]" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 22 12 18.07 5.82 22 7 14.14 2 9.27l6.91-1.01L12 2z" />
-                </svg>
-              </div>
-              <h2 className="text-xl font-bold text-[#4A0404] mb-2">View Badges</h2>
-              <p className="text-gray-600 text-sm">See your achievements and rewards</p>
-            </div>
-          </div>
-
-          {/* View Leaderboard Card */}
-          <div
-            onClick={() => navigate("/leaderboard")}
-            className="bg-white/95 backdrop-blur-sm rounded-3xl shadow-2xl p-6 border-2 border-[#FFD700] hover:shadow-xl transform hover:-translate-y-1 transition-all duration-200 cursor-pointer group"
-          >
-            <div className="flex flex-col items-center text-center">
-              <div className="w-16 h-16 bg-[#FFD700] rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                <svg className="w-8 h-8 text-[#4A0404]" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-1 .05 1.16.84 2 1.87 2 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" />
-                </svg>
-              </div>
-              <h2 className="text-xl font-bold text-[#4A0404] mb-2">Leaderboard</h2>
-              <p className="text-gray-600 text-sm">See how you rank among peers</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Logout Button */}
-        <div className="text-center mt-10">
           <button
             onClick={handleLogout}
-            className="px-8 py-3 bg-[#FFD700] hover:bg-[#E5C100] text-[#4A0404] font-semibold rounded-xl shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200 border-2 border-[#4A0404]"
+            className="text-xs text-white/50 hover:text-white/90 transition px-3 py-1.5 rounded-lg border border-white/10 hover:border-white/25"
           >
-            Logout
+            Sign out
           </button>
         </div>
+      </header>
 
-        {/* Footer */}
-        <p className="text-center text-white/60 mt-8 text-sm">
-          Â© 2024 Quiz Generator. Keep learning and earning! ðŸ†
-        </p>
-      </div>
+      <main className="max-w-6xl mx-auto px-6 py-10">
+        {/* Welcome */}
+        <div className="mb-10">
+          <h1 className="text-3xl font-bold text-white mb-1">
+            Welcome back 👋
+          </h1>
+          <p className="text-white/40 text-sm">Ready to challenge yourself today?</p>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Take Quiz Card */}
+          <div className="bg-[#1a0a0a] border border-white/10 rounded-2xl p-6">
+            <div className="flex items-center gap-3 mb-5">
+              <div className="w-10 h-10 rounded-xl bg-[#C9A227]/20 flex items-center justify-center">
+                <svg className="w-5 h-5 text-[#C9A227]" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 13.5v-7l6 3.5-6 3.5z"/>
+                </svg>
+              </div>
+              <div>
+                <h2 className="font-semibold text-white">Take a Quiz</h2>
+                <p className="text-xs text-white/40">Enter your quiz ID to begin</p>
+              </div>
+            </div>
+            <input
+              type="text"
+              value={quizId}
+              onChange={e => { setQuizId(e.target.value); setQuizError(""); }}
+              placeholder="Paste Quiz ID here..."
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-white/20 outline-none focus:border-[#C9A227]/50 focus:bg-white/8 transition mb-3"
+            />
+            {quizError && <p className="text-red-400 text-xs mb-3">{quizError}</p>}
+            <button
+              onClick={handleTakeQuiz}
+              className="w-full py-2.5 bg-[#C9A227] hover:bg-[#b8911f] text-[#1a0505] font-semibold rounded-xl text-sm transition"
+            >
+              Start Quiz
+            </button>
+          </div>
+
+          {/* Leaderboard Card */}
+          <div className="bg-[#1a0a0a] border border-white/10 rounded-2xl p-6">
+            <div className="flex items-center justify-between mb-5">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-[#8b1a1a]/30 flex items-center justify-center">
+                  <svg className="w-5 h-5 text-[#e87070]" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 22 12 18.07 5.82 22 7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                  </svg>
+                </div>
+                <div>
+                  <h2 className="font-semibold text-white">Leaderboard</h2>
+                  <p className="text-xs text-white/40">Top performers</p>
+                </div>
+              </div>
+              {/* Type selector */}
+              <div className="flex gap-1 text-xs">
+                {["daily","weekly","overall"].map(t => (
+                  <button
+                    key={t}
+                    onClick={() => setLbType(t)}
+                    className={`px-2.5 py-1 rounded-lg capitalize transition ${lbType === t ? "bg-[#C9A227] text-[#1a0505] font-semibold" : "text-white/40 hover:text-white/70"}`}
+                  >
+                    {t}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {lbLoading ? (
+              <div className="flex justify-center py-8">
+                <div className="w-6 h-6 border-2 border-[#C9A227]/30 border-t-[#C9A227] rounded-full animate-spin" />
+              </div>
+            ) : leaderboard.length === 0 ? (
+              <p className="text-center text-white/30 text-sm py-8">No data available</p>
+            ) : (
+              <div className="space-y-2">
+                {leaderboard.slice(0, 8).map((u, i) => (
+                  <div
+                    key={u.id}
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border ${
+                      i === 0 ? "bg-[#C9A227]/10 border-[#C9A227]/30" :
+                      i === 1 ? "bg-gray-500/10 border-gray-500/20" :
+                      i === 2 ? "bg-[#b96a30]/10 border-[#b96a30]/20" :
+                      "bg-white/3 border-white/5"
+                    }`}
+                  >
+                    <span className={`text-xs font-bold w-5 text-center ${
+                      i === 0 ? "text-[#C9A227]" :
+                      i === 1 ? "text-gray-400" :
+                      i === 2 ? "text-[#b96a30]" :
+                      "text-white/30"
+                    }`}>
+                      {i + 1}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-white/70 truncate font-mono">{u.id}</p>
+                    </div>
+                    <span className={`text-xs px-2 py-0.5 rounded-full border ${tierBg(u.tier)} ${tierColor(u.tier)}`}>
+                      {u.tier || "—"}
+                    </span>
+                    <span className="text-sm font-bold text-white">{u.points ?? 0}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </main>
     </div>
   );
 }

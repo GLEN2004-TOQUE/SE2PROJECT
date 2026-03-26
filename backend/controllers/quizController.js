@@ -1,6 +1,17 @@
 const { generateQuestions } = require("../services/aiServices");
 const { supabaseAdmin } = require("../supabaseClient");
 
+const { updateGamification } = require("./gamificationController");
+
+// after score compute
+const game = await updateGamification(req.user.id, score, questions.length);
+
+res.json({
+  score,
+  total: questions.length,
+  game
+});
+
 exports.generateQuiz = async (req, res) => {
   try {
     const { lectureId, type, count } = req.body;

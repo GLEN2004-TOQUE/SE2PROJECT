@@ -9,6 +9,9 @@ const quizRoutes = require('./routes/quizRoutes');
 
 const app = express();
 
+const gameRoutes = require('./routes/gamificationRoutes');
+app.use('/api/game', gameRoutes);
+
 // Middleware
 app.use(cors({
   origin: process.env.FRONTEND_URL || "https://se2project.onrender.com",
