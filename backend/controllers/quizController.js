@@ -1,16 +1,6 @@
 const { generateQuestions } = require("../services/aiServices");
-const { supabaseAdmin } = require("../supabaseClient");
-
-const { updateGamification } = require("./gamificationController");
-
-// after score compute
-const game = await updateGamification(req.user.id, score, questions.length);
-
-res.json({
-  score,
-  total: questions.length,
-  game
-});
+const { supabaseAdmin, supabase } = require("../supabaseClient");
+const { updateGamification } = require("../services/scoringServices");
 
 exports.generateQuiz = async (req, res) => {
   try {
@@ -185,10 +175,14 @@ exports.submitQuiz = async (req, res) => {
       }
     ]);
 
+    // Update gamification
+    const game = await updateGamification(req.user.id, score, questions.length);
+
     res.json({
       score,
       total: questions.length,
-      attendance: attendanceStatus
+      attendance: attendanceStatus,
+      game
     });
 
   } catch (err) {
