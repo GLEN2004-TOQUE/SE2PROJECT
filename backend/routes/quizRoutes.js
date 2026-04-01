@@ -4,8 +4,8 @@ const { generateQuiz, saveQuestions, submitQuiz, getQuiz, getAttendanceReport, g
 const { route } = require("./lectureRoutes");
 
 router.get("/:quizID", getQuiz); 
-router.get("attendance/:quizID", getAttendanceReport);
-router.get("attendance/stats/:quizID", getAttendanceStats);
+router.get("/attendance/:quizID", getAttendanceReport);
+router.get("/attendance/stats/:quizID", getAttendanceStats);
 
 router.post("/generate", generateQuiz); 
 router.post("/save", saveQuestions ); 

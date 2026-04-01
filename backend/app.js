@@ -14,10 +14,26 @@ app.use('/api/game', gameRoutes);
 
 // Middleware
 app.use(cors({
-  origin: process.env.FRONTEND_URL || "https://se2project.onrender.com",
+  origin: [
+    process.env.FRONTEND_URL || "https://se2project.onrender.com",
+    "http://localhost:3000",
+    "https://se2project.onrender.com"
+  ],
   credentials: true
 }));
 app.use(express.json());
+
+// Health check endpoint
+app.get('/health', async (req, res) => {
+  try {
+    const pool = require('./config/db');
+    await pool.query('SELECT 1');
+    res.json({ status: 'OK', message: 'Backend healthy, DB connected' });
+  } catch (err) {
+    console.error('Health check DB error:', err);
+    res.status(500).json({ status: 'DB Error', message: err.message });
+  }
+});
 
 // Auth routes
 app.post('/register', authController.register);
