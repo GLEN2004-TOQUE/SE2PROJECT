@@ -24,17 +24,15 @@ exports.generateQuiz = async (req, res) => {
 
 exports.saveQuestions = async (req, res) => {
   try {
-    const { lectureId, quizTitle, questions } = req.body; // ← add quizTitle
+    const { lectureId, quizTitle, questions } = req.body;
 
     if (!lectureId || !questions || !quizTitle) {
       return res.status(400).json({ message: "Missing data" });
     }
 
-    //  Get the course_id from the lecture's teacher —
     const { courseId } = req.body;
     if (!courseId) return res.status(400).json({ message: "Missing courseId" });
 
-    //  Create a quiz row first
     const { data: quiz, error: quizError } = await supabaseAdmin
       .from("quizzes")
       .insert([{ course_id: courseId, title: quizTitle }])
@@ -43,15 +41,11 @@ exports.saveQuestions = async (req, res) => {
 
     if (quizError) return res.status(400).json({ error: quizError.message });
 
-    //  Map AI output to your table's column structure
     const optionLetters = ["A", "B", "C", "D"];
 
     const formatted = questions.map(q => {
-      // AI returns options as ["text A", "text B", "text C", "text D"]
-      // correct_answer from AI is "A"/"B"/"C"/"D" or full text — normalize to letter
       let correctLetter = q.correct_answer;
       if (correctLetter.length > 1) {
-        // AI returned full text — find which option matches
         const idx = q.options.findIndex(o => o === correctLetter);
         correctLetter = idx >= 0 ? optionLetters[idx] : "A";
       }
@@ -83,7 +77,6 @@ exports.getQuiz = async (req, res) => {
   try {
     const { quizId } = req.params;
 
-    // Get quiz
     const { data: quiz } = await supabase
       .from("quizzes")
       .select("*")
@@ -100,19 +93,14 @@ exports.getQuiz = async (req, res) => {
       return res.status(400).json({ message: "Quiz already ended" });
     }
 
-    // Get questions
     const { data: questions } = await supabase
       .from("questions")
       .select("*")
       .eq("quiz_id", quizId);
 
-    // RANDOMIZE
     const shuffled = questions.sort(() => Math.random() - 0.5);
 
-    res.json({
-      quiz,
-      questions: shuffled
-    });
+    res.json({ quiz, questions: shuffled });
 
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -123,7 +111,6 @@ exports.submitQuiz = async (req, res) => {
   try {
     const { quizId, answers } = req.body;
 
-    //  Get quiz info
     const { data: quiz } = await supabase
       .from("quizzes")
       .select("*")
@@ -132,58 +119,34 @@ exports.submitQuiz = async (req, res) => {
 
     const now = new Date();
 
-    //  Check schedule
     let attendanceStatus = "absent";
-
-    if (
-      now >= new Date(quiz.start_time) &&
-      now <= new Date(quiz.end_time)
-    ) {
+    if (now >= new Date(quiz.start_time) && now <= new Date(quiz.end_time)) {
       attendanceStatus = "present";
     }
 
-    //  Get questions
     const { data: questions } = await supabase
       .from("questions")
       .select("*")
       .eq("quiz_id", quizId);
 
     let score = 0;
-
     questions.forEach(q => {
       if (answers[q.id] === q.correct_answer) {
         score++;
       }
     });
 
-    //  Save result
     await supabase.from("results").insert([
-      {
-        user_id: req.user.id,
-        quiz_id: quizId,
-        score,
-        total: questions.length
-      }
+      { user_id: req.user.id, quiz_id: quizId, score, total: questions.length }
     ]);
 
-    //  Save attendance
     await supabase.from("attendance").insert([
-      {
-        user_id: req.user.id,
-        quiz_id: quizId,
-        status: attendanceStatus
-      }
+      { user_id: req.user.id, quiz_id: quizId, status: attendanceStatus }
     ]);
 
-    // Update gamification
     const game = await updateGamification(req.user.id, score, questions.length);
 
-    res.json({
-      score,
-      total: questions.length,
-      attendance: attendanceStatus,
-      game
-    });
+    res.json({ score, total: questions.length, attendance: attendanceStatus, game });
 
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -199,9 +162,7 @@ exports.getAttendanceReport = async (req, res) => {
       .select("*")
       .eq("quiz_id", quizId);
 
-    if (error) {
-      return res.status(400).json({ error: error.message });
-    }
+    if (error) return res.status(400).json({ error: error.message });
 
     res.json(data);
 
@@ -220,24 +181,11 @@ exports.getAttendanceStats = async (req, res) => {
       .eq("quiz_id", quizId);
 
     const present = data.filter(a => a.status === "present").length;
-    const absent = data.filter(a => a.status === "absent").length;
+    const absent  = data.filter(a => a.status === "absent").length;
 
-    res.json({
-      total: data.length,
-      present,
-      absent
-    });
+    res.json({ total: data.length, present, absent });
 
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 };
-
-// after score compute
-const game = await updateGamification(req.user.id, score, questions.length);
-
-res.json({
-  score,
-  total: questions.length,
-  game
-});

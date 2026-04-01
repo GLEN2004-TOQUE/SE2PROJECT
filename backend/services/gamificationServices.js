@@ -1,93 +1,130 @@
-const express = require("express");
-const router = express.Router();
-const { getLeaderboard } = require("../controllers/gamificationController");
+const { supabaseAdmin } = require("../supabaseClient");
 
-router.get("/leaderboard/:type", getLeaderboard);
+const computePoints = (score, total) => {
+  if (!total) return 0;
+  return Math.round((score / total) * 100);
+};
 
-module.exports = router;
+const getTier = (totalPoints) => {
+  if (totalPoints >= 1000) return "Master";
+  if (totalPoints >= 500)  return "Advanced";
+  if (totalPoints >= 200)  return "Intermediate";
+  return "Beginner";
+};
+
+exports.getLeaderboard = async (type = "overall") => {
+  let query = supabaseAdmin
+    .from("users")
+    .select("id, full_name, points, tier, streak")
+    .eq("status", true);
+
+  if (type === "daily") {
+    const today = new Date().toISOString().split("T")[0];
+    query = query.eq("last_quiz_date", today);
+  } else if (type === "weekly") {
+    const weekAgo = new Date();
+    weekAgo.setDate(weekAgo.getDate() - 7);
+    query = query.gte("last_quiz_date", weekAgo.toISOString());
+  }
+
+  const { data, error } = await query.order("points", { ascending: false }).limit(10);
+  if (error) throw new Error(error.message);
+  return data;
+};
+
+exports.getBadges = async () => {
+  const { data, error } = await supabaseAdmin
+    .from("badges")
+    .select("*")
+    .order("min_points", { ascending: true });
+  if (error) throw new Error(error.message);
+  return data;
+};
+
+exports.getUserBadges = async (userId) => {
+  const { data, error } = await supabaseAdmin
+    .from("user_badges")
+    .select("earned_at, badges(id, name, description, icon_url, min_points)")
+    .eq("user_id", userId)
+    .order("earned_at", { ascending: false });
+  if (error) throw new Error(error.message);
+  return data;
+};
+
+exports.awardBadge = async (userId, badgeId) => {
+  const { data: existing } = await supabaseAdmin
+    .from("user_badges")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("badge_id", badgeId)
+    .maybeSingle();
+
+  if (existing) return { awarded: false };
+
+  const { data, error } = await supabaseAdmin
+    .from("user_badges")
+    .insert([{ user_id: userId, badge_id: badgeId, earned_at: new Date() }])
+    .select()
+    .single();
+
+  if (error) throw new Error(error.message);
+  return { awarded: true, badge: data };
+};
 
 exports.updateGamification = async (userId, score, total) => {
   const pointsEarned = computePoints(score, total);
 
-  // Get user
-  const { data: user } = await supabase
+  const { data: user, error: userError } = await supabaseAdmin
     .from("users")
-    .select("*")
+    .select("points, streak, last_quiz_date")
     .eq("id", userId)
     .single();
 
+  if (userError || !user) throw new Error("User not found");
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
   let newStreak = 1;
-  const today = new Date().toDateString();
-
   if (user.last_quiz_date) {
-    const last = new Date(user.last_quiz_date).toDateString();
-
-    const diff = (new Date(today) - new Date(last)) / (1000 * 60 * 60 * 24);
-
-    if (diff === 1) newStreak = user.streak + 1;
-    else if (diff === 0) newStreak = user.streak;
+    const last = new Date(user.last_quiz_date);
+    last.setHours(0, 0, 0, 0);
+    const diff = Math.round((today - last) / (1000 * 60 * 60 * 24));
+    if (diff === 0) newStreak = user.streak;
+    else if (diff === 1) newStreak = user.streak + 1;
   }
 
-  // 🔥 STREAK BONUS
-  let bonus = 0;
-  if (newStreak >= 5) bonus = 20;
-
-  const totalPoints = user.points + pointsEarned + bonus;
-
+  const streakBonus = newStreak >= 5 ? 20 : 0;
+  const totalPoints = user.points + pointsEarned + streakBonus;
   const tier = getTier(totalPoints);
 
-  // Update user
-  await supabase.from("users").update({
-    points: totalPoints,
-    streak: newStreak,
-    last_quiz_date: new Date(),
-    tier
-  }).eq("id", userId);
+  await supabaseAdmin
+    .from("users")
+    .update({ points: totalPoints, streak: newStreak, last_quiz_date: new Date().toISOString(), tier })
+    .eq("id", userId);
 
-  // 🎖 BADGE CHECK
-  const { data: badges } = await supabase.from("badges").select("*");
+  // Award badges
+  const { data: badges } = await supabaseAdmin
+    .from("badges")
+    .select("*")
+    .lte("min_points", totalPoints);
 
-  for (let badge of badges) {
-    if (totalPoints >= badge.min_points) {
-      await supabase.from("user_badges").insert([
-        { user_id: userId, badge_id: badge.id }
-      ]);
+  if (badges) {
+    for (const badge of badges) {
+      const { data: existing } = await supabaseAdmin
+        .from("user_badges")
+        .select("id")
+        .eq("user_id", userId)
+        .eq("badge_id", badge.id)
+        .maybeSingle();
+
+      if (!existing) {
+        await supabaseAdmin
+          .from("user_badges")
+          .insert([{ user_id: userId, badge_id: badge.id }]);
+      }
     }
   }
 
-  return {
-    pointsEarned,
-    totalPoints,
-    streak: newStreak,
-    tier
-  };
+  return { pointsEarned, streakBonus, totalPoints, streak: newStreak, tier };
 };
-
-exports.getLeaderboard = async (req, res) => {
-  try {
-    const { type } = req.params; // daily / weekly / overall
-
-    let query = supabase.from("users").select("id, points, tier");
-
-    if (type === "daily") {
-      const today = new Date().toISOString().split("T")[0];
-      query = query.eq("last_quiz_date", today);
-    }
-
-    if (type === "weekly") {
-      const lastWeek = new Date();
-      lastWeek.setDate(lastWeek.getDate() - 7);
-
-      query = query.gte("last_quiz_date", lastWeek.toISOString());
-    }
-
-    const { data } = await query.order("points", { ascending: false });
-
-    res.json(data);
-
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-};
-
-const { updateGamification } = require("./gamificationController");
