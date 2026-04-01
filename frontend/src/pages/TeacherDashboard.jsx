@@ -1,319 +1,186 @@
-import { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useContext } from 'react';
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../supabaseClient";
-import UploadLecture from "./UploadLecture";
+import Navbar from '../components/Navbar';
+import Sidebar from '../components/Sidebar';
+import { AuthContext } from '../context/AuthContext';
+import quizService from '../services/quizService';
 
-export function TeacherDashboard() {
-  const [fullName, setFullName] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [lectures, setLectures] = useState([]);
-  const navigate = useNavigate();
+const TeacherDashboard = () => {
+	const { user } = useContext(AuthContext);
+	const [quizzes, setQuizzes] = useState([]);
+	const [fullName, setFullName] = useState("");
+	const [loading, setLoading] = useState(true);
+	const [error, setError] = useState(null);
+	const [lectures, setLectures] = useState([]);
+	const navigate = useNavigate();
 
-  useEffect(() => {
-    const fetchLectures = async () => {
-      const token = localStorage.getItem("token");
+	useEffect(() => {
+		const fetchLectures = async () => {
+			const token = localStorage.getItem("token");
 
-      const res = await fetch("http://localhost:5000/lectures", {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      });
+			const res = await fetch("http://localhost:5000/lectures", {
+				headers: {
+					Authorization: `Bearer ${token}`
+				}
+			});
 
-      const data = await res.json();
-      setLectures(data);
-    };
+			const data = await res.json();
+			setLectures(data);
+		};
 
-    fetchLectures();
-  }, []);
+		fetchLectures();
+	}, []);
 
-  useEffect(() => {
-    const fetchUserProfile = async () => {
-      try {
-        setLoading(true);
-        // Get the current user from Supabase auth
-        const { data: { user }, error: userError } = await supabase.auth.getUser();
-        if (userError) throw userError;
-        if (!user) {
-          // If no user, redirect to login
-          navigate("/");
-          return;
-        }
+	useEffect(() => {
+		const fetchUserProfile = async () => {
+			try {
+				setLoading(true);
+				// Get the current user from Supabase auth
+				const { data: { user }, error: userError } = await supabase.auth.getUser();
+				if (userError) throw userError;
+				if (!user) {
+					// If no user, redirect to login
+					navigate("/");
+					return;
+				}
 
-        // Fetch the user's profile from the 'profiles' table
-        const { data, error: profileError } = await supabase
-          .from("profiles")
-          .select("full_name")
-          .eq("id", user.id)
-          .single();
+				// Fetch the user's profile from the 'profiles' table
+				const { data, error: profileError } = await supabase
+					.from("profiles")
+					.select("full_name")
+					.eq("id", user.id)
+					.single();
 
-        if (profileError) throw profileError;
+				if (profileError) throw profileError;
 
-        setFullName(data.full_name || "Teacher");
-      } catch (err) {
-        console.error("Error fetching profile:", err);
-        setError("Could not load profile. Please try again later.");
-      } finally {
-        setLoading(false);
-      }
-    };
+				setFullName(data.full_name || "Teacher");
+			} catch (err) {
+				console.error("Error fetching profile:", err);
+				setError("Could not load profile. Please try again later.");
+			} finally {
+				setLoading(false);
+			}
+		};
 
-    function AttendanceStats({ quizId }) {
-  const [stats, setStats] = useState({});
+		fetchUserProfile();
+	}, [navigate]);
 
-  useEffect(() => {
-    fetch(`/api/quiz/attendance/stats/${quizId}`)
-      .then(res => res.json())
-      .then(setStats);
-  }, [quizId]);
+	useEffect(() => {
+		const fetchQuizzes = async () => {
+			try {
+				const data = await quizService.getAll();
+				setQuizzes(data || []);
+			} catch (err) {
+				console.error(err);
+			}
+		};
+		fetchQuizzes();
+	}, []);
 
-  return (
-    <div>
-      <h2>Analytics</h2>
-      <p>Total: {stats.total}</p>
-      <p>Present: {stats.present}</p>
-      <p>Absent: {stats.absent}</p>
-    </div>
-  );
-}
+	const handleLogout = async () => {
+		await supabase.auth.signOut();
+		navigate("/");
+	};
 
+	if (loading) {
+		return (
+			<div className="min-h-screen bg-gradient-to-br from-[#4A0404] to-[#800000] flex items-center justify-center">
+				<div className="text-center">
+					<svg className="animate-spin h-12 w-12 text-[#FFD700] mx-auto mb-4" viewBox="0 0 24 24">
+						<circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+						<path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+					</svg>
+					<p className="text-white text-xl">Loading your dashboard...</p>
+				</div>
+			</div>
+		);
+	}
 
-    fetchUserProfile();
-  }, [navigate]);
+	if (error) {
+		return (
+			<div className="min-h-screen bg-gradient-to-br from-[#4A0404] to-[#800000] flex items-center justify-center px-4">
+				<div className="bg-white/95 p-8 rounded-3xl shadow-2xl border-2 border-[#FFD700] text-center">
+					<p className="text-red-600 mb-4">{error}</p>
+					<button
+						onClick={() => window.location.reload()}
+						className="px-6 py-2 bg-[#FFD700] text-[#4A0404] rounded-xl font-semibold hover:bg-[#E5C100] transition"
+					>
+						Retry
+					</button>
+				</div>
+			</div>
+		);
+	}
 
-  function AttendancePage({ quizId }) {
-  const [records, setRecords] = useState([]);
+	// Get token from localStorage for any API calls
+	const token = localStorage.getItem("token");
 
-  useEffect(() => {
-    fetch(`/api/quiz/attendance/${quizId}`)
-      .then(res => res.json())
-      .then(setRecords)
-      .catch((err) => console.error("Error fetching attendance:", err));
-  }, [quizId]);
+	return (
+		<div className="min-h-screen bg-gradient-to-br from-[#4A0404] to-[#800000] flex items-center justify-center px-4 relative overflow-hidden">
+			{/* Decorative Quiz Elements */}
+			<div className="absolute inset-0 overflow-hidden pointer-events-none">
+				<div className="absolute -top-20 -right-20 w-64 h-64 bg-[#FFD700] opacity-10 rounded-full blur-3xl"></div>
+				<div className="absolute -bottom-20 -left-20 w-80 h-80 bg-[#FFD700] opacity-10 rounded-full blur-3xl"></div>
+				<svg className="absolute top-1/4 left-10 text-[#FFD700] opacity-20 w-24 h-24" fill="currentColor" viewBox="0 0 24 24">
+					<path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
+				</svg>
+				<svg className="absolute bottom-1/4 right-10 text-[#FFD700] opacity-20 w-20 h-20" fill="currentColor" viewBox="0 0 24 24">
+					<path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 22 12 18.07 5.82 22 7 14.14 2 9.27l6.91-1.01L12 2z" />
+				</svg>
+			</div>
 
-  return (
-    <div>
-      <h2>Attendance</h2>
+			<div className="max-w-4xl w-full relative z-10">
+				{/* Header */}
+				<div className="text-center mb-10">
+					<div className="inline-flex items-center justify-center w-20 h-20 bg-[#FFD700] rounded-full mb-4 shadow-lg border-4 border-white">
+						<svg className="w-10 h-10 text-[#4A0404]" fill="currentColor" viewBox="0 0 24 24">
+							<path d="M4 4v16h16V4H4zm2 4h12v2H6V8zm0 4h12v2H6v-2zm0 4h8v2H6v-2z" />
+						</svg>
+					</div>
+					<h1 className="text-4xl font-bold text-white mb-2">Teacher Dashboard</h1>
+					<p className="text-[#FFD700]/90 text-xl">
+						Welcome, <span className="font-bold">{fullName}</span>! ðŸ“š
+					</p>
+				</div>
 
-      {records.map(r => (
-        <div key={r.id}>
-          <p>User: {r.user_id}</p>
-          <p>Status: {r.status}</p>
-        </div>
-      ))}
-    </div>
-  );
-}
+				{/* Dashboard Cards */}
+				<div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+					{/* Upload Lecture Card */}
+					<div
+						onClick={() => navigate("/upload-lecture")}
+						className="bg-white/95 backdrop-blur-sm rounded-3xl shadow-2xl p-6 border-2 border-[#FFD700] hover:shadow-xl transform hover:-translate-y-1 transition-all duration-200 cursor-pointer group"
+					>
+						<div className="flex flex-col items-center text-center">
+							<div className="w-16 h-16 bg-[#FFD700] rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+								<svg className="w-8 h-8 text-[#4A0404]" fill="currentColor" viewBox="0 0 24 24">
+									<path d="M19 10v9H5v-9h14zm-2-2H7v9h10V8zm-3 5h-4v-2h4v2zM4 6h16v2H4V6zm16-4v2H4V2h16z" />
+								</svg>
+							</div>
+							<h2 className="text-xl font-bold text-[#4A0404] mb-2">Upload Lecture</h2>
+							<p className="text-gray-600 text-sm">Share new learning materials with students</p>
+						</div>
+					</div>
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    navigate("/");
-  };
+					{/* Generate Quiz Card */}
+					<div
+						onClick={() => navigate("/generate-quiz")}
+						className="bg-white/95 backdrop-blur-sm rounded-3xl shadow-2xl p-6 border-2 border-[#FFD700] hover:shadow-xl transform hover:-translate-y-1 transition-all duration-200 cursor-pointer group"
+					>
+						<div className="flex flex-col items-center text-center">
+							<div className="w-16 h-16 bg-[#FFD700] rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+								<svg className="w-8 h-8 text-[#4A0404]" fill="currentColor" viewBox="0 0 24 24">
+									<path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 13.5v-7l6 3.5-6 3.5z" />
+								</svg>
+							</div>
+							<h2 className="text-xl font-bold text-[#4A0404] mb-2">Generate Quiz</h2>
+							<p className="text-gray-600 text-sm">Create interactive quizzes from lectures</p>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	);
+};
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-[#4A0404] to-[#800000] flex items-center justify-center">
-        <div className="text-center">
-          <svg className="animate-spin h-12 w-12 text-[#FFD700] mx-auto mb-4" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-          </svg>
-          <p className="text-white text-xl">Loading your dashboard...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-[#4A0404] to-[#800000] flex items-center justify-center px-4">
-        <div className="bg-white/95 p-8 rounded-3xl shadow-2xl border-2 border-[#FFD700] text-center">
-          <p className="text-red-600 mb-4">{error}</p>
-          <button
-            onClick={() => window.location.reload()}
-            className="px-6 py-2 bg-[#FFD700] text-[#4A0404] rounded-xl font-semibold hover:bg-[#E5C100] transition"
-          >
-            Retry
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // Get token from localStorage for any API calls
-  const token = localStorage.getItem("token");
-
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-[#4A0404] to-[#800000] flex items-center justify-center px-4 relative overflow-hidden">
-      {/* Decorative Quiz Elements */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-20 -right-20 w-64 h-64 bg-[#FFD700] opacity-10 rounded-full blur-3xl"></div>
-        <div className="absolute -bottom-20 -left-20 w-80 h-80 bg-[#FFD700] opacity-10 rounded-full blur-3xl"></div>
-        <svg className="absolute top-1/4 left-10 text-[#FFD700] opacity-20 w-24 h-24" fill="currentColor" viewBox="0 0 24 24">
-          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
-        </svg>
-        <svg className="absolute bottom-1/4 right-10 text-[#FFD700] opacity-20 w-20 h-20" fill="currentColor" viewBox="0 0 24 24">
-          <path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 22 12 18.07 5.82 22 7 14.14 2 9.27l6.91-1.01L12 2z" />
-        </svg>
-      </div>
-
-      <div className="max-w-4xl w-full relative z-10">
-        {/* Header */}
-        <div className="text-center mb-10">
-          <div className="inline-flex items-center justify-center w-20 h-20 bg-[#FFD700] rounded-full mb-4 shadow-lg border-4 border-white">
-            <svg className="w-10 h-10 text-[#4A0404]" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M4 4v16h16V4H4zm2 4h12v2H6V8zm0 4h12v2H6v-2zm0 4h8v2H6v-2z" />
-            </svg>
-          </div>
-          <h1 className="text-4xl font-bold text-white mb-2">Teacher Dashboard</h1>
-          <p className="text-[#FFD700]/90 text-xl">
-            Welcome, <span className="font-bold">{fullName}</span>! ðŸ“š
-          </p>
-        </div>
-
-        {/* Dashboard Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Upload Lecture Card */}
-          <div
-            onClick={() => navigate("/upload-lecture")}
-            className="bg-white/95 backdrop-blur-sm rounded-3xl shadow-2xl p-6 border-2 border-[#FFD700] hover:shadow-xl transform hover:-translate-y-1 transition-all duration-200 cursor-pointer group"
-          >
-            <div className="flex flex-col items-center text-center">
-              <div className="w-16 h-16 bg-[#FFD700] rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                <svg className="w-8 h-8 text-[#4A0404]" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M19 10v9H5v-9h14zm-2-2H7v9h10V8zm-3 5h-4v-2h4v2zM4 6h16v2H4V6zm16-4v2H4V2h16z" />
-                </svg>
-              </div>
-              <h2 className="text-xl font-bold text-[#4A0404] mb-2">Upload Lecture</h2>
-              <p className="text-gray-600 text-sm">Share new learning materials with students</p>
-            </div>
-          </div>
-
-          {/* Generate Quiz Card */}
-          <div
-            onClick={() => navigate("/generate-quiz")}
-            className="bg-white/95 backdrop-blur-sm rounded-3xl shadow-2xl p-6 border-2 border-[#FFD700] hover:shadow-xl transform hover:-translate-y-1 transition-all duration-200 cursor-pointer group"
-          >
-            <div className="flex flex-col items-center text-center">
-              <div className="w-16 h-16 bg-[#FFD700] rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                <svg className="w-8 h-8 text-[#4A0404]" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 13.5v-7l6 3.5-6 3.5z" />
-                </svg>
-              </div>
-              <h2 className="text-xl font-bold text-[#4A0404] mb-2">Generate Quiz</h2>
-              <p className="text-gray-600 text-sm">Create interactive quizzes from lectures</p>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ─────────────────────────────────────────────────────────────────
-   MAIN TEACHER DASHBOARD
-───────────────────────────────────────────────────────────────── */
-export default function TeacherDashboard() {
-  const [activePage,  setActivePage]  = useState("dashboard");
-  const [lectures,    setLectures]    = useState([]);
-  const [lecLoading,  setLecLoading]  = useState(true);
-  const navigate = useNavigate();
-
-  // Verify teacher role
-  useEffect(() => {
-    const u = getUser();
-    if (!u) { navigate("/"); return; }
-    if (u.role !== "teacher") { navigate("/student"); return; }
-  }, [navigate]);
-
-  const fetchLectures = () => {
-    setLecLoading(true);
-    getLectures()
-      .then(setLectures)
-      .catch(() => setLectures([]))
-      .finally(() => setLecLoading(false));
-  };
-
-  useEffect(fetchLectures, []);
-
-  const handleLogout = () => { logout(); navigate("/"); };
-
-  const navItems = [
-    { id: "dashboard",   label: "Dashboard",      icon: <path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/> },
-    { id: "upload",      label: "Upload Lecture",  icon: <path d="M19.35 10.04A7.49 7.49 0 0012 4C9.11 4 6.6 5.64 5.35 8.04A5.994 5.994 0 000 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/> },
-    { id: "quiz",        label: "Generate Quiz",   icon: <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 13.5v-7l6 3.5-6 3.5z"/> },
-    { id: "leaderboard", label: "Leaderboard",     icon: <path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 22 12 18.07 5.82 22 7 14.14 2 9.27l6.91-1.01L12 2z"/> },
-    { id: "reports",     label: "Reports",         icon: <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 3c1.93 0 3.5 1.57 3.5 3.5S13.93 13 12 13s-3.5-1.57-3.5-3.5S10.07 6 12 6zm7 13H5v-.23c0-.62.28-1.2.76-1.58C7.47 15.82 9.64 15 12 15s4.53.82 6.24 2.19c.48.38.76.97.76 1.58V19z"/> },
-  ];
-
-  const renderPage = () => {
-    switch (activePage) {
-      case "upload":      return <UploadLecture lectures={lectures} onUploaded={fetchLectures} />;
-      case "quiz":        return <GenerateQuiz  lectures={lectures} />;
-      case "leaderboard": return <Leaderboard />;
-      case "reports":     return <Reports />;
-      default:            return <DashboardHome lectures={lectures} setActivePage={setActivePage} loading={lecLoading} />;
-    }
-  };
-
-  return (
-    <div className="min-h-screen bg-[#FAF6EF] flex">
-      {/* Sidebar */}
-      <aside className="w-60 flex-shrink-0 bg-[#1a0505] flex flex-col min-h-screen">
-        {/* Logo */}
-        <div className="px-5 py-5 border-b border-white/10">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-[#C9A227] rounded-xl flex items-center justify-center">
-              <svg className="w-5 h-5 text-[#4A0404]" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M12 3L1 9l11 6 9-4.91V17h2V9L12 3z"/>
-                <path d="M5 13.18v4L12 21l7-3.82v-4L12 17l-7-3.82z"/>
-              </svg>
-            </div>
-            <div>
-              <p className="text-xs text-white/40 leading-none uppercase tracking-widest">Teacher</p>
-              <p className="text-sm font-semibold text-white leading-tight">QuizGen</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Uploaded Lectures Section */}
-        <div className="mt-10 bg-white/95 rounded-3xl shadow-2xl p-6 border-2 border-[#FFD700">
-          <h2 className="text-2xl font-bold text-[#4A0404] mb-4">Uploaded Lectures</h2>
-          {lectures.length > 0 ? (
-            <div className="space-y-4">
-              {lectures.map((lecture) => (
-                <div key={lecture.id} className="border border-gray-200 rounded-xl p-4 hover:shadow-md transition">
-                  <h3 className="text-lg font-semibold text-[#4A0404]">{lecture.title}</h3>
-                  <a href={lecture.file_url} target="_blank" rel="noreferrer" className="text-[#FFD700] hover:underline">
-                    View File
-                  </a>
-                  <p className="text-gray-500 text-sm">{new Date(lecture.created_at).toLocaleString()}</p>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-gray-500">No lectures uploaded yet.</p>
-          )}
-        </div>
-
-        {/* Logout */}
-        <div className="px-3 py-4 border-t border-white/10">
-          <button
-            onClick={handleLogout}
-            className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-white/40 hover:text-white hover:bg-white/8 transition w-full"
-          >
-            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/>
-            </svg>
-            Sign out
-          </button>
-        </div>
-
-        {/* Footer */}
-        <p className="text-center text-white/60 mt-8 text-sm">
-          Â© 2024 Quiz Generator. Empower your teaching! ðŸŽ
-        </p>
-      </div>
-    </div>
-  );
-}
+export default TeacherDashboard;
