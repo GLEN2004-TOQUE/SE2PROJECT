@@ -65,7 +65,7 @@ function StudentDashboard() {
             </div>
             <div>
               <p className="text-xs text-white/40 uppercase tracking-widest">Student</p>
-              <p className="text-sm font-semibold text-white/90">{user.id}</p>
+              <p className="text-sm font-semibold text-white/90">{user.full_name}</p>
             </div>
           </div>
           <button
