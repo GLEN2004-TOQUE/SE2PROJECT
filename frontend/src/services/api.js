@@ -6,7 +6,9 @@ export const getUser = () => {
   const token = getToken();
   if (!token) return null;
   try {
-    return JSON.parse(atob(token.split('.')[1]));
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    const stored = localStorage.getItem('user_data');
+    return stored ? { ...payload, ...JSON.parse(stored) } : payload;
   } catch {
     return null;
   }
@@ -14,6 +16,7 @@ export const getUser = () => {
 
 export const logout = () => {
   localStorage.removeItem('token');
+  localStorage.removeItem('user_data'); 
 };
 
 const authHeaders = (extra = {}) => {

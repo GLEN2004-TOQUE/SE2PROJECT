@@ -351,6 +351,7 @@ function Login() {
 
       if (data.token) {
         localStorage.setItem("token", data.token);
+        localStorage.setItem("user_data", JSON.stringify(data.user));
         const payload = JSON.parse(atob(data.token.split(".")[1]));
         const userRole = payload.role;
         if (userRole === "teacher") navigate("/teacher");
