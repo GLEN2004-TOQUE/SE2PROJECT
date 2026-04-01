@@ -342,12 +342,12 @@ function Login() {
     e.preventDefault();
     setIsLoading(true);
     try {
-      const res = await fetch("https://backend-7lik.onrender.com/login", {
+      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5000'}/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
-      const data = await res.json();
+      const data = await response.json();
 
       if (data.token) {
         localStorage.setItem("token", data.token);
@@ -360,8 +360,8 @@ function Login() {
         alert(data.message || "Login failed");
       }
     } catch (error) {
-      console.log(error);
-      alert("Server error occurred");
+      console.error("Login error:", error);
+      alert("Server error occurred - check if backend running on port 5000");
     } finally {
       setIsLoading(false);
     }
