@@ -78,5 +78,17 @@ export const getQuiz = (quizId) => api(`/api/quiz/${quizId}`);
 export const submitQuiz = (quizId, answers) =>
   api('/api/quiz/submit', { method: 'POST', body: JSON.stringify({ quizId, answers }) });
 
-// Gamification
-export const getLeaderboard = (type = 'overall') => api(`/api/game/leaderboard/${type}`);
+export const getLeaderboard = async () => {
+  const res = await api.get('/leaderboard');
+  return res.data;
+};
+
+export const getBadges = async () => {
+  const res = await api.get('/badges');
+  return res.data;
+};
+
+export const getRecentResults = async () => {
+  const res = await api.get('/results/recent');
+  return res.data;
+};

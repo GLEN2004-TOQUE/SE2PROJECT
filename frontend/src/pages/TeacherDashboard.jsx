@@ -3,11 +3,9 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "../supabaseClient";
 import Navbar from '../components/Navbar';
 import Sidebar from '../components/Sidebar';
-import { AuthContext } from '../context/AuthContext';
 import quizService from '../services/quizService';
 
 const TeacherDashboard = () => {
-	const { user } = useContext(AuthContext);
 	const [quizzes, setQuizzes] = useState([]);
 	const [fullName, setFullName] = useState("");
 	const [loading, setLoading] = useState(true);
