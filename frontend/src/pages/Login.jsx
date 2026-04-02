@@ -356,6 +356,7 @@ function Login() {
         const userRole = payload.role;
         if (userRole === "teacher") navigate("/teacher");
         else if (userRole === "student") navigate("/student");
+        else if (userRole === "admin") navigate("/admin");
         else console.log("Unknown role:", userRole);
       } else {
         alert(data.message || "Login failed");

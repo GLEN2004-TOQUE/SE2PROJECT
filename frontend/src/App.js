@@ -1,53 +1,61 @@
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
-import { AuthProvider } from "./context/AuthContext";
-import Register from "./pages/Register";
-import Login from "./pages/Login";
+import Register        from "./pages/Register";
+import Login           from "./pages/Login";
 import TeacherDashboard from "./pages/TeacherDashboard";
 import StudentDashboard from "./pages/StudentDashboard";
-import QuizPage from "./pages/QuizPage";
-import ProtectedRoute from "./components/ProtectedRoute";
+import AdminDashboard  from "./pages/AdminDashboard";
+import QuizPage        from "./pages/QuizPage";
+import ProtectedRoute  from "./components/ProtectedRoute";
 
 function App() {
   return (
-    <AuthProvider>
-      <Router>
-        <Routes>
-          {/* Public */}
-          <Route path="/register" element={<Register />} />
-          <Route path="/"         element={<Login />} />
+    <Router>
+      <Routes>
+        {/* Public */}
+        <Route path="/register" element={<Register />} />
+        <Route path="/"         element={<Login />} />
 
-          {/* Teacher */}
-          <Route
-            path="/teacher"
-            element={
-              <ProtectedRoute role="teacher">
-                <TeacherDashboard />
-              </ProtectedRoute>
-            }
-          />
+        {/* Admin */}
+        <Route
+          path="/admin"
+          element={
+            <ProtectedRoute role="admin">
+              <AdminDashboard />
+            </ProtectedRoute>
+          }
+        />
 
-          {/* Student */}
-          <Route
-            path="/student"
-            element={
-              <ProtectedRoute role="student">
-                <StudentDashboard />
-              </ProtectedRoute>
-            }
-          />
+        {/* Teacher */}
+        <Route
+          path="/teacher"
+          element={
+            <ProtectedRoute role="teacher">
+              <TeacherDashboard />
+            </ProtectedRoute>
+          }
+        />
 
-          {/* Quiz (student takes quiz by ID) */}
-          <Route
-            path="/quiz/:quizId"
-            element={
-              <ProtectedRoute role="student">
-                <QuizPage />
-              </ProtectedRoute>
-            }
-          />
-        </Routes>
-      </Router>
-    </AuthProvider>
+        {/* Student */}
+        <Route
+          path="/student"
+          element={
+            <ProtectedRoute role="student">
+              <StudentDashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Quiz */}
+        <Route
+          path="/quiz/:quizId"
+          element={
+            <ProtectedRoute role="student">
+              <QuizPage />
+            </ProtectedRoute>
+          }
+        />
+      </Routes>
+    </Router>
   );
 }
 

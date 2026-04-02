@@ -1,86 +1,44 @@
-import React, { useEffect, useState, useContext } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from "react-router-dom";
-import { supabase } from "../supabaseClient";
-import Navbar from '../components/Navbar';
-import Sidebar from '../components/Sidebar';
-import quizService from '../services/quizService';
+import { getUser, logout, getLectures } from "../services/api";
 
 const TeacherDashboard = () => {
-	const [quizzes, setQuizzes] = useState([]);
 	const [fullName, setFullName] = useState("");
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState(null);
 	const [lectures, setLectures] = useState([]);
 	const navigate = useNavigate();
 
+	// ── Decode JWT and validate role ──────────────────────────────────
 	useEffect(() => {
-		const fetchLectures = async () => {
-			const token = localStorage.getItem("token");
-
-			const res = await fetch("http://localhost:5000/lectures", {
-				headers: {
-					Authorization: `Bearer ${token}`
-				}
-			});
-
-			const data = await res.json();
-			setLectures(data);
-		};
-
-		fetchLectures();
-	}, []);
-
-	useEffect(() => {
-		const fetchUserProfile = async () => {
-			try {
-				setLoading(true);
-				// Get the current user from Supabase auth
-				const { data: { user }, error: userError } = await supabase.auth.getUser();
-				if (userError) throw userError;
-				if (!user) {
-					// If no user, redirect to login
-					navigate("/");
-					return;
-				}
-
-				// Fetch the user's profile from the 'profiles' table
-				const { data, error: profileError } = await supabase
-					.from("profiles")
-					.select("full_name")
-					.eq("id", user.id)
-					.single();
-
-				if (profileError) throw profileError;
-
-				setFullName(data.full_name || "Teacher");
-			} catch (err) {
-				console.error("Error fetching profile:", err);
-				setError("Could not load profile. Please try again later.");
-			} finally {
-				setLoading(false);
-			}
-		};
-
-		fetchUserProfile();
+		const u = getUser();
+		if (!u) {
+			navigate("/");
+			return;
+		}
+		if (u.role !== "teacher") {
+			navigate("/student");
+			return;
+		}
+		// full_name may not be in the JWT payload; fall back gracefully
+		setFullName(u.full_name || u.email || "Teacher");
+		setLoading(false);
 	}, [navigate]);
 
+	// ── Fetch lectures ────────────────────────────────────────────────
 	useEffect(() => {
-		const fetchQuizzes = async () => {
-			try {
-				const data = await quizService.getAll();
-				setQuizzes(data || []);
-			} catch (err) {
-				console.error(err);
-			}
-		};
-		fetchQuizzes();
-	}, []);
+		if (loading) return; // wait until auth check is done
+		getLectures()
+			.then(setLectures)
+			.catch((err) => console.error("Lectures fetch error:", err));
+	}, [loading]);
 
-	const handleLogout = async () => {
-		await supabase.auth.signOut();
+	const handleLogout = () => {
+		logout();
 		navigate("/");
 	};
 
+	// ── Loading ───────────────────────────────────────────────────────
 	if (loading) {
 		return (
 			<div className="min-h-screen bg-gradient-to-br from-[#4A0404] to-[#800000] flex items-center justify-center">
@@ -89,12 +47,13 @@ const TeacherDashboard = () => {
 						<circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
 						<path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
 					</svg>
-					<p className="text-white text-xl">Loading your dashboard...</p>
+					<p className="text-white text-xl">Loading your dashboard…</p>
 				</div>
 			</div>
 		);
 	}
 
+	// ── Error ─────────────────────────────────────────────────────────
 	if (error) {
 		return (
 			<div className="min-h-screen bg-gradient-to-br from-[#4A0404] to-[#800000] flex items-center justify-center px-4">
@@ -111,21 +70,13 @@ const TeacherDashboard = () => {
 		);
 	}
 
-	// Get token from localStorage for any API calls
-	const token = localStorage.getItem("token");
-
+	// ── Main UI ───────────────────────────────────────────────────────
 	return (
 		<div className="min-h-screen bg-gradient-to-br from-[#4A0404] to-[#800000] flex items-center justify-center px-4 relative overflow-hidden">
-			{/* Decorative Quiz Elements */}
+			{/* Decorative elements */}
 			<div className="absolute inset-0 overflow-hidden pointer-events-none">
-				<div className="absolute -top-20 -right-20 w-64 h-64 bg-[#FFD700] opacity-10 rounded-full blur-3xl"></div>
-				<div className="absolute -bottom-20 -left-20 w-80 h-80 bg-[#FFD700] opacity-10 rounded-full blur-3xl"></div>
-				<svg className="absolute top-1/4 left-10 text-[#FFD700] opacity-20 w-24 h-24" fill="currentColor" viewBox="0 0 24 24">
-					<path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
-				</svg>
-				<svg className="absolute bottom-1/4 right-10 text-[#FFD700] opacity-20 w-20 h-20" fill="currentColor" viewBox="0 0 24 24">
-					<path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 22 12 18.07 5.82 22 7 14.14 2 9.27l6.91-1.01L12 2z" />
-				</svg>
+				<div className="absolute -top-20 -right-20 w-64 h-64 bg-[#FFD700] opacity-10 rounded-full blur-3xl" />
+				<div className="absolute -bottom-20 -left-20 w-80 h-80 bg-[#FFD700] opacity-10 rounded-full blur-3xl" />
 			</div>
 
 			<div className="max-w-4xl w-full relative z-10">
@@ -138,13 +89,13 @@ const TeacherDashboard = () => {
 					</div>
 					<h1 className="text-4xl font-bold text-white mb-2">Teacher Dashboard</h1>
 					<p className="text-[#FFD700]/90 text-xl">
-						Welcome, <span className="font-bold">{fullName}</span>! ðŸ“š
+						Welcome, <span className="font-bold">{fullName}</span>! 📚
 					</p>
 				</div>
 
-				{/* Dashboard Cards */}
-				<div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-					{/* Upload Lecture Card */}
+				{/* Cards */}
+				<div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+					{/* Upload Lecture */}
 					<div
 						onClick={() => navigate("/upload-lecture")}
 						className="bg-white/95 backdrop-blur-sm rounded-3xl shadow-2xl p-6 border-2 border-[#FFD700] hover:shadow-xl transform hover:-translate-y-1 transition-all duration-200 cursor-pointer group"
@@ -160,7 +111,7 @@ const TeacherDashboard = () => {
 						</div>
 					</div>
 
-					{/* Generate Quiz Card */}
+					{/* Generate Quiz */}
 					<div
 						onClick={() => navigate("/generate-quiz")}
 						className="bg-white/95 backdrop-blur-sm rounded-3xl shadow-2xl p-6 border-2 border-[#FFD700] hover:shadow-xl transform hover:-translate-y-1 transition-all duration-200 cursor-pointer group"
@@ -175,7 +126,40 @@ const TeacherDashboard = () => {
 							<p className="text-gray-600 text-sm">Create interactive quizzes from lectures</p>
 						</div>
 					</div>
+
+					{/* Sign Out */}
+					<div
+						onClick={handleLogout}
+						className="bg-white/95 backdrop-blur-sm rounded-3xl shadow-2xl p-6 border-2 border-red-300 hover:shadow-xl transform hover:-translate-y-1 transition-all duration-200 cursor-pointer group"
+					>
+						<div className="flex flex-col items-center text-center">
+							<div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+								<svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+									<path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+								</svg>
+							</div>
+							<h2 className="text-xl font-bold text-red-600 mb-2">Sign Out</h2>
+							<p className="text-gray-600 text-sm">End your current session</p>
+						</div>
+					</div>
 				</div>
+
+				{/* Recent Lectures */}
+				{lectures.length > 0 && (
+					<div className="bg-white/10 backdrop-blur rounded-2xl border border-white/15 p-6">
+						<h2 className="text-white font-semibold text-lg mb-4">Recent Lectures</h2>
+						<div className="space-y-2">
+							{lectures.slice(0, 5).map((lec) => (
+								<div key={lec.id} className="flex items-center justify-between bg-white/8 rounded-xl px-4 py-3">
+									<span className="text-white/80 text-sm truncate">{lec.title}</span>
+									<span className="text-white/30 text-xs ml-4 flex-shrink-0">
+										{new Date(lec.created_at).toLocaleDateString()}
+									</span>
+								</div>
+							))}
+						</div>
+					</div>
+				)}
 			</div>
 		</div>
 	);

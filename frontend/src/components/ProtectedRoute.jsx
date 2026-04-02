@@ -1,6 +1,12 @@
 import { Navigate } from "react-router-dom";
 import { getUser } from "../services/api";
 
+const ROLE_HOME = {
+  admin:   "/admin",
+  teacher: "/teacher",
+  student: "/student",
+};
+
 function ProtectedRoute({ children, role }) {
   const user = getUser();
 
@@ -12,9 +18,9 @@ function ProtectedRoute({ children, role }) {
     return <Navigate to="/" replace />;
   }
 
+  // Wrong role → redirect to correct dashboard
   if (role && user.role !== role) {
-    // Redirect to the correct dashboard instead of login
-    return <Navigate to={user.role === "teacher" ? "/teacher" : "/student"} replace />;
+    return <Navigate to={ROLE_HOME[user.role] || "/"} replace />;
   }
 
   return children;
