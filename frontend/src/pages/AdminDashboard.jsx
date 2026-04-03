@@ -1,729 +1,989 @@
-import { useEffect, useState, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { getUser, logout } from "../services/api";
 
-/* ─────────────────────────────────────────────
-   Styles
-───────────────────────────────────────────── */
-const S = () => (
+const BASE = process.env.REACT_APP_API_URL || "http://localhost:5000";
+
+const apiFetch = async (path, opts = {}) => {
+  const token = localStorage.getItem("token");
+  const res = await fetch(`${BASE}${path}`, {
+    ...opts,
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+      ...(opts.headers || {}),
+    },
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || data.message || "Request failed");
+  return data;
+};
+
+/* ─── Styles ─────────────────────────────────────────────────────────────── */
+const Styles = () => (
   <style>{`
-    @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap');
 
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-    @keyframes fadeUp   { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
-    @keyframes fadeIn   { from { opacity:0; } to { opacity:1; } }
-    @keyframes spin     { to { transform: rotate(360deg); } }
-    @keyframes pulse-bg { 0%,100% { opacity:.55; } 50% { opacity:.3; } }
-    @keyframes shimmer  { 0% { background-position:-200% center; } 100% { background-position:200% center; } }
-    @keyframes countUp  { from { opacity:0; transform:scale(.85); } to { opacity:1; transform:scale(1); } }
+    @keyframes slideDown {
+      from { opacity: 0; transform: translateY(-12px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to   { opacity: 1; }
+    }
+    @keyframes modalIn {
+      from { opacity: 0; transform: scale(0.93) translateY(8px); }
+      to   { opacity: 1; transform: scale(1) translateY(0); }
+    }
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: .4; }
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    @keyframes toastSlide {
+      0%   { opacity: 0; transform: translateX(60px); }
+      10%  { opacity: 1; transform: translateX(0); }
+      85%  { opacity: 1; transform: translateX(0); }
+      100% { opacity: 0; transform: translateX(60px); }
+    }
 
     .adm-root {
       min-height: 100vh;
-      background-color: #100808;
+      background: #0b0b0f;
       background-image:
-        radial-gradient(ellipse 70% 50% at 15% 0%,   rgba(110,18,18,.6) 0%, transparent 65%),
-        radial-gradient(ellipse 50% 40% at 85% 100%,  rgba(160,120,20,.22) 0%, transparent 60%),
-        radial-gradient(ellipse 35% 35% at 50% 50%,   rgba(60,8,8,.5)  0%, transparent 75%);
-      font-family: 'DM Sans', sans-serif;
-      color: #f0e6d3;
+        radial-gradient(ellipse 70% 50% at 20% 0%,  rgba(139,92,246,.12) 0%, transparent 65%),
+        radial-gradient(ellipse 50% 40% at 80% 100%, rgba(16,185,129,.08) 0%, transparent 65%);
+      font-family: 'Syne', sans-serif;
+      color: #e2e2f0;
     }
 
-    /* grain */
-    .adm-root::before {
-      content:''; position:fixed; inset:0; pointer-events:none; z-index:0;
-      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.055'/%3E%3C/svg%3E");
-      opacity:.5;
+    /* ── Topbar ── */
+    .topbar {
+      position: sticky; top: 0; z-index: 40;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 2.5rem;
+      height: 60px;
+      background: rgba(11,11,15,.85);
+      backdrop-filter: blur(14px);
+      border-bottom: 1px solid rgba(255,255,255,.07);
+      animation: slideDown .4s ease both;
+    }
+    .topbar-logo {
+      display: flex; align-items: center; gap: .65rem;
+      font-size: 1rem; font-weight: 800; letter-spacing: -.02em;
+      color: #fff;
+    }
+    .topbar-logo-badge {
+      width: 28px; height: 28px;
+      background: linear-gradient(135deg, #8b5cf6, #06b6d4);
+      border-radius: 7px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .topbar-logo-badge svg { width: 16px; height: 16px; color: #fff; }
+    .topbar-right { display: flex; align-items: center; gap: 1rem; }
+    .admin-chip {
+      font-family: 'DM Mono', monospace;
+      font-size: .68rem; font-weight: 500;
+      padding: .22rem .7rem;
+      background: rgba(139,92,246,.15);
+      border: 1px solid rgba(139,92,246,.3);
+      border-radius: 999px;
+      color: #a78bfa;
+      letter-spacing: .06em;
+    }
+    .btn-logout {
+      padding: .38rem .9rem;
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,.1);
+      background: rgba(255,255,255,.05);
+      color: rgba(255,255,255,.5);
+      font-family: 'Syne', sans-serif;
+      font-size: .78rem;
+      cursor: pointer;
+      transition: all .2s;
+    }
+    .btn-logout:hover { background: rgba(255,255,255,.1); color: #fff; }
+
+    /* ── Layout ── */
+    .adm-body { display: flex; gap: 0; }
+
+    /* ── Sidebar tabs ── */
+    .side-nav {
+      width: 200px; flex-shrink: 0;
+      min-height: calc(100vh - 60px);
+      padding: 1.5rem 1rem;
+      border-right: 1px solid rgba(255,255,255,.06);
+    }
+    .nav-section-label {
+      font-size: .62rem; letter-spacing: .12em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,.25);
+      padding: 0 .5rem;
+      margin-bottom: .5rem;
+    }
+    .nav-item {
+      display: flex; align-items: center; gap: .6rem;
+      padding: .55rem .75rem;
+      border-radius: 9px;
+      cursor: pointer;
+      font-size: .82rem; font-weight: 600;
+      color: rgba(255,255,255,.4);
+      transition: all .15s;
+      margin-bottom: .2rem;
+      border: 1px solid transparent;
+    }
+    .nav-item:hover { background: rgba(255,255,255,.05); color: rgba(255,255,255,.75); }
+    .nav-item.active {
+      background: rgba(139,92,246,.15);
+      border-color: rgba(139,92,246,.25);
+      color: #c4b5fd;
+    }
+    .nav-item svg { width: 15px; height: 15px; flex-shrink: 0; }
+    .nav-badge {
+      margin-left: auto;
+      font-family: 'DM Mono', monospace;
+      font-size: .65rem;
+      background: rgba(139,92,246,.2);
+      color: #a78bfa;
+      border-radius: 5px;
+      padding: .1rem .35rem;
     }
 
-    /* ── Sidebar ── */
-    .adm-sidebar {
-      position: fixed; top:0; left:0; bottom:0; width:220px;
-      background: rgba(20,6,6,.85);
-      backdrop-filter: blur(20px);
-      border-right: 1px solid rgba(200,160,50,.1);
-      display: flex; flex-direction: column;
-      z-index: 50;
-      padding: 1.5rem 0;
-    }
-    .adm-logo {
-      display: flex; align-items: center; gap: .7rem;
-      padding: 0 1.4rem 1.8rem;
-      border-bottom: 1px solid rgba(200,160,50,.1);
-      margin-bottom: 1.2rem;
-    }
-    .adm-logo-icon {
-      width:38px; height:38px; border-radius:10px;
-      background: linear-gradient(135deg,#8b1a1a,#5a0c0c);
-      display:flex; align-items:center; justify-content:center;
-      font-size:1.1rem;
-      box-shadow: 0 4px 12px rgba(0,0,0,.4);
-    }
-    .adm-logo-text { font-family:'Playfair Display',serif; font-size:1rem; color:#e8c060; font-weight:700; }
-    .adm-logo-sub  { font-size:.65rem; color:rgba(200,160,60,.45); letter-spacing:.08em; text-transform:uppercase; }
-
-    .adm-nav-label {
-      font-size:.62rem; letter-spacing:.12em; text-transform:uppercase;
-      color:rgba(200,160,60,.35); padding:.3rem 1.4rem .6rem; font-weight:600;
-    }
-    .adm-nav-btn {
-      display:flex; align-items:center; gap:.75rem;
-      padding:.65rem 1.4rem; margin:0 .6rem .15rem;
-      border-radius:10px; cursor:pointer; border:none;
-      background:transparent; color:rgba(240,220,180,.5);
-      font-family:'DM Sans',sans-serif; font-size:.85rem; font-weight:500;
-      transition: all .18s; text-align:left; width:calc(100% - 1.2rem);
-    }
-    .adm-nav-btn:hover  { background:rgba(200,160,50,.1); color:rgba(240,220,180,.9); }
-    .adm-nav-btn.active { background:rgba(200,160,50,.18); color:#e8c060; border:1px solid rgba(200,160,50,.25); }
-    .adm-nav-btn .icon  { font-size:1rem; width:20px; text-align:center; }
-
-    .adm-sidebar-footer {
-      margin-top:auto; padding: 1rem 1rem 0;
-      border-top:1px solid rgba(200,160,50,.1);
-    }
-    .adm-signout {
-      display:flex; align-items:center; gap:.6rem;
-      width:100%; padding:.6rem 1rem; border-radius:8px; border:none;
-      background:rgba(220,60,60,.1); color:rgba(220,120,120,.7);
-      font-family:'DM Sans',sans-serif; font-size:.82rem; cursor:pointer;
-      transition:all .18s;
-    }
-    .adm-signout:hover { background:rgba(220,60,60,.2); color:#e87070; }
-
-    /* ── Main ── */
+    /* ── Main content ── */
     .adm-main {
-      margin-left: 220px;
-      min-height: 100vh;
-      padding: 2rem 2.2rem;
-      position: relative; z-index: 1;
+      flex: 1;
+      padding: 2rem 2.5rem;
+      animation: fadeIn .35s ease both;
+      min-width: 0;
     }
-
-    /* ── Top bar ── */
-    .adm-topbar {
-      display:flex; align-items:center; justify-content:space-between;
-      margin-bottom: 2rem;
-      animation: fadeUp .5s ease both;
+    .page-header { margin-bottom: 2rem; }
+    .page-title {
+      font-size: 1.5rem; font-weight: 800;
+      color: #fff;
+      letter-spacing: -.03em;
     }
-    .adm-page-title {
-      font-family:'Playfair Display',serif;
-      font-size:1.6rem; font-weight:700; color:#f0e6d3;
-    }
-    .adm-page-sub { font-size:.8rem; color:rgba(200,170,100,.5); margin-top:.2rem; }
-    .adm-time {
-      font-family:'JetBrains Mono',monospace; font-size:.75rem;
-      color:rgba(200,160,50,.45); letter-spacing:.06em;
+    .page-subtitle {
+      font-size: .82rem; color: rgba(255,255,255,.35);
+      margin-top: .3rem;
     }
 
     /* ── Stat cards ── */
-    .adm-stats {
-      display:grid; grid-template-columns:repeat(4,1fr); gap:1rem;
-      margin-bottom:2rem;
-      animation: fadeUp .5s .1s ease both;
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1rem;
+      margin-bottom: 2rem;
     }
-    .adm-stat {
-      background:rgba(255,255,255,.04);
-      border:1px solid rgba(200,160,50,.12);
-      border-radius:16px; padding:1.2rem 1.4rem;
-      position:relative; overflow:hidden;
-      transition:border-color .2s, transform .2s;
+    .stat-card {
+      background: rgba(255,255,255,.04);
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: 14px;
+      padding: 1.25rem 1.4rem;
     }
-    .adm-stat:hover { border-color:rgba(200,160,50,.3); transform:translateY(-2px); }
-    .adm-stat::before {
-      content:''; position:absolute; inset:0;
-      background:linear-gradient(135deg,rgba(200,160,50,.05) 0%,transparent 60%);
-      pointer-events:none;
+    .stat-label {
+      font-size: .72rem; letter-spacing: .08em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,.3);
+      margin-bottom: .5rem;
     }
-    .adm-stat-label { font-size:.7rem; letter-spacing:.1em; text-transform:uppercase; color:rgba(200,170,100,.45); margin-bottom:.6rem; }
-    .adm-stat-value { font-family:'Playfair Display',serif; font-size:2rem; font-weight:700; color:#f0e6d3; animation:countUp .5s ease both; }
-    .adm-stat-icon  { position:absolute; right:1.2rem; top:1.2rem; font-size:1.4rem; opacity:.25; }
-    .adm-stat-delta { font-size:.72rem; color:rgba(120,200,120,.7); margin-top:.3rem; }
-
-    /* ── Tab bar ── */
-    .adm-tabs {
-      display:flex; gap:.5rem; margin-bottom:1.5rem;
-      animation: fadeUp .5s .15s ease both;
+    .stat-value {
+      font-size: 2rem; font-weight: 800;
+      color: #fff; line-height: 1;
     }
-    .adm-tab {
-      padding:.5rem 1.2rem; border-radius:8px; border:1px solid transparent;
-      background:transparent; color:rgba(200,170,100,.45);
-      font-family:'DM Sans',sans-serif; font-size:.82rem; font-weight:500;
-      cursor:pointer; transition:all .18s; letter-spacing:.02em;
+    .stat-sub {
+      font-size: .72rem; color: rgba(255,255,255,.25);
+      margin-top: .4rem;
     }
-    .adm-tab:hover  { background:rgba(200,160,50,.1); color:rgba(200,170,100,.75); }
-    .adm-tab.active { background:rgba(200,160,50,.18); color:#e8c060; border-color:rgba(200,160,50,.3); }
-
-    /* ── Panel ── */
-    .adm-panel {
-      background:rgba(255,255,255,.03);
-      border:1px solid rgba(200,160,50,.1);
-      border-radius:18px; overflow:hidden;
-      animation: fadeUp .5s .2s ease both;
-    }
-    .adm-panel-header {
-      display:flex; align-items:center; justify-content:space-between;
-      padding:1.1rem 1.5rem;
-      border-bottom:1px solid rgba(200,160,50,.1);
-      background:rgba(255,255,255,.025);
-    }
-    .adm-panel-title { font-size:.85rem; font-weight:600; color:rgba(220,190,120,.8); letter-spacing:.04em; text-transform:uppercase; }
-    .adm-panel-count { font-size:.75rem; color:rgba(200,160,60,.4); font-family:'JetBrains Mono',monospace; }
-
-    /* search */
-    .adm-search {
-      padding:.48rem .9rem .48rem 2.2rem; background:rgba(255,255,255,.07);
-      border:1px solid rgba(200,160,50,.2); border-radius:8px;
-      color:#f0e6d3; font-family:'DM Sans',sans-serif; font-size:.8rem; outline:none;
-      transition:border-color .2s;
-    }
-    .adm-search::placeholder { color:rgba(200,160,60,.3); }
-    .adm-search:focus { border-color:rgba(200,160,50,.45); }
-    .adm-search-wrap { position:relative; }
-    .adm-search-icon { position:absolute; left:.65rem; top:50%; transform:translateY(-50%); color:rgba(200,160,60,.35); font-size:.75rem; pointer-events:none; }
-
-    /* ── Table ── */
-    .adm-table { width:100%; border-collapse:collapse; }
-    .adm-table th {
-      padding:.7rem 1.5rem; text-align:left;
-      font-size:.65rem; letter-spacing:.1em; text-transform:uppercase;
-      color:rgba(200,160,60,.4); font-weight:600;
-      border-bottom:1px solid rgba(200,160,50,.08);
-    }
-    .adm-table td {
-      padding:.85rem 1.5rem;
-      border-bottom:1px solid rgba(255,255,255,.04);
-      font-size:.82rem; color:rgba(220,200,170,.75);
-      vertical-align:middle;
-    }
-    .adm-table tr:last-child td { border-bottom:none; }
-    .adm-table tr:hover td { background:rgba(200,160,50,.04); }
-
-    /* avatar */
-    .adm-avatar {
-      width:34px; height:34px; border-radius:50%;
-      display:inline-flex; align-items:center; justify-content:center;
-      font-size:.8rem; font-weight:600; flex-shrink:0;
+    .stat-dot {
+      display: inline-block;
+      width: 7px; height: 7px; border-radius: 50%;
+      margin-right: .4rem;
+      animation: pulse-dot 2s infinite;
     }
 
-    /* tier badge */
-    .tier-pill {
-      display:inline-flex; align-items:center; gap:.35rem;
-      padding:.25rem .65rem; border-radius:6px; font-size:.68rem; font-weight:600;
-      letter-spacing:.04em; text-transform:uppercase;
+    /* ── Panel / table ── */
+    .panel {
+      background: rgba(255,255,255,.03);
+      border: 1px solid rgba(255,255,255,.07);
+      border-radius: 16px;
+      overflow: hidden;
     }
-    .tier-Master       { background:rgba(180,140,255,.15); color:#c8a8ff; border:1px solid rgba(180,140,255,.25); }
-    .tier-Advanced     { background:rgba(200,160,50,.15);  color:#e8c060; border:1px solid rgba(200,160,50,.25); }
-    .tier-Intermediate { background:rgba(100,180,220,.15); color:#80c8e8; border:1px solid rgba(100,180,220,.25); }
-    .tier-Beginner     { background:rgba(200,200,200,.1);  color:#aaa;    border:1px solid rgba(200,200,200,.15); }
+    .panel-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 1.1rem 1.5rem;
+      border-bottom: 1px solid rgba(255,255,255,.06);
+    }
+    .panel-title {
+      font-size: .88rem; font-weight: 700; color: #fff;
+    }
+    .search-box {
+      display: flex; align-items: center; gap: .5rem;
+      background: rgba(255,255,255,.06);
+      border: 1px solid rgba(255,255,255,.1);
+      border-radius: 8px;
+      padding: .4rem .75rem;
+    }
+    .search-box input {
+      background: none; border: none; outline: none;
+      color: #fff; font-family: 'Syne', sans-serif;
+      font-size: .8rem; width: 180px;
+    }
+    .search-box input::placeholder { color: rgba(255,255,255,.25); }
+    .search-box svg { width: 14px; height: 14px; color: rgba(255,255,255,.25); }
 
-    /* status */
-    .status-dot {
-      display:inline-flex; align-items:center; gap:.4rem; font-size:.75rem;
+    /* table */
+    .data-table { width: 100%; border-collapse: collapse; }
+    .data-table th {
+      font-size: .68rem; letter-spacing: .1em;
+      text-transform: uppercase; color: rgba(255,255,255,.25);
+      font-weight: 600; font-family: 'DM Mono', monospace;
+      padding: .75rem 1.5rem;
+      text-align: left;
+      border-bottom: 1px solid rgba(255,255,255,.06);
     }
-    .status-dot::before {
-      content:''; width:7px; height:7px; border-radius:50%;
+    .data-table td {
+      padding: .85rem 1.5rem;
+      font-size: .82rem; color: rgba(255,255,255,.7);
+      border-bottom: 1px solid rgba(255,255,255,.04);
     }
-    .status-active::before   { background:#4ade80; box-shadow:0 0 6px rgba(74,222,128,.5); }
-    .status-inactive::before { background:#555; }
+    .data-table tr:last-child td { border-bottom: none; }
+    .data-table tr:hover td { background: rgba(255,255,255,.025); }
 
-    /* toggle button */
-    .adm-toggle {
-      padding:.3rem .75rem; border-radius:6px; border:1px solid; cursor:pointer;
-      font-family:'DM Sans',sans-serif; font-size:.7rem; font-weight:500;
-      transition:all .18s; letter-spacing:.03em;
+    .user-cell { display: flex; align-items: center; gap: .7rem; }
+    .avatar {
+      width: 32px; height: 32px; border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: .75rem; font-weight: 700; flex-shrink: 0;
     }
-    .adm-toggle-deactivate { border-color:rgba(220,80,80,.3); color:rgba(220,80,80,.7); background:rgba(220,80,80,.08); }
-    .adm-toggle-deactivate:hover { background:rgba(220,80,80,.18); color:#e87070; }
-    .adm-toggle-activate   { border-color:rgba(80,200,120,.3); color:rgba(80,200,120,.7); background:rgba(80,200,120,.08); }
-    .adm-toggle-activate:hover { background:rgba(80,200,120,.18); color:#60d890; }
+    .avatar-teacher { background: rgba(139,92,246,.2); color: #a78bfa; }
+    .avatar-student { background: rgba(16,185,129,.15); color: #34d399; }
+    .avatar-admin   { background: rgba(251,191,36,.15); color: #fbbf24; }
 
-    /* badges row */
-    .badge-chip {
-      display:inline-flex; align-items:center; gap:.3rem;
-      padding:.2rem .55rem; border-radius:5px; font-size:.65rem;
-      background:rgba(200,160,50,.12); border:1px solid rgba(200,160,50,.2);
-      color:rgba(220,185,80,.8); white-space:nowrap;
+    .user-name { font-weight: 600; color: #fff; font-size: .83rem; }
+    .user-email { font-size: .72rem; color: rgba(255,255,255,.3); font-family: 'DM Mono', monospace; }
+
+    .role-chip {
+      display: inline-flex; align-items: center;
+      padding: .18rem .6rem;
+      border-radius: 6px;
+      font-size: .68rem; font-weight: 600; letter-spacing: .04em;
     }
+    .role-teacher { background: rgba(139,92,246,.15); color: #a78bfa; }
+    .role-student { background: rgba(16,185,129,.12); color: #34d399; }
+    .role-admin   { background: rgba(251,191,36,.12); color: #fbbf24; }
 
-    /* ── Leaderboard ── */
-    .lb-row {
-      display:grid; align-items:center;
-      grid-template-columns: 48px 1fr 120px 120px 120px auto;
-      gap:.5rem; padding:.85rem 1.5rem;
-      border-bottom:1px solid rgba(255,255,255,.04);
-      transition:background .15s;
+    /* action buttons */
+    .btn-assign {
+      padding: .32rem .8rem;
+      border-radius: 7px;
+      border: 1px solid rgba(139,92,246,.35);
+      background: rgba(139,92,246,.12);
+      color: #c4b5fd;
+      font-family: 'Syne', sans-serif;
+      font-size: .76rem; font-weight: 600;
+      cursor: pointer;
+      transition: all .15s;
     }
-    .lb-row:last-child { border-bottom:none; }
-    .lb-row:hover { background:rgba(200,160,50,.04); }
-    .lb-rank { font-family:'JetBrains Mono',monospace; font-size:.85rem; font-weight:500; text-align:center; }
-    .rank-1 { color:#FFD700; font-size:1.1rem; }
-    .rank-2 { color:#C0C0C0; }
-    .rank-3 { color:#CD7F32; }
-    .rank-n { color:rgba(200,170,100,.35); }
+    .btn-assign:hover { background: rgba(139,92,246,.25); border-color: rgba(139,92,246,.6); }
 
-    .lb-header {
-      display:grid; align-items:center;
-      grid-template-columns: 48px 1fr 120px 120px 120px auto;
-      gap:.5rem; padding:.65rem 1.5rem;
-      border-bottom:1px solid rgba(200,160,50,.1);
-      font-size:.65rem; letter-spacing:.1em; text-transform:uppercase;
-      color:rgba(200,160,60,.4); font-weight:600;
-      background:rgba(255,255,255,.025);
+    .btn-remove {
+      padding: .28rem .7rem;
+      border-radius: 7px;
+      border: 1px solid rgba(239,68,68,.25);
+      background: rgba(239,68,68,.08);
+      color: #f87171;
+      font-family: 'Syne', sans-serif;
+      font-size: .72rem; font-weight: 600;
+      cursor: pointer;
+      transition: all .15s;
     }
+    .btn-remove:hover { background: rgba(239,68,68,.18); }
 
-    .points-bar-wrap { width:100%; background:rgba(255,255,255,.06); border-radius:4px; height:5px; overflow:hidden; }
-    .points-bar      { height:100%; border-radius:4px; background:linear-gradient(90deg,#8b1a1a,#c8a040); transition:width .8s ease; }
-
-    /* ── Empty / loading states ── */
-    .adm-empty {
-      padding: 3rem 1.5rem; text-align:center;
-      color:rgba(200,170,100,.3); font-size:.85rem;
-    }
-    .adm-spinner {
-      width:24px; height:24px; border:2px solid rgba(200,160,50,.2);
-      border-top-color:#c8a040; border-radius:50%;
-      animation:spin .7s linear infinite; margin:0 auto 1rem;
+    .empty-state {
+      padding: 3rem 1.5rem;
+      text-align: center;
+      color: rgba(255,255,255,.2);
+      font-size: .85rem;
     }
 
-    /* ── Responsive ── */
-    @media (max-width:1100px) {
-      .adm-stats { grid-template-columns:repeat(2,1fr); }
+    /* ── Assignment chip in table ── */
+    .assign-info {
+      display: flex; align-items: center; gap: .5rem;
     }
-    @media (max-width:768px) {
-      .adm-sidebar { display:none; }
-      .adm-main    { margin-left:0; padding:1.2rem; }
-      .adm-stats   { grid-template-columns:repeat(2,1fr); }
-      .lb-row, .lb-header { grid-template-columns: 40px 1fr 80px 80px; }
-      .lb-row > *:nth-child(5), .lb-row > *:nth-child(6),
-      .lb-header > *:nth-child(5), .lb-header > *:nth-child(6) { display:none; }
+    .assign-name { font-size: .8rem; color: rgba(255,255,255,.65); font-weight: 600; }
+    .assign-none { font-size: .75rem; color: rgba(255,255,255,.2); font-style: italic; }
+
+    /* ── Confirmation modal ── */
+    .modal-overlay {
+      position: fixed; inset: 0; z-index: 60;
+      background: rgba(0,0,0,.65);
+      backdrop-filter: blur(6px);
+      display: flex; align-items: center; justify-content: center;
+      padding: 1rem;
+      animation: fadeIn .2s ease both;
+    }
+    .modal {
+      background: #16161e;
+      border: 1px solid rgba(255,255,255,.1);
+      border-radius: 20px;
+      padding: 2rem;
+      width: 100%; max-width: 420px;
+      animation: modalIn .25s cubic-bezier(.34,1.56,.64,1) both;
+      box-shadow: 0 40px 80px rgba(0,0,0,.6);
+    }
+    .modal-icon {
+      width: 52px; height: 52px; border-radius: 14px;
+      background: linear-gradient(135deg, rgba(139,92,246,.3), rgba(6,182,212,.2));
+      border: 1px solid rgba(139,92,246,.3);
+      display: flex; align-items: center; justify-content: center;
+      margin-bottom: 1.25rem;
+    }
+    .modal-icon svg { width: 24px; height: 24px; color: #a78bfa; }
+    .modal-title { font-size: 1.1rem; font-weight: 800; color: #fff; margin-bottom: .5rem; }
+    .modal-body  { font-size: .84rem; color: rgba(255,255,255,.5); line-height: 1.6; margin-bottom: 1.5rem; }
+    .modal-body strong { color: rgba(255,255,255,.8); }
+    .modal-select-label {
+      font-size: .72rem; letter-spacing: .08em;
+      text-transform: uppercase; color: rgba(255,255,255,.3);
+      margin-bottom: .5rem;
+    }
+    .modal-select {
+      width: 100%;
+      padding: .65rem .9rem;
+      background: rgba(255,255,255,.06);
+      border: 1px solid rgba(255,255,255,.12);
+      border-radius: 10px;
+      color: #fff;
+      font-family: 'Syne', sans-serif; font-size: .84rem;
+      outline: none; cursor: pointer;
+      margin-bottom: 1.5rem;
+      transition: border-color .2s;
+    }
+    .modal-select:focus { border-color: rgba(139,92,246,.5); }
+    .modal-select option { background: #16161e; }
+    .modal-actions { display: flex; gap: .75rem; }
+    .btn-cancel {
+      flex: 1; padding: .7rem;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,.1);
+      background: rgba(255,255,255,.05);
+      color: rgba(255,255,255,.5);
+      font-family: 'Syne', sans-serif; font-size: .84rem; font-weight: 600;
+      cursor: pointer; transition: all .15s;
+    }
+    .btn-cancel:hover { background: rgba(255,255,255,.1); color: #fff; }
+    .btn-confirm {
+      flex: 2; padding: .7rem;
+      border-radius: 10px;
+      border: none;
+      background: linear-gradient(135deg, #7c3aed, #2563eb);
+      color: #fff;
+      font-family: 'Syne', sans-serif; font-size: .84rem; font-weight: 700;
+      cursor: pointer; transition: opacity .15s;
+    }
+    .btn-confirm:hover { opacity: .88; }
+    .btn-confirm:disabled { opacity: .45; cursor: not-allowed; }
+
+    /* ── Toast ── */
+    .toast {
+      position: fixed; bottom: 2rem; right: 2rem; z-index: 100;
+      display: flex; align-items: center; gap: .75rem;
+      padding: .85rem 1.2rem;
+      border-radius: 12px;
+      background: #16161e;
+      border: 1px solid rgba(255,255,255,.1);
+      box-shadow: 0 20px 40px rgba(0,0,0,.4);
+      font-size: .84rem; font-weight: 600;
+      animation: toastSlide 3.5s ease forwards;
+      max-width: 340px;
+    }
+    .toast-success { border-color: rgba(16,185,129,.35); color: #34d399; }
+    .toast-error   { border-color: rgba(239,68,68,.35);  color: #f87171; }
+    .toast svg { width: 18px; height: 18px; flex-shrink: 0; }
+
+    /* spinner */
+    .spinner {
+      display: inline-block;
+      width: 14px; height: 14px;
+      border: 2px solid rgba(255,255,255,.2);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin .6s linear infinite;
+    }
+
+    /* loading skeleton */
+    @keyframes shimmer {
+      0%   { background-position: -400px 0; }
+      100% { background-position:  400px 0; }
+    }
+    .skeleton {
+      height: 14px; border-radius: 4px;
+      background: linear-gradient(90deg, rgba(255,255,255,.05) 0%, rgba(255,255,255,.1) 50%, rgba(255,255,255,.05) 100%);
+      background-size: 800px 100%;
+      animation: shimmer 1.4s infinite;
+    }
+
+    @media (max-width: 768px) {
+      .stats-row { grid-template-columns: 1fr; }
+      .side-nav { display: none; }
+      .adm-main { padding: 1.25rem; }
+      .topbar { padding: 0 1rem; }
     }
   `}</style>
 );
 
-/* ─────────────────────────────────────────────
-   Helpers
-───────────────────────────────────────────── */
-const BASE = process.env.REACT_APP_API_URL || "http://localhost:5000";
-
-const apiFetch = async (path) => {
-  const token = localStorage.getItem("token");
-  const res = await fetch(`${BASE}${path}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  if (!res.ok) throw new Error((await res.json()).error || "Request failed");
-  return res.json();
-};
-
-const apiPatch = async (path, body) => {
-  const token = localStorage.getItem("token");
-  const res = await fetch(`${BASE}${path}`, {
-    method: "PATCH",
-    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) throw new Error((await res.json()).error || "Request failed");
-  return res.json();
+/* ─── Icons ── */
+const Ico = {
+  Shield:  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2l7 3v5c0 5.25-2.625 8.75-7 10C7.625 18.75 5 15.25 5 10V5l7-3z"/></svg>,
+  Users:   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
+  Teacher: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16v10H4z"/><path d="M2 20l10-6 10 6"/></svg>,
+  Link:    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>,
+  Search:  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>,
+  Check:   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M20 6L9 17l-5-5"/></svg>,
+  X:       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>,
+  Logout:  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>,
 };
 
 const initials = (name = "") =>
-  name.split(" ").map((n) => n[0]).slice(0, 2).join("").toUpperCase() || "?";
+  name.split(" ").slice(0, 2).map((n) => n[0]).join("").toUpperCase() || "?";
 
-const avatarColor = (name = "") => {
-  const colors = ["#7a1515,#4a0c0c", "#1a5a7a,#0c2a4a", "#1a7a3a,#0c4a1a",
-    "#7a5a1a,#4a3a0c", "#5a1a7a,#2a0c4a", "#7a3a1a,#4a1a0c"];
-  const idx = name.charCodeAt(0) % colors.length;
-  return colors[idx];
-};
-
-const tierLabel = (tier) => {
-  const map = { Master: "🏆 Master", Advanced: "⭐ Advanced", Intermediate: "📘 Intermediate", Beginner: "🌱 Beginner" };
-  return map[tier] || tier;
-};
-
-const fmtDate = (d) =>
-  d ? new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—";
-
-/* ─────────────────────────────────────────────
-   Sub-components
-───────────────────────────────────────────── */
-function StatCard({ label, value, icon, delta }) {
-  return (
-    <div className="adm-stat">
-      <div className="adm-stat-icon">{icon}</div>
-      <div className="adm-stat-label">{label}</div>
-      <div className="adm-stat-value">{value ?? "—"}</div>
-      {delta && <div className="adm-stat-delta">{delta}</div>}
-    </div>
-  );
-}
-
-function Avatar({ name, size = 34 }) {
-  const grad = avatarColor(name);
-  return (
-    <div
-      className="adm-avatar"
-      style={{
-        width: size, height: size,
-        background: `linear-gradient(135deg,#${grad.split(",")[0].slice(1)},#${grad.split(",")[1].slice(1)})`,
-        fontSize: size * 0.3,
-      }}
-    >
-      {initials(name)}
-    </div>
-  );
-}
-
-function TierPill({ tier }) {
-  return <span className={`tier-pill tier-${tier}`}>{tierLabel(tier)}</span>;
-}
-
-function BadgeChips({ badges = [] }) {
-  if (!badges.length) return <span style={{ color: "rgba(200,170,100,.25)", fontSize: ".72rem" }}>None yet</span>;
-  return (
-    <div style={{ display: "flex", flexWrap: "wrap", gap: ".35rem" }}>
-      {badges.slice(0, 3).map((b, i) => (
-        <span className="badge-chip" key={i}>
-          {b?.icon_url ? <img src={b.icon_url} alt="" style={{ width: 12, height: 12 }} /> : "🎖"}
-          {b?.name}
-        </span>
-      ))}
-      {badges.length > 3 && (
-        <span className="badge-chip" style={{ opacity: .6 }}>+{badges.length - 3}</span>
-      )}
-    </div>
-  );
-}
-
-/* ── Users Table ── */
-function UsersTable({ users, loading, onToggleStatus }) {
-  const [search, setSearch] = useState("");
-
-  const filtered = users.filter(
-    (u) =>
-      u.full_name?.toLowerCase().includes(search.toLowerCase()) ||
-      u.email?.toLowerCase().includes(search.toLowerCase())
-  );
-
-  return (
-    <div className="adm-panel">
-      <div className="adm-panel-header">
-        <span className="adm-panel-title">
-          {users[0]?.role === "teacher" ? "Teachers" : "Students"}
-        </span>
-        <div style={{ display: "flex", alignItems: "center", gap: ".8rem" }}>
-          <span className="adm-panel-count">{filtered.length} records</span>
-          <div className="adm-search-wrap">
-            <span className="adm-search-icon">🔍</span>
-            <input
-              className="adm-search"
-              placeholder="Search…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
-        </div>
-      </div>
-
-      {loading ? (
-        <div className="adm-empty"><div className="adm-spinner" /><p>Loading…</p></div>
-      ) : filtered.length === 0 ? (
-        <div className="adm-empty">No records found.</div>
-      ) : (
-        <div style={{ overflowX: "auto" }}>
-          <table className="adm-table">
-            <thead>
-              <tr>
-                <th>User</th>
-                <th>Tier</th>
-                <th>Points</th>
-                <th>Streak</th>
-                <th>Badges</th>
-                <th>Joined</th>
-                <th>Status</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((u) => (
-                <tr key={u.id}>
-                  <td>
-                    <div style={{ display: "flex", alignItems: "center", gap: ".75rem" }}>
-                      <Avatar name={u.full_name} />
-                      <div>
-                        <div style={{ color: "#f0e6d3", fontWeight: 500, fontSize: ".85rem" }}>{u.full_name}</div>
-                        <div style={{ color: "rgba(200,170,100,.4)", fontSize: ".72rem" }}>{u.email}</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td><TierPill tier={u.tier || "Beginner"} /></td>
-                  <td>
-                    <span style={{ fontFamily: "'JetBrains Mono',monospace", color: "#e8c060", fontWeight: 500 }}>
-                      {(u.points ?? 0).toLocaleString()}
-                    </span>
-                  </td>
-                  <td>
-                    <span style={{ color: u.streak > 0 ? "#fb923c" : "rgba(200,170,100,.3)" }}>
-                      {u.streak > 0 ? `🔥 ${u.streak}d` : "—"}
-                    </span>
-                  </td>
-                  <td><BadgeChips badges={u.badges || []} /></td>
-                  <td style={{ color: "rgba(200,170,100,.4)", fontSize: ".75rem" }}>{fmtDate(u.created_at)}</td>
-                  <td>
-                    <span className={`status-dot ${u.status ? "status-active" : "status-inactive"}`}>
-                      {u.status ? "Active" : "Inactive"}
-                    </span>
-                  </td>
-                  <td>
-                    <button
-                      className={`adm-toggle ${u.status ? "adm-toggle-deactivate" : "adm-toggle-activate"}`}
-                      onClick={() => onToggleStatus(u.id, !u.status)}
-                    >
-                      {u.status ? "Deactivate" : "Activate"}
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
-  );
-}
-
-/* ── Leaderboard Panel ── */
-function LeaderboardPanel({ data, loading }) {
-  const maxPts = data[0]?.points || 1;
-  const medals = ["🥇", "🥈", "🥉"];
-
-  return (
-    <div className="adm-panel">
-      <div className="adm-panel-header">
-        <span className="adm-panel-title">Leaderboard — All Time</span>
-        <span className="adm-panel-count">{data.length} students ranked</span>
-      </div>
-
-      {loading ? (
-        <div className="adm-empty"><div className="adm-spinner" /><p>Loading…</p></div>
-      ) : data.length === 0 ? (
-        <div className="adm-empty">No data yet.</div>
-      ) : (
-        <>
-          <div className="lb-header">
-            <div>#</div>
-            <div>Student</div>
-            <div>Points</div>
-            <div>Progress</div>
-            <div>Tier</div>
-            <div>Badges</div>
-          </div>
-          {data.map((u, i) => (
-            <div className="lb-row" key={u.id}>
-              {/* Rank */}
-              <div className={`lb-rank ${i < 3 ? `rank-${i + 1}` : "rank-n"}`}>
-                {i < 3 ? medals[i] : `#${i + 1}`}
-              </div>
-
-              {/* User */}
-              <div style={{ display: "flex", alignItems: "center", gap: ".65rem" }}>
-                <Avatar name={u.full_name} size={32} />
-                <div>
-                  <div style={{ color: "#f0e6d3", fontWeight: 500, fontSize: ".83rem" }}>{u.full_name}</div>
-                  <div style={{ color: "rgba(200,170,100,.35)", fontSize: ".68rem" }}>
-                    {u.streak > 0 ? `🔥 ${u.streak}-day streak` : "No streak"}
-                  </div>
-                </div>
-              </div>
-
-              {/* Points */}
-              <div style={{ fontFamily: "'JetBrains Mono',monospace", color: "#e8c060", fontWeight: 600, fontSize: ".9rem" }}>
-                {(u.points ?? 0).toLocaleString()}
-                <span style={{ color: "rgba(200,160,50,.35)", fontSize: ".65rem", fontWeight: 400 }}> pts</span>
-              </div>
-
-              {/* Progress bar */}
-              <div style={{ paddingRight: ".5rem" }}>
-                <div className="points-bar-wrap">
-                  <div className="points-bar" style={{ width: `${Math.round((u.points / maxPts) * 100)}%` }} />
-                </div>
-                <div style={{ fontSize: ".62rem", color: "rgba(200,160,50,.35)", marginTop: ".25rem" }}>
-                  {Math.round((u.points / maxPts) * 100)}% of top
-                </div>
-              </div>
-
-              {/* Tier */}
-              <div><TierPill tier={u.tier || "Beginner"} /></div>
-
-              {/* Badges */}
-              <div><BadgeChips badges={u.badges || []} /></div>
-            </div>
-          ))}
-        </>
-      )}
-    </div>
-  );
-}
-
-/* ─────────────────────────────────────────────
-   Main Dashboard
-───────────────────────────────────────────── */
+/* ─── Component ── */
 export default function AdminDashboard() {
   const navigate = useNavigate();
-  const [tab, setTab] = useState("students");
-  const [stats, setStats] = useState(null);
+  const [tab, setTab] = useState("overview");
   const [students, setStudents] = useState([]);
   const [teachers, setTeachers] = useState([]);
-  const [leaderboard, setLeaderboard] = useState([]);
-  const [loadingStats, setLoadingStats] = useState(true);
-  const [loadingStudents, setLoadingStudents] = useState(true);
-  const [loadingTeachers, setLoadingTeachers] = useState(true);
-  const [loadingLb, setLoadingLb] = useState(true);
-  const [now, setNow] = useState(new Date());
+  const [assignments, setAssignments] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [modal, setModal] = useState(null); // { student }
+  const [selectedTeacher, setSelectedTeacher] = useState("");
+  const [confirming, setConfirming] = useState(false);
+  const [toast, setToast] = useState(null);
+
+  const user = getUser();
 
   // Auth guard
   useEffect(() => {
-    const u = getUser();
-    if (!u) { navigate("/"); return; }
-    if (u.role !== "admin") {
-      navigate(u.role === "teacher" ? "/teacher" : "/student");
-    }
-  }, [navigate]);
+    if (!user || user.role !== "admin") navigate("/");
+  }, [user, navigate]);
 
-  // Clock
-  useEffect(() => {
-    const t = setInterval(() => setNow(new Date()), 1000);
-    return () => clearInterval(t);
-  }, []);
+  const showToast = (msg, type = "success") => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 3600);
+  };
 
-  // Fetch stats
-  useEffect(() => {
-    apiFetch("/api/admin/stats")
-      .then(setStats)
-      .catch(console.error)
-      .finally(() => setLoadingStats(false));
-  }, []);
-
-  // Fetch students
-  const fetchStudents = useCallback(() => {
-    setLoadingStudents(true);
-    apiFetch("/api/admin/users?role=student")
-      .then(setStudents)
-      .catch(console.error)
-      .finally(() => setLoadingStudents(false));
-  }, []);
-
-  // Fetch teachers
-  const fetchTeachers = useCallback(() => {
-    setLoadingTeachers(true);
-    apiFetch("/api/admin/users?role=teacher")
-      .then(setTeachers)
-      .catch(console.error)
-      .finally(() => setLoadingTeachers(false));
-  }, []);
-
-  // Fetch leaderboard
-  const fetchLeaderboard = useCallback(() => {
-    setLoadingLb(true);
-    apiFetch("/api/admin/leaderboard")
-      .then(setLeaderboard)
-      .catch(console.error)
-      .finally(() => setLoadingLb(false));
-  }, []);
-
-  useEffect(() => { fetchStudents(); fetchTeachers(); fetchLeaderboard(); }, [fetchStudents, fetchTeachers, fetchLeaderboard]);
-
-  // Toggle user status
-  const handleToggleStatus = async (id, newStatus) => {
+  const loadData = useCallback(async () => {
+    setLoading(true);
     try {
-      await apiPatch(`/api/admin/users/${id}/status`, { status: newStatus });
-      setStudents((prev) => prev.map((u) => u.id === id ? { ...u, status: newStatus } : u));
-      setTeachers((prev) => prev.map((u) => u.id === id ? { ...u, status: newStatus } : u));
-    } catch (err) {
-      alert("Failed to update status: " + err.message);
+      const [s, t, a] = await Promise.all([
+        apiFetch("/api/admin/students"),
+        apiFetch("/api/admin/teachers"),
+        apiFetch("/api/admin/assignments"),
+      ]);
+      setStudents(s);
+      setTeachers(t);
+      setAssignments(a);
+    } catch (e) {
+      showToast(e.message, "error");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { loadData(); }, [loadData]);
+
+  // Map student_id → teacher info for quick lookup
+  const assignmentMap = {};
+  assignments.forEach((a) => {
+    if (a.student?.id) assignmentMap[a.student.id] = a.teacher;
+  });
+
+  const handleOpenAssign = (student) => {
+    const currentTeacher = assignmentMap[student.id];
+    setSelectedTeacher(currentTeacher?.id || "");
+    setModal({ student });
+  };
+
+  const handleConfirmAssign = async () => {
+    if (!selectedTeacher) return;
+    setConfirming(true);
+    try {
+      const result = await apiFetch("/api/admin/assign", {
+        method: "POST",
+        body: JSON.stringify({ teacherId: selectedTeacher, studentId: modal.student.id }),
+      });
+      showToast(result.message);
+      setModal(null);
+      await loadData();
+    } catch (e) {
+      showToast(e.message, "error");
+    } finally {
+      setConfirming(false);
     }
   };
 
-  const tabs = [
-    { id: "students",    label: "Students",    icon: "🎓" },
-    { id: "teachers",    label: "Teachers",    icon: "📚" },
-    { id: "leaderboard", label: "Leaderboard", icon: "🏆" },
-  ];
+  const handleRemove = async (studentId, studentName) => {
+    if (!window.confirm(`Remove assignment for ${studentName}?`)) return;
+    try {
+      await apiFetch(`/api/admin/assign/${studentId}`, { method: "DELETE" });
+      showToast("Assignment removed");
+      await loadData();
+    } catch (e) {
+      showToast(e.message, "error");
+    }
+  };
 
+  const filteredStudents = students.filter(
+    (s) => s.full_name?.toLowerCase().includes(search.toLowerCase()) ||
+           s.email?.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const filteredTeachers = teachers.filter(
+    (t) => t.full_name?.toLowerCase().includes(search.toLowerCase()) ||
+           t.email?.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const assignedCount = Object.keys(assignmentMap).length;
+
+  // ─── Render ────────────────────────────────────────────────────────────────
   return (
     <>
-      <S />
-      <div className="adm-root">
-        {/* ── Sidebar ── */}
-        <aside className="adm-sidebar">
-          <div className="adm-logo">
-            <div className="adm-logo-icon">🎓</div>
-            <div>
-              <div className="adm-logo-text">SchoolQuiz</div>
-              <div className="adm-logo-sub">Admin Panel</div>
-            </div>
-          </div>
+      <Styles />
 
-          <div className="adm-nav-label">Navigation</div>
-          {tabs.map((t) => (
-            <button
-              key={t.id}
-              className={`adm-nav-btn ${tab === t.id ? "active" : ""}`}
-              onClick={() => setTab(t.id)}
+      {/* Toast */}
+      {toast && (
+        <div className={`toast toast-${toast.type}`}>
+          {toast.type === "success" ? Ico.Check : Ico.X}
+          <span>{toast.msg}</span>
+        </div>
+      )}
+
+      {/* Confirm modal */}
+      {modal && (
+        <div className="modal-overlay" onClick={() => setModal(null)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-icon">{Ico.Link}</div>
+            <h2 className="modal-title">Assign Teacher</h2>
+            <p className="modal-body">
+              You're assigning a teacher to{" "}
+              <strong>{modal.student.full_name}</strong>.
+              {assignmentMap[modal.student.id] && (
+                <> Current teacher: <strong>{assignmentMap[modal.student.id].full_name}</strong>. This will be replaced.</>
+              )}
+            </p>
+            <p className="modal-select-label">Select Teacher</p>
+            <select
+              className="modal-select"
+              value={selectedTeacher}
+              onChange={(e) => setSelectedTeacher(e.target.value)}
             >
-              <span className="icon">{t.icon}</span>
-              {t.label}
-            </button>
-          ))}
-
-          <div className="adm-sidebar-footer">
-            <button className="adm-signout" onClick={() => { logout(); navigate("/"); }}>
-              <span>🚪</span> Sign Out
-            </button>
-          </div>
-        </aside>
-
-        {/* ── Main ── */}
-        <main className="adm-main">
-          {/* Top bar */}
-          <div className="adm-topbar">
-            <div>
-              <div className="adm-page-title">Admin Dashboard</div>
-              <div className="adm-page-sub">Manage students, teachers & performance</div>
-            </div>
-            <div className="adm-time">
-              {now.toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric",
-                hour: "2-digit", minute: "2-digit", second: "2-digit" })}
-            </div>
-          </div>
-
-          {/* Stat Cards */}
-          <div className="adm-stats">
-            <StatCard label="Total Students"     icon="🎓" value={loadingStats ? "…" : stats?.totalStudents ?? 0}      delta="Enrolled learners" />
-            <StatCard label="Total Teachers"     icon="📚" value={loadingStats ? "…" : stats?.totalTeachers ?? 0}      delta="Active educators" />
-            <StatCard label="Total Quizzes"      icon="📝" value={loadingStats ? "…" : stats?.totalQuizzes ?? 0}       delta="Published assessments" />
-            <StatCard label="Badges Awarded"     icon="🏅" value={loadingStats ? "…" : stats?.totalBadgesAwarded ?? 0} delta="Achievements earned" />
-          </div>
-
-          {/* Tab bar */}
-          <div className="adm-tabs">
-            {tabs.map((t) => (
-              <button key={t.id} className={`adm-tab ${tab === t.id ? "active" : ""}`} onClick={() => setTab(t.id)}>
-                {t.icon} {t.label}
+              <option value="">— Choose a teacher —</option>
+              {teachers.map((t) => (
+                <option key={t.id} value={t.id}>{t.full_name} ({t.email})</option>
+              ))}
+            </select>
+            <div className="modal-actions">
+              <button className="btn-cancel" onClick={() => setModal(null)}>Cancel</button>
+              <button
+                className="btn-confirm"
+                onClick={handleConfirmAssign}
+                disabled={!selectedTeacher || confirming}
+              >
+                {confirming ? <span className="spinner" /> : "Confirm Assignment"}
               </button>
-            ))}
+            </div>
           </div>
+        </div>
+      )}
 
-          {/* Panels */}
-          {tab === "students" && (
-            <UsersTable users={students} loading={loadingStudents} onToggleStatus={handleToggleStatus} />
-          )}
-          {tab === "teachers" && (
-            <UsersTable users={teachers} loading={loadingTeachers} onToggleStatus={handleToggleStatus} />
-          )}
-          {tab === "leaderboard" && (
-            <LeaderboardPanel data={leaderboard} loading={loadingLb} />
-          )}
-        </main>
+      <div className="adm-root">
+        {/* Topbar */}
+        <header className="topbar">
+          <div className="topbar-logo">
+            <div className="topbar-logo-badge">{Ico.Shield}</div>
+            Admin Console
+          </div>
+          <div className="topbar-right">
+            <span className="admin-chip">ADMIN</span>
+            <button className="btn-logout" onClick={() => { logout(); navigate("/"); }}>
+              Sign out
+            </button>
+          </div>
+        </header>
+
+        <div className="adm-body">
+          {/* Side Nav */}
+          <nav className="side-nav">
+            <p className="nav-section-label" style={{ marginBottom: "1rem" }}>Navigation</p>
+            {[
+              { key: "overview", icon: Ico.Shield, label: "Overview" },
+              { key: "students", icon: Ico.Users, label: "Students", count: students.length },
+              { key: "teachers", icon: Ico.Teacher, label: "Teachers", count: teachers.length },
+              { key: "assignments", icon: Ico.Link, label: "Assignments", count: assignments.length },
+            ].map((n) => (
+              <div
+                key={n.key}
+                className={`nav-item ${tab === n.key ? "active" : ""}`}
+                onClick={() => { setTab(n.key); setSearch(""); }}
+              >
+                {n.icon}
+                {n.label}
+                {n.count !== undefined && (
+                  <span className="nav-badge">{n.count}</span>
+                )}
+              </div>
+            ))}
+          </nav>
+
+          {/* Main */}
+          <main className="adm-main">
+
+            {/* Overview */}
+            {tab === "overview" && (
+              <>
+                <div className="page-header">
+                  <h1 className="page-title">Overview</h1>
+                  <p className="page-subtitle">System summary and quick stats</p>
+                </div>
+                <div className="stats-row">
+                  <div className="stat-card">
+                    <p className="stat-label">Students</p>
+                    <p className="stat-value">{students.length}</p>
+                    <p className="stat-sub">
+                      <span className="stat-dot" style={{ background: "#34d399" }} />
+                      {assignedCount} assigned
+                    </p>
+                  </div>
+                  <div className="stat-card">
+                    <p className="stat-label">Teachers</p>
+                    <p className="stat-value">{teachers.length}</p>
+                    <p className="stat-sub">
+                      <span className="stat-dot" style={{ background: "#a78bfa" }} />
+                      {teachers.filter(t => assignments.some(a => a.teacher?.id === t.id)).length} active
+                    </p>
+                  </div>
+                  <div className="stat-card">
+                    <p className="stat-label">Assignments</p>
+                    <p className="stat-value">{assignments.length}</p>
+                    <p className="stat-sub">
+                      <span className="stat-dot" style={{ background: "#38bdf8" }} />
+                      {students.length - assignedCount} unassigned
+                    </p>
+                  </div>
+                </div>
+
+                {/* Unassigned students alert */}
+                {students.length - assignedCount > 0 && (
+                  <div className="panel" style={{ marginBottom: "1.5rem", border: "1px solid rgba(251,191,36,.2)" }}>
+                    <div className="panel-header" style={{ background: "rgba(251,191,36,.05)" }}>
+                      <span className="panel-title" style={{ color: "#fbbf24" }}>
+                        ⚠ {students.length - assignedCount} student(s) without a teacher
+                      </span>
+                      <button className="btn-assign" onClick={() => setTab("students")}>
+                        Assign Now →
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Recent assignments */}
+                <div className="panel">
+                  <div className="panel-header">
+                    <span className="panel-title">Recent Assignments</span>
+                  </div>
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th>Student</th>
+                        <th>Teacher</th>
+                        <th>Assigned</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {loading ? (
+                        [1,2,3].map(i => (
+                          <tr key={i}>
+                            <td><div className="skeleton" style={{width:"140px"}} /></td>
+                            <td><div className="skeleton" style={{width:"120px"}} /></td>
+                            <td><div className="skeleton" style={{width:"80px"}} /></td>
+                          </tr>
+                        ))
+                      ) : assignments.length === 0 ? (
+                        <tr><td colSpan={3} className="empty-state">No assignments yet</td></tr>
+                      ) : (
+                        assignments.slice(0, 6).map((a) => (
+                          <tr key={a.id}>
+                            <td>
+                              <div className="user-cell">
+                                <div className="avatar avatar-student">{initials(a.student?.full_name)}</div>
+                                <div>
+                                  <div className="user-name">{a.student?.full_name}</div>
+                                  <div className="user-email">{a.student?.email}</div>
+                                </div>
+                              </div>
+                            </td>
+                            <td>
+                              <div className="user-cell">
+                                <div className="avatar avatar-teacher">{initials(a.teacher?.full_name)}</div>
+                                <span className="user-name">{a.teacher?.full_name}</span>
+                              </div>
+                            </td>
+                            <td style={{ fontFamily:"'DM Mono',monospace", fontSize:".72rem", color:"rgba(255,255,255,.3)" }}>
+                              {new Date(a.assigned_at).toLocaleDateString()}
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+
+            {/* Students Tab */}
+            {tab === "students" && (
+              <>
+                <div className="page-header">
+                  <h1 className="page-title">Students</h1>
+                  <p className="page-subtitle">Manage student accounts and teacher assignments</p>
+                </div>
+                <div className="panel">
+                  <div className="panel-header">
+                    <span className="panel-title">{filteredStudents.length} students</span>
+                    <div className="search-box">
+                      {Ico.Search}
+                      <input
+                        placeholder="Search students…"
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th>Student</th>
+                        <th>Points / Tier</th>
+                        <th>Assigned Teacher</th>
+                        <th>Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {loading ? (
+                        [1,2,3,4].map(i => (
+                          <tr key={i}>
+                            {[200,80,120,60].map((w,j) => (
+                              <td key={j}><div className="skeleton" style={{width:w}} /></td>
+                            ))}
+                          </tr>
+                        ))
+                      ) : filteredStudents.length === 0 ? (
+                        <tr><td colSpan={4} className="empty-state">No students found</td></tr>
+                      ) : (
+                        filteredStudents.map((s) => {
+                          const teacher = assignmentMap[s.id];
+                          return (
+                            <tr key={s.id}>
+                              <td>
+                                <div className="user-cell">
+                                  <div className="avatar avatar-student">{initials(s.full_name)}</div>
+                                  <div>
+                                    <div className="user-name">{s.full_name}</div>
+                                    <div className="user-email">{s.email}</div>
+                                  </div>
+                                </div>
+                              </td>
+                              <td>
+                                <span style={{ fontWeight: 700, color: "#fff" }}>{s.points ?? 0}</span>
+                                <span style={{ color: "rgba(255,255,255,.3)", marginLeft: ".4rem", fontSize: ".74rem" }}>
+                                  {s.tier || "Beginner"}
+                                </span>
+                              </td>
+                              <td>
+                                {teacher ? (
+                                  <div className="assign-info">
+                                    <div className="avatar avatar-teacher" style={{width:24,height:24,fontSize:".6rem"}}>
+                                      {initials(teacher.full_name)}
+                                    </div>
+                                    <span className="assign-name">{teacher.full_name}</span>
+                                  </div>
+                                ) : (
+                                  <span className="assign-none">Unassigned</span>
+                                )}
+                              </td>
+                              <td>
+                                <div style={{ display: "flex", gap: ".5rem" }}>
+                                  <button className="btn-assign" onClick={() => handleOpenAssign(s)}>
+                                    {teacher ? "Reassign" : "Assign"}
+                                  </button>
+                                  {teacher && (
+                                    <button className="btn-remove" onClick={() => handleRemove(s.id, s.full_name)}>
+                                      Remove
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+
+            {/* Teachers Tab */}
+            {tab === "teachers" && (
+              <>
+                <div className="page-header">
+                  <h1 className="page-title">Teachers</h1>
+                  <p className="page-subtitle">View all registered teachers and their student load</p>
+                </div>
+                <div className="panel">
+                  <div className="panel-header">
+                    <span className="panel-title">{filteredTeachers.length} teachers</span>
+                    <div className="search-box">
+                      {Ico.Search}
+                      <input
+                        placeholder="Search teachers…"
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th>Teacher</th>
+                        <th>Status</th>
+                        <th>Students Assigned</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {loading ? (
+                        [1,2,3].map(i => (
+                          <tr key={i}>
+                            {[200,60,80].map((w,j) => (
+                              <td key={j}><div className="skeleton" style={{width:w}} /></td>
+                            ))}
+                          </tr>
+                        ))
+                      ) : filteredTeachers.length === 0 ? (
+                        <tr><td colSpan={3} className="empty-state">No teachers found</td></tr>
+                      ) : (
+                        filteredTeachers.map((t) => {
+                          const count = assignments.filter(a => a.teacher?.id === t.id).length;
+                          return (
+                            <tr key={t.id}>
+                              <td>
+                                <div className="user-cell">
+                                  <div className="avatar avatar-teacher">{initials(t.full_name)}</div>
+                                  <div>
+                                    <div className="user-name">{t.full_name}</div>
+                                    <div className="user-email">{t.email}</div>
+                                  </div>
+                                </div>
+                              </td>
+                              <td>
+                                <span className="role-chip role-teacher">Teacher</span>
+                              </td>
+                              <td>
+                                <span style={{ fontWeight: 700, color: "#a78bfa" }}>{count}</span>
+                                <span style={{ color: "rgba(255,255,255,.3)", marginLeft: ".4rem", fontSize: ".74rem" }}>
+                                  student{count !== 1 ? "s" : ""}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+
+            {/* Assignments Tab */}
+            {tab === "assignments" && (
+              <>
+                <div className="page-header">
+                  <h1 className="page-title">Assignments</h1>
+                  <p className="page-subtitle">All teacher–student pairings</p>
+                </div>
+                <div className="panel">
+                  <div className="panel-header">
+                    <span className="panel-title">{assignments.length} active assignments</span>
+                  </div>
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th>Student</th>
+                        <th>Teacher</th>
+                        <th>Assigned On</th>
+                        <th>Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {loading ? (
+                        [1,2,3].map(i => (
+                          <tr key={i}>
+                            {[200,180,80,60].map((w,j) => (
+                              <td key={j}><div className="skeleton" style={{width:w}} /></td>
+                            ))}
+                          </tr>
+                        ))
+                      ) : assignments.length === 0 ? (
+                        <tr><td colSpan={4} className="empty-state">No assignments yet — go to Students tab to assign</td></tr>
+                      ) : (
+                        assignments.map((a) => (
+                          <tr key={a.id}>
+                            <td>
+                              <div className="user-cell">
+                                <div className="avatar avatar-student">{initials(a.student?.full_name)}</div>
+                                <div>
+                                  <div className="user-name">{a.student?.full_name}</div>
+                                  <div className="user-email">{a.student?.email}</div>
+                                </div>
+                              </div>
+                            </td>
+                            <td>
+                              <div className="user-cell">
+                                <div className="avatar avatar-teacher">{initials(a.teacher?.full_name)}</div>
+                                <div>
+                                  <div className="user-name">{a.teacher?.full_name}</div>
+                                  <div className="user-email">{a.teacher?.email}</div>
+                                </div>
+                              </div>
+                            </td>
+                            <td style={{ fontFamily:"'DM Mono',monospace", fontSize:".72rem", color:"rgba(255,255,255,.3)" }}>
+                              {new Date(a.assigned_at).toLocaleString()}
+                            </td>
+                            <td>
+                              <button
+                                className="btn-remove"
+                                onClick={() => handleRemove(a.student?.id, a.student?.full_name)}
+                              >
+                                Remove
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+
+          </main>
+        </div>
       </div>
     </>
   );

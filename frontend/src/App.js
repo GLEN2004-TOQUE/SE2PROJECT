@@ -1,11 +1,11 @@
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
-import Register        from "./pages/Register";
-import Login           from "./pages/Login";
+import Register from "./pages/Register";
+import Login from "./pages/Login";
 import TeacherDashboard from "./pages/TeacherDashboard";
 import StudentDashboard from "./pages/StudentDashboard";
-import AdminDashboard  from "./pages/AdminDashboard";
-import QuizPage        from "./pages/QuizPage";
-import ProtectedRoute  from "./components/ProtectedRoute";
+import AdminDashboard from "./pages/AdminDashboard";
+import QuizPage from "./pages/QuizPage";
+import ProtectedRoute from "./components/ProtectedRoute";
 
 function App() {
   return (
@@ -45,7 +45,7 @@ function App() {
           }
         />
 
-        {/* Quiz */}
+        {/* Quiz (student takes quiz by ID) */}
         <Route
           path="/quiz/:quizId"
           element={

@@ -6,6 +6,7 @@ const authController = require('./controllers/authController');
 const { verifyToken, authorizeRole } = require('./middleware/authMiddleware');
 const lectureRoutes = require('./routes/lectureRoutes');
 const quizRoutes = require('./routes/quizRoutes');
+const adminRoutes = require('./routes/adminRoutes');
 
 const app = express();
 
@@ -42,6 +43,7 @@ app.post('/login', authController.login);
 // API Routes
 app.use('/api/quiz', quizRoutes);
 app.use('/lectures', lectureRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Protected dashboard routes
 app.get('/teacher/dashboard', verifyToken, authorizeRole('teacher'), (req, res) => {
@@ -52,7 +54,10 @@ app.get('/student/dashboard', verifyToken, authorizeRole('student'), (req, res) 
   res.json({ message: "Welcome Student" });
 });
 
-// Start server
+app.get('/admin/dashboard', verifyToken, authorizeRole('admin'), (req, res) => {
+  res.json({ message: "Welcome Admin" });
+});
+
 // Global error handler
 app.use((err, req, res, next) => {
   console.error('Server Error:', err.stack);

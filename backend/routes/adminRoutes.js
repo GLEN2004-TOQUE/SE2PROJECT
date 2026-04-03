@@ -1,15 +1,29 @@
 const express = require("express");
 const router = express.Router();
-const adminController = require("../controllers/adminController");
+const {
+  getAllStudents,
+  getAllTeachers,
+  getAllUsers,
+  getAssignments,
+  assignTeacherToStudent,
+  removeAssignment,
+  getMyStudents,
+  getMyTeacher,
+} = require("../controllers/adminController");
 const { verifyToken, authorizeRole } = require("../middleware/authMiddleware");
 
-// All admin routes require a valid token + admin role
-const adminOnly = [verifyToken, authorizeRole("admin")];
+// ─── Admin-only routes ────────────────────────────────────────────────────────
+router.get("/users",       verifyToken, authorizeRole("admin"), getAllUsers);
+router.get("/students",    verifyToken, authorizeRole("admin"), getAllStudents);
+router.get("/teachers",    verifyToken, authorizeRole("admin"), getAllTeachers);
+router.get("/assignments", verifyToken, authorizeRole("admin"), getAssignments);
+router.post("/assign",     verifyToken, authorizeRole("admin"), assignTeacherToStudent);
+router.delete("/assign/:studentId", verifyToken, authorizeRole("admin"), removeAssignment);
 
-router.get("/stats",           ...adminOnly, adminController.getStats);
-router.get("/users",           ...adminOnly, adminController.getUsers);
-router.get("/users/:id",       ...adminOnly, adminController.getUserById);
-router.patch("/users/:id/status", ...adminOnly, adminController.setUserStatus);
-router.get("/leaderboard",     ...adminOnly, adminController.getLeaderboard);
+// ─── Teacher: see assigned students ──────────────────────────────────────────
+router.get("/my-students", verifyToken, authorizeRole("teacher"), getMyStudents);
+
+// ─── Student: see assigned teacher ───────────────────────────────────────────
+router.get("/my-teacher",  verifyToken, authorizeRole("student"), getMyTeacher);
 
 module.exports = router;

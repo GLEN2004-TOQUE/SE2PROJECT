@@ -1,43 +1,20 @@
-function IconMedal() {
+export default function BadgeCard({ badge }) {
+  if (!badge) return null;
   return (
-    <svg viewBox="0 0 20 20" fill="currentColor">
-      <circle cx="10" cy="12" r="6"/>
-      <path d="M7 6L5 2h10l-2 4"/>
-    </svg>
-  );
-}
-
-export default function BadgeCard({ badges }) {
-  return (
-    <div className="sd-card sd-card-full" style={{ marginBottom: "1.2rem" }}>
-      <div className="sd-card-header">
-        <div className="sd-card-icon">
-          <IconMedal />
-        </div>
-        <div>
-          <div className="sd-card-title">My Badges</div>
-          <div className="sd-card-sub">Earned by reaching point milestones</div>
-        </div>
-      </div>
-
-      {badges.length === 0 ? (
-        <div className="sd-empty">
-          🏅 No badges earned yet — complete quizzes to unlock them
-        </div>
-      ) : (
-        <div className="sd-badge-grid">
-          {badges.map((b, i) => (
-            <div key={b.id || i} className="sd-badge-item">
-              <div className="sd-badge-icon">
-                {b.icon_url ? (
-                  <img src={b.icon_url} alt={b.name} style={{ width: 24, height: 24 }} />
-                ) : "🏅"}
-              </div>
-              <div className="sd-badge-name">{b.name}</div>
-            </div>
-          ))}
-        </div>
+    <div style={{
+      background:"rgba(255,255,255,.05)",
+      border:"1px solid rgba(255,255,255,.08)",
+      borderRadius:12,
+      padding:".9rem",
+      textAlign:"center",
+      color:"#fff"
+    }}>
+      {badge.icon_url && (
+        <img src={badge.icon_url} alt={badge.name}
+          style={{width:40,height:40,margin:"0 auto .5rem",display:"block"}} />
       )}
+      <p style={{fontWeight:700,fontSize:".82rem"}}>{badge.name}</p>
+      <p style={{fontSize:".7rem",opacity:.4,marginTop:".2rem"}}>{badge.description}</p>
     </div>
   );
 }

@@ -2,9 +2,9 @@ import { Navigate } from "react-router-dom";
 import { getUser } from "../services/api";
 
 const ROLE_HOME = {
-  admin:   "/admin",
   teacher: "/teacher",
   student: "/student",
+  admin:   "/admin",
 };
 
 function ProtectedRoute({ children, role }) {
@@ -18,9 +18,9 @@ function ProtectedRoute({ children, role }) {
     return <Navigate to="/" replace />;
   }
 
-  // Wrong role → redirect to correct dashboard
   if (role && user.role !== role) {
-    return <Navigate to={ROLE_HOME[user.role] || "/"} replace />;
+    const home = ROLE_HOME[user.role] || "/";
+    return <Navigate to={home} replace />;
   }
 
   return children;
