@@ -267,13 +267,43 @@ const rankEmoji = (i) => i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" 
 export default function StudentDashboard() {
   const navigate = useNavigate();
   const [userData, setUserData] = useState(null);
-  const [myTeacher, setMyTeacher] = useState(undefined); // undefined = loading
+  const [myTeacher, setMyTeacher] = useState(undefined); 
   const [leaderboard, setLeaderboard] = useState([]);
   const [lbType, setLbType] = useState("overall");
   const [lbLoading, setLbLoading] = useState(false);
-  const [quizId, setQuizId] = useState("");
-  const [quizError, setQuizError] = useState("");
   const [pageLoading, setPageLoading] = useState(true);
+  const [teacherQuizzes, setTeacherQuizzes] = useState([]); // ✅ Initialize as empty array
+  const [loadingQuizzes, setLoadingQuizzes] = useState(false);
+
+  // ✅ Fix: Ensure teacherQuizzes is always an array
+  useEffect(() => {
+    if (userData?.role === "student") {
+      setLoadingQuizzes(true);
+      fetch(`${BASE}/api/quiz/my-quizzes`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }
+      })
+        .then(res => {
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          return res.json();
+        })
+        .then(data => {
+          // ✅ Ensure data is an array
+          if (Array.isArray(data)) {
+            setTeacherQuizzes(data);
+          } else if (data && Array.isArray(data.quizzes)) {
+            setTeacherQuizzes(data.quizzes);
+          } else {
+            console.warn("Unexpected response format:", data);
+            setTeacherQuizzes([]);
+          }
+        })
+        .catch(err => {
+          console.error("Failed to fetch quizzes:", err);
+          setTeacherQuizzes([]); // ✅ Set to empty array on error
+        })
+        .finally(() => setLoadingQuizzes(false));
+    }
+  }, [userData]);
 
   useEffect(() => {
     const user = getUser();
@@ -290,18 +320,22 @@ export default function StudentDashboard() {
   useEffect(() => {
     setLbLoading(true);
     getLeaderboard(lbType)
-      .then(setLeaderboard)
+      .then(data => {
+        // ✅ Ensure leaderboard is array
+        if (Array.isArray(data)) {
+          setLeaderboard(data);
+        } else {
+          setLeaderboard([]);
+        }
+      })
       .catch(() => setLeaderboard([]))
       .finally(() => setLbLoading(false));
   }, [lbType]);
 
-  const handleTakeQuiz = () => {
-    if (!quizId.trim()) { setQuizError("Please enter a Quiz ID"); return; }
-    setQuizError("");
-    navigate(`/quiz/${quizId.trim()}`);
-  };
-
   const displayName = userData?.full_name || userData?.name || "Student";
+
+  // ✅ Safe check before using .map()
+  const safeQuizzes = Array.isArray(teacherQuizzes) ? teacherQuizzes : [];
 
   return (
     <>
@@ -400,22 +434,56 @@ export default function StudentDashboard() {
             </div>
           </div>
 
-          {/* Quiz Entry */}
+          {/* Quiz Entry - ✅ Fixed with safeQuizzes */}
           <div className="sd-quiz-entry">
-            <h3>Enter a Quiz</h3>
-            <div className="sd-quiz-row">
-              <input
-                className="sd-quiz-input"
-                placeholder="Paste quiz ID here…"
-                value={quizId}
-                onChange={e => setQuizId(e.target.value)}
-                onKeyDown={e => e.key === "Enter" && handleTakeQuiz()}
-              />
-              <button className="sd-quiz-btn" onClick={handleTakeQuiz}>
-                Start Quiz →
-              </button>
-            </div>
-            {quizError && <p className="sd-quiz-error">{quizError}</p>}
+            <h3>Quizzes from Your Teacher</h3>
+            {loadingQuizzes ? (
+              <div style={{ textAlign: "center", padding: "1rem", color: "rgba(255,255,255,.4)" }}>
+                Loading quizzes...
+              </div>
+            ) : safeQuizzes.length === 0 ? (
+              <p style={{ color: "rgba(255,255,255,.4)" }}>
+                No quizzes available yet. Your teacher will assign quizzes here.
+              </p>
+            ) : (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "0.75rem" }}>
+                {safeQuizzes.map(quiz => (
+                  <div 
+                    key={quiz.id} 
+                    style={{
+                      background: "rgba(255,255,255,.05)",
+                      border: "1px solid rgba(255,255,255,.1)",
+                      borderRadius: "12px",
+                      padding: "1rem",
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center"
+                    }}
+                  >
+                    <div>
+                      <p style={{ fontWeight: "600", marginBottom: "0.25rem" }}>{quiz.title}</p>
+                      <p style={{ fontSize: "0.7rem", color: "rgba(255,255,255,.4)" }}>
+                        Created {quiz.created_at ? new Date(quiz.created_at).toLocaleDateString() : "recently"}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => navigate(`/quiz/${quiz.id}`)}
+                      style={{
+                        padding: "0.5rem 1rem",
+                        background: "#C9A227",
+                        border: "none",
+                        borderRadius: "8px",
+                        color: "#000",
+                        fontWeight: "600",
+                        cursor: "pointer"
+                      }}
+                    >
+                      Take Quiz
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Leaderboard */}

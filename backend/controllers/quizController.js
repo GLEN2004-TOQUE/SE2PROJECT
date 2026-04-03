@@ -1,55 +1,114 @@
-const { generateQuestions } = require("../services/aiServices");
+const aiService = require("../services/aiService");
 const { supabaseAdmin, supabase } = require("../supabaseClient");
 const { updateGamification } = require("../services/scoringServices");
 
+// Generate quiz questions using AI with auto model switching
 exports.generateQuiz = async (req, res) => {
   try {
     const { lectureId, type, count } = req.body;
 
-    const { data: lecture } = await supabaseAdmin
+    // Validate input
+    if (!lectureId) {
+      return res.status(400).json({ error: "Lecture ID is required" });
+    }
+
+    const { data: lecture, error: lectureError } = await supabaseAdmin
       .from("lectures")
       .select("*")
       .eq("id", lectureId)
       .single();
 
+    if (lectureError) {
+      console.error("Lecture lookup failed:", lectureError);
+      return res.status(500).json({ error: lectureError.message });
+    }
+
     if (!lecture) return res.status(404).json({ message: "Lecture not found" });
 
-    const questions = await generateQuestions(lecture.extracted_text, type, count);
-    res.json({ questions });
+    console.log(`📝 Generating ${count || 5} questions for lecture: ${lecture.title}`);
+    
+    // ✅ Use auto-switching AI service instead of direct generateQuestions
+    const questions = await aiService.generateQuestions(
+      lecture.extracted_text, 
+      type || "multiple-choice", 
+      count || 5
+    );
+    
+    res.json({ 
+      success: true,
+      questions,
+      metadata: {
+        lectureId,
+        lectureTitle: lecture.title,
+        count: questions.length,
+        generatedAt: new Date().toISOString()
+      }
+    });
 
   } catch (err) {
-    res.status(500).json({ error: "AI generation failed. Please create manually." });
+    console.error("AI generation failed:", err);
+    
+    // Check if it's a rate limit error
+    const isRateLimit = err.message.includes('quota') || err.message.includes('429');
+    
+    res.status(isRateLimit ? 429 : 500).json({ 
+      error: err.message || "AI generation failed. Please create manually.",
+      isRateLimit: isRateLimit,
+      suggestion: isRateLimit ? "Please wait a minute and try again" : "Try again later"
+    });
   }
 };
 
+// Save generated questions to DB and create quiz
 exports.saveQuestions = async (req, res) => {
   try {
     const { lectureId, quizTitle, questions } = req.body;
+    const teacherId = req.user.id;
 
     if (!lectureId || !questions || !quizTitle) {
       return res.status(400).json({ message: "Missing data" });
     }
 
-    const { courseId } = req.body;
-    if (!courseId) return res.status(400).json({ message: "Missing courseId" });
+    // Verify lecture exists and belongs to teacher
+    const { data: lecture, error: lectureError } = await supabaseAdmin
+      .from("lectures")
+      .select("id, title")
+      .eq("id", lectureId)
+      .single();
 
+    if (lectureError || !lecture) {
+      return res.status(404).json({ error: "Lecture not found" });
+    }
+
+    // Create quiz with teacher_id
     const { data: quiz, error: quizError } = await supabaseAdmin
       .from("quizzes")
-      .insert([{ course_id: courseId, title: quizTitle }])
+      .insert([{ 
+        title: quizTitle, 
+        teacher_id: teacherId,
+        lecture_id: lectureId,
+        created_at: new Date()
+      }])
       .select()
       .single();
 
     if (quizError) return res.status(400).json({ error: quizError.message });
 
     const optionLetters = ["A", "B", "C", "D"];
-
     const formatted = questions.map(q => {
       let correctLetter = q.correct_answer;
-      if (correctLetter.length > 1) {
+      
+      // Handle if correct_answer is full text instead of letter
+      if (correctLetter && correctLetter.length > 1) {
         const idx = q.options.findIndex(o => o === correctLetter);
         correctLetter = idx >= 0 ? optionLetters[idx] : "A";
       }
-
+      
+      // Ensure correctLetter is valid
+      if (!["A", "B", "C", "D"].includes(correctLetter)) {
+        correctLetter = "A";
+      }
+      
       return {
         quiz_id: quiz.id,
         question_text: q.question,
@@ -62,104 +121,254 @@ exports.saveQuestions = async (req, res) => {
       };
     });
 
-    const { error } = await supabaseAdmin.from("questions").insert(formatted);
+    const { error: insertError } = await supabaseAdmin
+      .from("questions")
+      .insert(formatted);
+      
+    if (insertError) {
+      // Rollback quiz creation if questions insert fails
+      await supabaseAdmin.from("quizzes").delete().eq("id", quiz.id);
+      return res.status(400).json({ error: insertError.message });
+    }
 
-    if (error) return res.status(400).json({ error: error.message });
-
-    res.json({ message: "Questions saved successfully", quiz_id: quiz.id });
-
+    res.json({ 
+      message: "Quiz saved successfully", 
+      quiz_id: quiz.id,
+      questionsCount: formatted.length
+    });
+    
   } catch (err) {
+    console.error("Save questions error:", err);
     res.status(500).json({ error: err.message });
   }
 };
 
+// New endpoint: get quizzes for a student (quizzes created by their teacher)
+exports.getQuizzesForStudent = async (req, res) => {
+  try {
+    const studentId = req.user.id;
+    
+    const { data: assignment, error: assignError } = await supabaseAdmin
+      .from("teacher_student_assignments")
+      .select("teacher_id")
+      .eq("student_id", studentId)
+      .maybeSingle();
+
+    if (assignError || !assignment) {
+      return res.json([]);
+    }
+
+    const { data: quizzes, error: quizError } = await supabaseAdmin
+      .from("quizzes")
+      .select("id, title, created_at, start_time, end_time")
+      .eq("teacher_id", assignment.teacher_id)
+      .order("created_at", { ascending: false });
+
+    if (quizError) throw new Error(quizError.message);
+    
+    // Add status to each quiz
+    const now = new Date();
+    const quizzesWithStatus = quizzes.map(quiz => ({
+      ...quiz,
+      status: now < new Date(quiz.start_time) ? "upcoming" :
+              now > new Date(quiz.end_time) ? "ended" : "active"
+    }));
+    
+    res.json(quizzesWithStatus);
+    
+  } catch (err) {
+    console.error("Get quizzes for student error:", err);
+     res.json([]);
+  }
+};
+
+// Get quiz details (for students, only if within time window)
 exports.getQuiz = async (req, res) => {
   try {
     const { quizId } = req.params;
 
-    const { data: quiz } = await supabase
+    const { data: quiz, error: quizError } = await supabase
       .from("quizzes")
       .select("*")
       .eq("id", quizId)
       .single();
 
+    if (quizError || !quiz) {
+      return res.status(404).json({ message: "Quiz not found" });
+    }
+
     const now = new Date();
+    const startTime = new Date(quiz.start_time);
+    const endTime = new Date(quiz.end_time);
 
-    if (new Date(quiz.start_time) > now) {
-      return res.status(400).json({ message: "Quiz not started yet" });
+    if (startTime > now) {
+      return res.status(400).json({ 
+        message: "Quiz not started yet", 
+        startTime: quiz.start_time 
+      });
     }
 
-    if (new Date(quiz.end_time) < now) {
-      return res.status(400).json({ message: "Quiz already ended" });
+    if (endTime < now) {
+      return res.status(400).json({ 
+        message: "Quiz already ended", 
+        endTime: quiz.end_time 
+      });
     }
 
-    const { data: questions } = await supabase
+    const { data: questions, error: questionsError } = await supabase
       .from("questions")
-      .select("*")
+      .select("id, question_text, option_a, option_b, option_c, option_d")
       .eq("quiz_id", quizId);
 
+    if (questionsError) {
+      return res.status(500).json({ error: questionsError.message });
+    }
+
+    // Shuffle questions for randomness
     const shuffled = questions.sort(() => Math.random() - 0.5);
 
-    res.json({ quiz, questions: shuffled });
+    res.json({ 
+      quiz: {
+        id: quiz.id,
+        title: quiz.title,
+        start_time: quiz.start_time,
+        end_time: quiz.end_time
+      }, 
+      questions: shuffled 
+    });
 
   } catch (err) {
+    console.error("Get quiz error:", err);
     res.status(500).json({ error: err.message });
   }
 };
 
+// Submit quiz answers
 exports.submitQuiz = async (req, res) => {
   try {
     const { quizId, answers } = req.body;
+    const userId = req.user.id;
 
-    const { data: quiz } = await supabase
+    // Check if user already submitted
+    const { data: existingResult } = await supabase
+      .from("results")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("quiz_id", quizId)
+      .single();
+
+    if (existingResult) {
+      return res.status(400).json({ message: "You have already taken this quiz" });
+    }
+
+    const { data: quiz, error: quizError } = await supabase
       .from("quizzes")
       .select("*")
       .eq("id", quizId)
       .single();
 
+    if (quizError || !quiz) {
+      return res.status(404).json({ message: "Quiz not found" });
+    }
+
     const now = new Date();
+    const startTime = new Date(quiz.start_time);
+    const endTime = new Date(quiz.end_time);
 
     let attendanceStatus = "absent";
-    if (now >= new Date(quiz.start_time) && now <= new Date(quiz.end_time)) {
+    if (now >= startTime && now <= endTime) {
       attendanceStatus = "present";
     }
 
-    const { data: questions } = await supabase
+    const { data: questions, error: questionsError } = await supabase
       .from("questions")
       .select("*")
       .eq("quiz_id", quizId);
 
+    if (questionsError) {
+      return res.status(500).json({ error: questionsError.message });
+    }
+
     let score = 0;
+    const detailedAnswers = [];
+    
     questions.forEach(q => {
-      if (answers[q.id] === q.correct_answer) {
+      const userAnswer = answers[q.id];
+      const isCorrect = userAnswer === q.correct_answer;
+      if (isCorrect) {
         score++;
       }
+      detailedAnswers.push({
+        questionId: q.id,
+        userAnswer: userAnswer,
+        correctAnswer: q.correct_answer,
+        isCorrect: isCorrect
+      });
     });
 
-    await supabase.from("results").insert([
-      { user_id: req.user.id, quiz_id: quizId, score, total: questions.length }
-    ]);
+    // Save result
+    const { error: resultError } = await supabase
+      .from("results")
+      .insert([
+        { 
+          user_id: userId, 
+          quiz_id: quizId, 
+          score, 
+          total: questions.length,
+          answers: detailedAnswers,
+          submitted_at: new Date()
+        }
+      ]);
 
-    await supabase.from("attendance").insert([
-      { user_id: req.user.id, quiz_id: quizId, status: attendanceStatus }
-    ]);
+    if (resultError) {
+      return res.status(500).json({ error: resultError.message });
+    }
 
-    const game = await updateGamification(req.user.id, score, questions.length);
+    // Save attendance
+    const { error: attendanceError } = await supabase
+      .from("attendance")
+      .insert([
+        { 
+          user_id: userId, 
+          quiz_id: quizId, 
+          status: attendanceStatus,
+          timestamp: new Date()
+        }
+      ]);
 
-    res.json({ score, total: questions.length, attendance: attendanceStatus, game });
+    if (attendanceError) {
+      console.error("Attendance save error:", attendanceError);
+    }
+
+    // Update gamification
+    const game = await updateGamification(userId, score, questions.length);
+
+    res.json({ 
+      score, 
+      total: questions.length, 
+      percentage: Math.round((score / questions.length) * 100),
+      attendance: attendanceStatus, 
+      game,
+      passed: score >= questions.length / 2
+    });
 
   } catch (err) {
+    console.error("Submit quiz error:", err);
     res.status(500).json({ error: err.message });
   }
 };
 
+// Get attendance report for a quiz
 exports.getAttendanceReport = async (req, res) => {
   try {
     const { quizId } = req.params;
 
     const { data, error } = await supabase
       .from("attendance")
-      .select("*")
+      .select(`
+        *,
+        users:user_id (email, full_name)
+      `)
       .eq("quiz_id", quizId);
 
     if (error) return res.status(400).json({ error: error.message });
@@ -167,24 +376,73 @@ exports.getAttendanceReport = async (req, res) => {
     res.json(data);
 
   } catch (err) {
+    console.error("Get attendance report error:", err);
     res.status(500).json({ error: err.message });
   }
 };
 
+// Get attendance stats for a quiz
 exports.getAttendanceStats = async (req, res) => {
   try {
     const { quizId } = req.params;
 
     const { data } = await supabase
       .from("attendance")
-      .select("*")
+      .select("status")
       .eq("quiz_id", quizId);
 
     const present = data.filter(a => a.status === "present").length;
-    const absent  = data.filter(a => a.status === "absent").length;
+    const absent = data.filter(a => a.status === "absent").length;
 
-    res.json({ total: data.length, present, absent });
+    res.json({ 
+      total: data.length, 
+      present, 
+      absent,
+      attendanceRate: data.length > 0 ? Math.round((present / data.length) * 100) : 0
+    });
 
+  } catch (err) {
+    console.error("Get attendance stats error:", err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// ✅ NEW: Generate quiz from text directly (without lecture ID)
+exports.generateQuizFromText = async (req, res) => {
+  try {
+    const { text, type = "multiple-choice", count = 5 } = req.body;
+    
+    if (!text || text.trim().length === 0) {
+      return res.status(400).json({ error: "Text content is required" });
+    }
+    
+    const questions = await aiService.generateQuestions(text, type, count);
+    
+    res.json({ 
+      success: true, 
+      questions,
+      generatedAt: new Date().toISOString()
+    });
+    
+  } catch (err) {
+    console.error("Generate from text error:", err);
+    const isRateLimit = err.message.includes('quota') || err.message.includes('429');
+    res.status(isRateLimit ? 429 : 500).json({ 
+      error: err.message,
+      isRateLimit
+    });
+  }
+};
+
+// ✅ NEW: Get AI service status (for monitoring)
+exports.getAIStatus = async (req, res) => {
+  try {
+    const status = aiService.getStatus();
+    res.json({
+      success: true,
+      status: status,
+      timestamp: new Date().toISOString()
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

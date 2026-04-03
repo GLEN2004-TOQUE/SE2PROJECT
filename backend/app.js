@@ -7,6 +7,7 @@ const { verifyToken, authorizeRole } = require('./middleware/authMiddleware');
 const lectureRoutes = require('./routes/lectureRoutes');
 const quizRoutes = require('./routes/quizRoutes');
 const adminRoutes = require('./routes/adminRoutes');
+const aiService = require('./services/aiService'); 
 
 const app = express();
 
@@ -34,6 +35,16 @@ app.get('/health', async (req, res) => {
     console.error('Health check DB error:', err);
     res.status(500).json({ status: 'DB Error', message: err.message });
   }
+});
+
+// ✅ New endpoint to check AI model status
+app.get('/api/ai-status', (req, res) => {
+  const status = aiService.getStatus();
+  res.json({ 
+    success: true, 
+    status,
+    currentTime: new Date().toISOString()
+  });
 });
 
 // Auth routes
@@ -67,4 +78,5 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
+  console.log('📊 AI Model Status:', aiService.getStatus());
 });
