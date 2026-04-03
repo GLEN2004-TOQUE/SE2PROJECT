@@ -1,4 +1,3 @@
-const { supabase } = require("../supabaseClient");
 const jwt = require("jsonwebtoken");
 
 exports.verifyToken = async (req, res, next) => {
@@ -14,9 +13,10 @@ exports.verifyToken = async (req, res, next) => {
   }
 };
 
-exports.authorizeRole = (role) => {
+// Accepts one or more role strings: authorizeRole("admin") or authorizeRole("teacher", "admin")
+exports.authorizeRole = (...roles) => {
   return (req, res, next) => {
-    if (req.user?.role !== role) {
+    if (!req.user || !roles.includes(req.user.role)) {
       return res.status(403).json({ message: "Access denied" });
     }
     next();

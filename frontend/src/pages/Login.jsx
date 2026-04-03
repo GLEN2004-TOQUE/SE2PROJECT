@@ -45,7 +45,6 @@ const GlobalStyles = () => (
       overflow: hidden;
     }
 
-    /* subtle grain overlay */
     .login-root::before {
       content: '';
       position: fixed; inset: 0;
@@ -55,7 +54,6 @@ const GlobalStyles = () => (
       opacity: .45;
     }
 
-    /* decorative gold ring */
     .deco-ring {
       position: fixed;
       width: 600px; height: 600px;
@@ -72,14 +70,12 @@ const GlobalStyles = () => (
       animation-delay: -3s;
     }
 
-    /* card */
     .card-wrap {
       position: relative; z-index: 1;
       width: 100%; max-width: 440px;
       animation: floatUp .65s cubic-bezier(.22,1,.36,1) both;
     }
 
-    /* card style */
     .card {
       background: rgba(255,255,255,.045);
       backdrop-filter: blur(18px) saturate(1.4);
@@ -93,7 +89,6 @@ const GlobalStyles = () => (
         0 0 0 1px rgba(0,0,0,.3);
     }
 
-    /* logo badge inside card */
     .logo-badge {
       width: 76px; height: 76px;
       border-radius: 50%;
@@ -125,7 +120,6 @@ const GlobalStyles = () => (
       animation: fadeIn .8s .3s both;
     }
 
-    /* field group */
     .field { margin-bottom: 1.35rem; }
     .field label {
       display: block;
@@ -137,9 +131,7 @@ const GlobalStyles = () => (
       margin-bottom: .5rem;
     }
 
-    .input-wrap {
-      position: relative;
-    }
+    .input-wrap { position: relative; }
     .input-icon {
       position: absolute; left: .95rem; top: 50%;
       transform: translateY(-50%);
@@ -149,24 +141,17 @@ const GlobalStyles = () => (
     }
     .toggle-password {
       position: absolute;
-      right: .95rem;
-      top: 50%;
+      right: .95rem; top: 50%;
       transform: translateY(-50%);
-      background: none;
-      border: none;
+      background: none; border: none;
       cursor: pointer;
       color: rgba(200,160,60,.5);
-      width: 18px;
-      height: 18px;
+      width: 18px; height: 18px;
       padding: 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      display: flex; align-items: center; justify-content: center;
       transition: color .2s;
     }
-    .toggle-password:hover {
-      color: rgba(220,180,80,.8);
-    }
+    .toggle-password:hover { color: rgba(220,180,80,.8); }
 
     .field input {
       width: 100%;
@@ -193,12 +178,8 @@ const GlobalStyles = () => (
       -webkit-text-fill-color: #f5e6c8;
       caret-color: #f5e6c8;
     }
-    /* add right padding when eye icon present */
-    .password-input {
-      padding-right: 2.6rem;
-    }
+    .password-input { padding-right: 2.6rem; }
 
-    /* submit */
     .btn-submit {
       width: 100%;
       margin-top: .5rem;
@@ -237,15 +218,13 @@ const GlobalStyles = () => (
       margin-right: .5rem;
     }
 
-    /* divider */
     .divider {
       display: flex; align-items: center;
       gap: .85rem;
       margin: 1.6rem 0 1.2rem;
     }
     .divider::before, .divider::after {
-      content: '';
-      flex: 1;
+      content: ''; flex: 1;
       height: 1px;
       background: rgba(200,160,50,.15);
     }
@@ -257,7 +236,6 @@ const GlobalStyles = () => (
       white-space: nowrap;
     }
 
-    /* footer links */
     .register-line {
       text-align: center;
       font-size: .82rem;
@@ -285,7 +263,6 @@ const GlobalStyles = () => (
       animation: fadeIn .8s .5s both;
     }
 
-    /* secure badge */
     .secure-badge {
       display: flex; align-items: center; justify-content: center;
       gap: .4rem;
@@ -296,6 +273,20 @@ const GlobalStyles = () => (
       color: rgba(180,140,60,.35);
     }
     .secure-badge svg { width: 11px; height: 11px; }
+
+    /* error alert */
+    .error-alert {
+      display: flex; align-items: center; gap: .55rem;
+      padding: .65rem .9rem;
+      background: rgba(239,68,68,.08);
+      border: 1px solid rgba(239,68,68,.25);
+      border-radius: 9px;
+      margin-bottom: 1.2rem;
+      font-size: .8rem;
+      color: #fca5a5;
+      animation: fadeIn .2s ease both;
+    }
+    .error-alert svg { width:14px; height:14px; flex-shrink:0; }
   `}</style>
 );
 
@@ -329,69 +320,87 @@ const IconEyeClosed = () => (
     <path d="M2 2L18 18M6.712 6.712C4.033 8.032 2 10 2 10s3 5 8 5c1.406 0 2.731-.331 3.93-.87M10 15c.884 0 1.736-.138 2.537-.395M16.103 12.103C17.434 10.934 18 10 18 10s-3-5-8-5c-.503 0-.996.042-1.48.12" />
   </svg>
 );
+const IconAlert = () => (
+  <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8">
+    <circle cx="10" cy="10" r="8"/>
+    <line x1="10" y1="6" x2="10" y2="10"/>
+    <circle cx="10" cy="13.5" r=".5" fill="currentColor"/>
+  </svg>
+);
+
+/* role → redirect path */
+const ROLE_HOME = {
+  teacher: "/teacher",
+  student: "/student",
+  admin:   "/admin",
+};
 
 /* ─── Main Component ─── */
 function Login() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const [email,       setEmail]       = useState("");
+  const [password,    setPassword]    = useState("");
+  const [showPassword,setShowPassword]= useState(false);
+  const [isLoading,   setIsLoading]   = useState(false);
+  const [errorMsg,    setErrorMsg]    = useState("");
   const navigate = useNavigate();
 
   const handleLogin = async (e) => {
     e.preventDefault();
+    setErrorMsg("");
     setIsLoading(true);
     try {
-      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5000'}/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
+      const response = await fetch(
+        `${process.env.REACT_APP_API_URL || "http://localhost:5000"}/login`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password }),
+        }
+      );
       const data = await response.json();
 
       if (data.token) {
         localStorage.setItem("token", data.token);
         const payload = JSON.parse(atob(data.token.split(".")[1]));
-        const userRole = payload.role;
-        if (userRole === "teacher") navigate("/teacher");
-        else if (userRole === "student") navigate("/student");
-        else console.log("Unknown role:", userRole);
+        const dest = ROLE_HOME[payload.role];
+        if (dest) navigate(dest);
+        else setErrorMsg(`Unknown role: ${payload.role}`);
       } else {
-        alert(data.message || "Login failed");
+        setErrorMsg(data.message || "Login failed. Please check your credentials.");
       }
-    } catch (error) {
-      console.error("Login error:", error);
-      alert("Server error occurred - check if backend running on port 5000");
+    } catch {
+      setErrorMsg("Cannot reach the server. Is the backend running?");
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const togglePasswordVisibility = () => {
-    setShowPassword(!showPassword);
   };
 
   return (
     <>
       <GlobalStyles />
       <div className="login-root">
-        {/* Decorative rings */}
         <div className="deco-ring" />
         <div className="deco-ring deco-ring-2" />
 
         <div className="card-wrap">
-          {/* Card containing everything */}
           <div className="card">
             {/* Logo */}
             <div className="logo-badge">
-              <img src="/image/logo.png" alt="School Quiz Logo" />
+              <img src="/image/logo.png" alt="School Quiz Logo"
+                onError={e => { e.target.style.display="none"; }} />
             </div>
 
-            {/* Headline */}
             <h1 className="headline">Welcome Back</h1>
             <p className="subline">Sign in to continue your quiz journey</p>
 
-            {/* Form */}
+            {/* Error */}
+            {errorMsg && (
+              <div className="error-alert">
+                <IconAlert />
+                {errorMsg}
+              </div>
+            )}
+
             <form onSubmit={handleLogin}>
               {/* Email */}
               <div className="field">
@@ -399,17 +408,17 @@ function Login() {
                 <div className="input-wrap">
                   <IconMail />
                   <input
-                    id="email"
-                    type="email"
+                    id="email" type="email"
                     placeholder="student@school.edu"
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    onChange={e => setEmail(e.target.value)}
                     required
+                    autoComplete="email"
                   />
                 </div>
               </div>
 
-              {/* Password with show/hide */}
+              {/* Password */}
               <div className="field">
                 <label htmlFor="password">Password</label>
                 <div className="input-wrap">
@@ -419,14 +428,15 @@ function Login() {
                     type={showPassword ? "text" : "password"}
                     placeholder="••••••••"
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    onChange={e => setPassword(e.target.value)}
                     required
                     className="password-input"
+                    autoComplete="current-password"
                   />
                   <button
                     type="button"
                     className="toggle-password"
-                    onClick={togglePasswordVisibility}
+                    onClick={() => setShowPassword(v => !v)}
                     aria-label={showPassword ? "Hide password" : "Show password"}
                   >
                     {showPassword ? <IconEyeOpen /> : <IconEyeClosed />}
@@ -434,33 +444,26 @@ function Login() {
                 </div>
               </div>
 
-              {/* Submit */}
               <button type="submit" className="btn-submit" disabled={isLoading}>
-                {isLoading ? (
-                  <><span className="spinner" />Signing in…</>
-                ) : (
-                  "Sign In"
-                )}
+                {isLoading
+                  ? <><span className="spinner" />Signing in…</>
+                  : "Sign In"}
               </button>
             </form>
 
-            {/* Divider */}
             <div className="divider"><span>New here?</span></div>
 
-            {/* Register link */}
             <p className="register-line">
               Don't have an account?{" "}
               <Link to="/register">Create one now</Link>
             </p>
 
-            {/* Secure badge */}
             <div className="secure-badge">
               <IconShield />
               Secure, encrypted connection
             </div>
           </div>
 
-          {/* Footer */}
           <p className="footer-note">
             © {new Date().getFullYear()} School Quiz System · All rights reserved
           </p>

@@ -24,7 +24,8 @@ const authHeaders = (extra = {}) => {
   };
 };
 
-// JSON requests
+// ─── Core fetch helpers ───────────────────────────────────────────────────────
+
 export const api = async (endpoint, options = {}) => {
   const res = await fetch(`${BASE_URL}${endpoint}`, {
     ...options,
@@ -39,7 +40,6 @@ export const api = async (endpoint, options = {}) => {
   return data;
 };
 
-// FormData requests (file upload)
 export const apiUpload = async (endpoint, formData) => {
   const res = await fetch(`${BASE_URL}${endpoint}`, {
     method: 'POST',
@@ -51,29 +51,58 @@ export const apiUpload = async (endpoint, formData) => {
   return data;
 };
 
-// Auth
+// ─── Auth ─────────────────────────────────────────────────────────────────────
+
 export const login = (email, password) =>
   api('/login', { method: 'POST', body: JSON.stringify({ email, password }) });
 
 export const register = (fullName, email, password, role) =>
   api('/register', { method: 'POST', body: JSON.stringify({ fullName, email, password, role }) });
 
-// Lectures
-export const getLectures = () => api('/lectures');
-export const uploadLecture = (formData) => apiUpload('/lectures/upload', formData);
-export const deleteLecture = (id) => api(`/lectures/${id}`, { method: 'DELETE' });
+// ─── Lectures ─────────────────────────────────────────────────────────────────
 
-// Quiz
+export const getLectures    = () => api('/lectures');
+export const uploadLecture  = (formData) => apiUpload('/lectures/upload', formData);
+export const deleteLecture  = (id) => api(`/lectures/${id}`, { method: 'DELETE' });
+
+// ─── Quiz ─────────────────────────────────────────────────────────────────────
+
 export const generateQuiz = (lectureId, type, count) =>
   api('/api/quiz/generate', { method: 'POST', body: JSON.stringify({ lectureId, type, count }) });
 
 export const saveQuiz = (lectureId, quizTitle, questions, courseId) =>
   api('/api/quiz/save', { method: 'POST', body: JSON.stringify({ lectureId, quizTitle, questions, courseId }) });
 
-export const getQuiz = (quizId) => api(`/api/quiz/${quizId}`);
+export const getQuiz   = (quizId) => api(`/api/quiz/${quizId}`);
 
 export const submitQuiz = (quizId, answers) =>
   api('/api/quiz/submit', { method: 'POST', body: JSON.stringify({ quizId, answers }) });
 
-// Gamification
-export const getLeaderboard = (type = 'overall') => api(`/api/game/leaderboard/${type}`);
+// ─── Gamification ─────────────────────────────────────────────────────────────
+
+export const getLeaderboard = (type = 'overall') =>
+  api(`/api/game/leaderboard/${type}`);
+
+// ─── Admin ────────────────────────────────────────────────────────────────────
+
+export const adminGetStudents    = () => api('/api/admin/students');
+export const adminGetTeachers    = () => api('/api/admin/teachers');
+export const adminGetAllUsers    = () => api('/api/admin/users');
+export const adminGetAssignments = () => api('/api/admin/assignments');
+
+export const adminAssign = (teacherId, studentId) =>
+  api('/api/admin/assign', {
+    method: 'POST',
+    body: JSON.stringify({ teacherId, studentId }),
+  });
+
+export const adminRemoveAssignment = (studentId) =>
+  api(`/api/admin/assign/${studentId}`, { method: 'DELETE' });
+
+// ─── Teacher ──────────────────────────────────────────────────────────────────
+
+export const getMyStudents = () => api('/api/admin/my-students');
+
+// ─── Student ──────────────────────────────────────────────────────────────────
+
+export const getMyTeacher = () => api('/api/admin/my-teacher');
