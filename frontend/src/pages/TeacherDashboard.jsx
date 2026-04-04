@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { getUser, logout } from "../services/api";
 
@@ -14,7 +14,16 @@ const apiFetch = async (path, opts = {}) => {
       ...(opts.headers || {}),
     },
   });
-  const data = await res.json();
+
+  let data;
+  const contentType = res.headers.get("content-type");
+  if (contentType && contentType.includes("application/json")) {
+    data = await res.json();
+  } else {
+    const text = await res.text();
+    throw new Error(`Server returned ${res.status}: ${text.substring(0, 100)}`);
+  }
+
   if (!res.ok) throw new Error(data.error || data.message || "Request failed");
   return data;
 };
@@ -105,7 +114,6 @@ const Styles = () => (
       border:1px solid rgba(255,255,255,.07);
       border-radius:14px; padding:1.1rem 1.4rem;
       display:flex; align-items:center; gap:1rem;
-      cursor:pointer; transition:all .2s;
       position:relative; overflow:hidden;
     }
     .td-quiz-card::before {
@@ -135,15 +143,28 @@ const Styles = () => (
     .td-quiz-status-badge.scheduled { background:rgba(245,158,11,.12); color:#fbbf24; border:1px solid rgba(245,158,11,.2); }
     .td-quiz-status-badge.active    { background:rgba(16,185,129,.12); color:#34d399; border:1px solid rgba(16,185,129,.2); }
     .td-quiz-status-badge.ended     { background:rgba(255,255,255,.05); color:rgba(255,255,255,.25); }
+    
+    .td-quiz-actions { display:flex; align-items:center; gap:0.5rem; flex-shrink:0; }
     .td-quiz-send-btn {
       padding:.38rem .9rem; border-radius:9px;
       border:1px solid rgba(99,102,241,.35);
       background:rgba(99,102,241,.1);
       color:#a5b4fc; font-family:'Syne',sans-serif;
       font-size:.76rem; font-weight:700; cursor:pointer;
-      transition:all .15s; flex-shrink:0; white-space:nowrap;
+      transition:all .15s; white-space:nowrap;
     }
     .td-quiz-send-btn:hover { background:rgba(99,102,241,.22); border-color:rgba(99,102,241,.6); }
+    
+    .td-quiz-delete-btn {
+      padding:.38rem .7rem; border-radius:9px;
+      border:1px solid rgba(239,68,68,.35);
+      background:rgba(239,68,68,.1);
+      color:#f87171; font-family:'Syne',sans-serif;
+      font-size:.76rem; font-weight:700; cursor:pointer;
+      transition:all .15s; white-space:nowrap;
+      display:inline-flex; align-items:center; gap:4px;
+    }
+    .td-quiz-delete-btn:hover { background:rgba(239,68,68,.2); border-color:rgba(239,68,68,.6); }
 
     /* ── Students grid ── */
     .td-students-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:.9rem; }
@@ -177,7 +198,7 @@ const Styles = () => (
       background:#0e1118;
       border:1px solid rgba(255,255,255,.1);
       border-radius:22px; padding:2rem 2.2rem;
-      width:100%; max-width:480px;
+      width:100%; max-width:520px;
       animation:modalIn .28s cubic-bezier(.34,1.56,.64,1) both;
       box-shadow:0 40px 80px rgba(0,0,0,.7);
     }
@@ -202,6 +223,54 @@ const Styles = () => (
       outline:none; margin-bottom:1.1rem; transition:border-color .2s;
     }
     .td-modal-input:focus { border-color:rgba(99,102,241,.5); }
+    
+    .td-student-select-list {
+      max-height: 220px;
+      overflow-y: auto;
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: 12px;
+      margin-bottom: 1.2rem;
+      padding: 0.5rem;
+    }
+    .td-student-checkbox-item {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.6rem 0.5rem;
+      border-radius: 10px;
+      transition: background 0.1s;
+      cursor: pointer;
+    }
+    .td-student-checkbox-item:hover { background: rgba(255,255,255,.04); }
+    .td-student-checkbox-item input {
+      width: 18px;
+      height: 18px;
+      cursor: pointer;
+      accent-color: #6366f1;
+    }
+    .td-student-checkbox-info {
+      flex: 1;
+      font-size: 0.85rem;
+    }
+    .td-student-checkbox-name { font-weight: 600; color: #fff; }
+    .td-student-checkbox-email { font-size: 0.7rem; color: rgba(255,255,255,.4); }
+    .td-select-all-row {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.5rem;
+      border-bottom: 1px solid rgba(255,255,255,.08);
+      margin-bottom: 0.5rem;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: rgba(255,255,255,.7);
+    }
+    .td-select-all-row input {
+      width: 18px;
+      height: 18px;
+      cursor: pointer;
+      accent-color: #6366f1;
+    }
 
     .td-modal-actions { display:flex; gap:.75rem; margin-top:.5rem; }
     .td-btn-cancel {
@@ -303,6 +372,7 @@ const Ico = {
   Upload:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>,
   Clock: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>,
   File:  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg>,
+  Trash: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/><path d="M10 11v5M14 11v5"/></svg>,
 };
 
 export default function TeacherDashboard() {
@@ -315,6 +385,7 @@ export default function TeacherDashboard() {
 
   // Send modal state
   const [sendModal, setSendModal] = useState(null); // { quiz }
+  const [selectedStudentIds, setSelectedStudentIds] = useState([]);
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
   const [sending, setSending] = useState(false);
@@ -334,20 +405,45 @@ export default function TeacherDashboard() {
     const fmt = (d) => d.toISOString().slice(0, 16);
     setStartTime(fmt(startDefault));
     setEndTime(fmt(endDefault));
+    // Reset selected students to empty array (teacher must choose)
+    setSelectedStudentIds([]);
     setSendModal({ quiz });
+  };
+
+  const handleSelectAllStudents = (e) => {
+    if (e.target.checked) {
+      setSelectedStudentIds(myStudents.map(s => s.id));
+    } else {
+      setSelectedStudentIds([]);
+    }
+  };
+
+  const handleToggleStudent = (studentId) => {
+    setSelectedStudentIds(prev =>
+      prev.includes(studentId)
+        ? prev.filter(id => id !== studentId)
+        : [...prev, studentId]
+    );
   };
 
   const handleSend = async () => {
     if (!startTime || !endTime) { showToast("Please set both times", "error"); return; }
     if (new Date(endTime) <= new Date(startTime)) { showToast("End time must be after start time", "error"); return; }
+    if (selectedStudentIds.length === 0) { showToast("Please select at least one student", "error"); return; }
+    
     setSending(true);
     try {
       const result = await apiFetch("/api/quiz/schedule", {
         method: "POST",
-        body: JSON.stringify({ quizId: sendModal.quiz.id, startTime, endTime }),
+        body: JSON.stringify({ 
+          quizId: sendModal.quiz.id, 
+          startTime, 
+          endTime,
+          studentIds: selectedStudentIds   // send selected student IDs to backend
+        }),
       });
       setSendModal(null);
-      setSendSuccess({ message: result.message || "Quiz sent to students!" });
+      setSendSuccess({ message: result.message || `Quiz sent to ${selectedStudentIds.length} student(s)!` });
       // refresh quizzes
       loadQuizzes();
       setTimeout(() => setSendSuccess(null), 2800);
@@ -355,6 +451,17 @@ export default function TeacherDashboard() {
       showToast(err.message, "error");
     } finally {
       setSending(false);
+    }
+  };
+
+  const deleteQuiz = async (quizId, quizTitle) => {
+    if (!window.confirm(`Delete quiz "${quizTitle}"? This action cannot be undone.`)) return;
+    try {
+      await apiFetch(`/api/quiz/${quizId}`, { method: "DELETE" });
+      showToast(`Quiz "${quizTitle}" deleted`, "success");
+      loadQuizzes(); // refresh list
+    } catch (err) {
+      showToast(err.message, "error");
     }
   };
 
@@ -374,6 +481,7 @@ export default function TeacherDashboard() {
     const user = getUser();
     if (!user) { navigate("/"); return; }
     if (user.role !== "teacher") { navigate("/student"); return; }
+    // Set teacher's full name (user.full_name is prioritized)
     setTeacherName(user.full_name || user.name || "Teacher");
 
     apiFetch("/api/admin/my-students")
@@ -396,15 +504,14 @@ export default function TeacherDashboard() {
         </div>
       )}
 
-      {/* Send modal */}
+      {/* Send modal with student selection */}
       {sendModal && (
         <div className="td-modal-overlay" onClick={() => !sending && setSendModal(null)}>
           <div className="td-modal" onClick={e => e.stopPropagation()}>
             <div className="td-modal-icon">{Ico.Send}</div>
             <h2 className="td-modal-title">Send Quiz to Students</h2>
             <p className="td-modal-sub">
-              Scheduling <strong>"{sendModal.quiz.title}"</strong> will make it
-              available to all <strong>{myStudents.length} student(s)</strong> assigned to you.
+              Scheduling <strong>"{sendModal.quiz.title}"</strong> – choose which students will receive it.
             </p>
 
             {sendModal.quiz.lecture && (
@@ -425,6 +532,36 @@ export default function TeacherDashboard() {
               </div>
             )}
 
+            <p className="td-modal-label">Select Students ({myStudents.length} available)</p>
+            <div className="td-student-select-list">
+              <div className="td-select-all-row">
+                <input
+                  type="checkbox"
+                  checked={selectedStudentIds.length === myStudents.length && myStudents.length > 0}
+                  onChange={handleSelectAllStudents}
+                />
+                <span>Select All</span>
+              </div>
+              {myStudents.map(student => (
+                <label key={student.id} className="td-student-checkbox-item">
+                  <input
+                    type="checkbox"
+                    checked={selectedStudentIds.includes(student.id)}
+                    onChange={() => handleToggleStudent(student.id)}
+                  />
+                  <div className="td-student-checkbox-info">
+                    <div className="td-student-checkbox-name">{student.full_name}</div>
+                    <div className="td-student-checkbox-email">{student.email}</div>
+                  </div>
+                </label>
+              ))}
+              {myStudents.length === 0 && (
+                <div style={{ padding: "1rem", textAlign: "center", color: "rgba(255,255,255,.3)" }}>
+                  No students assigned yet.
+                </div>
+              )}
+            </div>
+
             <p className="td-modal-label">Start Time</p>
             <input
               className="td-modal-input"
@@ -444,7 +581,7 @@ export default function TeacherDashboard() {
             <div className="td-modal-actions">
               <button className="td-btn-cancel" onClick={() => setSendModal(null)} disabled={sending}>Cancel</button>
               <button className="td-btn-send" onClick={handleSend} disabled={sending}>
-                {sending ? <span className="td-spinner" /> : "✦ Send to Students"}
+                {sending ? <span className="td-spinner" /> : `✦ Send to ${selectedStudentIds.length} student(s)`}
               </button>
             </div>
           </div>
@@ -599,15 +736,24 @@ export default function TeacherDashboard() {
                       </span>
                     </div>
 
-                    {/* Send button */}
-                    {quiz.status !== "ended" && (
+                    {/* Actions: Send & Delete buttons */}
+                    <div className="td-quiz-actions">
+                      {quiz.status !== "ended" && (
+                        <button
+                          className="td-quiz-send-btn"
+                          onClick={e => { e.stopPropagation(); openSendModal(quiz); }}
+                        >
+                          {Ico.Send}&nbsp;&nbsp;{quiz.status === "draft" ? "Send" : "Reschedule"}
+                        </button>
+                      )}
                       <button
-                        className="td-quiz-send-btn"
-                        onClick={e => { e.stopPropagation(); openSendModal(quiz); }}
+                        className="td-quiz-delete-btn"
+                        onClick={e => { e.stopPropagation(); deleteQuiz(quiz.id, quiz.title); }}
+                        title="Delete Quiz"
                       >
-                        {Ico.Send}&nbsp;&nbsp;{quiz.status === "draft" ? "Send" : "Reschedule"}
+                        {Ico.Trash}
                       </button>
-                    )}
+                    </div>
                   </div>
                 ))}
               </div>
