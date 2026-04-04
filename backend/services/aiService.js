@@ -14,11 +14,7 @@ class AIService {
     
     // List of available models from your screenshot
     this.models = [
-      { name: "models/gemini-2.0-flash-lite", rpm: 30000, tpm: 30000000 },
-      { name: "models/gemini-2.0-flash", rpm: 30000, tpm: 30000000 },
-      { name: "models/gemini-2.5-flash", rpm: 5, tpm: 250000 },
-      { name: "models/gemini-2.5-pro", rpm: 2000, tpm: 8000000 },
-      { name: "models/gemini-flash-latest", rpm: 10, tpm: 1000000 }
+      { name: "models/gemini-2.5-flash", rpm: 5, tpm: 250000 }
     ];
     
     this.currentModelIndex = 0;
