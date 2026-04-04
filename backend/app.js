@@ -8,11 +8,13 @@ const lectureRoutes = require('./routes/lectureRoutes');
 const quizRoutes = require('./routes/quizRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const aiService = require('./services/aiService'); 
-
 const app = express();
 
 const gameRoutes = require('./routes/gamificationRoutes');
 app.use('/api/game', gameRoutes);
+
+const otpRoutes = require('./routes/otpRoutes');
+app.use('/otp', otpRoutes);
 
 // Middleware
 app.use(cors({
