@@ -1,6 +1,6 @@
 // controllers/quizController.js
 const aiService = require("../services/aiService");
-const { supabaseAdmin, supabase } = require("../supabaseClient");
+const { supabaseAdmin } = require("../supabaseClient");
 const { updateGamification } = require("../services/scoringServices");
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -278,7 +278,7 @@ exports.getQuizzesForStudent = async (req, res) => {
 
     const now = new Date();
     const quizzes = assignments
-      .filter(a => a.quizzes)                     // safety: ensure quizzes object exists
+      .filter(a => a.quizzes)
       .map(a => a.quizzes)
       .filter(q => q.start_time && q.end_time)
       .map(q => ({
@@ -325,10 +325,8 @@ exports.getQuiz = async (req, res) => {
       return res.status(403).json({ message: "You are not assigned to this quiz" });
     }
 
-    console.log(`✅ Assignment found: ${assignment.quiz_id}`);
-
-    // 2. Fetch quiz details (using supabase client – not admin)
-    const { data: quiz, error: quizError } = await supabase
+    // 2. Fetch quiz details using admin client to bypass RLS
+    const { data: quiz, error: quizError } = await supabaseAdmin
       .from("quizzes")
       .select("*")
       .eq("id", quizId)
@@ -340,26 +338,36 @@ exports.getQuiz = async (req, res) => {
     }
 
     if (!quiz) {
-      console.warn(`⚠️ Quiz ${quizId} does not exist in quizzes table`);
+      console.warn(`⚠️ Quiz ${quizId} does not exist`);
       return res.status(404).json({ message: "Quiz not found" });
     }
 
     console.log(`📖 Quiz found: ${quiz.title} (start: ${quiz.start_time}, end: ${quiz.end_time})`);
 
-    // 3. Check time window
-    const now = new Date();
-    const startTime = new Date(quiz.start_time);
-    const endTime = new Date(quiz.end_time);
+    // 3. Check time window only if both times are set
+    if (quiz.start_time && quiz.end_time) {
+      const now = new Date();
+      const startTime = new Date(quiz.start_time);
+      const endTime = new Date(quiz.end_time);
 
-    if (startTime > now) {
-      return res.status(400).json({ message: "Quiz not started yet", startTime: quiz.start_time });
-    }
-    if (endTime < now) {
-      return res.status(400).json({ message: "Quiz already ended", endTime: quiz.end_time });
+      if (startTime > now) {
+        return res.status(400).json({
+          message: "Quiz has not started yet",
+          startTime: quiz.start_time,
+          status: "upcoming"
+        });
+      }
+      if (endTime < now) {
+        return res.status(400).json({
+          message: "Quiz has already ended",
+          endTime: quiz.end_time,
+          status: "ended"
+        });
+      }
     }
 
-    // 4. Fetch questions
-    const { data: questions, error: questionsError } = await supabase
+    // 4. Fetch questions using admin client — include correct_answer for grading (strip before sending)
+    const { data: questions, error: questionsError } = await supabaseAdmin
       .from("questions")
       .select("id, question_text, option_a, option_b, option_c, option_d")
       .eq("quiz_id", quizId);
@@ -376,9 +384,16 @@ exports.getQuiz = async (req, res) => {
 
     console.log(`✅ Returning ${questions.length} questions for quiz ${quizId}`);
 
-    const shuffled = questions.sort(() => Math.random() - 0.5);
+    // Shuffle questions
+    const shuffled = [...questions].sort(() => Math.random() - 0.5);
+
     res.json({
-      quiz: { id: quiz.id, title: quiz.title, start_time: quiz.start_time, end_time: quiz.end_time },
+      quiz: {
+        id: quiz.id,
+        title: quiz.title,
+        start_time: quiz.start_time,
+        end_time: quiz.end_time
+      },
       questions: shuffled
     });
   } catch (err) {
@@ -395,6 +410,10 @@ exports.submitQuiz = async (req, res) => {
     const { quizId, answers } = req.body;
     const userId = req.user.id;
 
+    if (!quizId || !answers) {
+      return res.status(400).json({ message: "quizId and answers are required" });
+    }
+
     // Check assignment
     const { data: assignment, error: assignErr } = await supabaseAdmin
       .from("quiz_assignments")
@@ -408,66 +427,93 @@ exports.submitQuiz = async (req, res) => {
     }
 
     // Check if already submitted
-    const { data: existingResult } = await supabase
+    const { data: existingResult } = await supabaseAdmin
       .from("results")
-      .select("id")
+      .select("id, score, total")
       .eq("user_id", userId)
       .eq("quiz_id", quizId)
-      .single();
+      .maybeSingle();
 
     if (existingResult) {
-      return res.status(400).json({ message: "You have already taken this quiz" });
+      return res.status(400).json({
+        message: "You have already taken this quiz",
+        previousScore: existingResult.score,
+        previousTotal: existingResult.total
+      });
     }
 
-   const { data: quiz, error: quizError } = await supabaseAdmin
-  .from("quizzes")
-  .select("*")
-  .eq("id", quizId)
-  .single();
+    // Fetch quiz
+    const { data: quiz, error: quizError } = await supabaseAdmin
+      .from("quizzes")
+      .select("*")
+      .eq("id", quizId)
+      .single();
 
-    if (quizError || !quiz) return res.status(404).json({ message: "Quiz not found" });
+    if (quizError || !quiz) {
+      return res.status(404).json({ message: "Quiz not found" });
+    }
 
     const now = new Date();
-    const startTime = new Date(quiz.start_time);
-    const endTime = new Date(quiz.end_time);
-    const attendanceStatus = (now >= startTime && now <= endTime) ? "present" : "absent";
+    let attendanceStatus = "present";
+    if (quiz.start_time && quiz.end_time) {
+      const startTime = new Date(quiz.start_time);
+      const endTime = new Date(quiz.end_time);
+      attendanceStatus = (now >= startTime && now <= endTime) ? "present" : "absent";
+    }
 
+    // Fetch questions WITH correct_answer for grading
     const { data: questions, error: questionsError } = await supabaseAdmin
-  .from("questions")
-  .select("id, question_text, option_a, option_b, option_c, option_d")
-  .eq("quiz_id", quizId);
+      .from("questions")
+      .select("id, question_text, option_a, option_b, option_c, option_d, correct_answer")
+      .eq("quiz_id", quizId);
 
-    if (questionsError) return res.status(500).json({ error: questionsError.message });
+    if (questionsError) {
+      return res.status(500).json({ error: questionsError.message });
+    }
 
+    if (!questions || questions.length === 0) {
+      return res.status(404).json({ message: "This quiz has no questions" });
+    }
+
+    // Grade answers
     let score = 0;
     const detailedAnswers = [];
 
     questions.forEach(q => {
-      const userAnswer = answers[q.id];
+      const userAnswer = answers[q.id] || null;
       const isCorrect = userAnswer === q.correct_answer;
       if (isCorrect) score++;
       detailedAnswers.push({
         questionId: q.id,
+        questionText: q.question_text,
         userAnswer,
         correctAnswer: q.correct_answer,
         isCorrect
       });
     });
 
-    const { error: resultError } = await supabase
+    const total = questions.length;
+    const percentage = Math.round((score / total) * 100);
+
+    // Save result
+    const { error: resultError } = await supabaseAdmin
       .from("results")
       .insert([{
         user_id: userId,
         quiz_id: quizId,
         score,
-        total: questions.length,
+        total,
         answers: detailedAnswers,
         submitted_at: new Date()
       }]);
 
-    if (resultError) return res.status(500).json({ error: resultError.message });
+    if (resultError) {
+      console.error("Result save error:", resultError);
+      return res.status(500).json({ error: resultError.message });
+    }
 
-    const { error: attendanceError } = await supabase
+    // Save attendance
+    const { error: attendanceError } = await supabaseAdmin
       .from("attendance")
       .insert([{
         user_id: userId,
@@ -476,17 +522,28 @@ exports.submitQuiz = async (req, res) => {
         timestamp: new Date()
       }]);
 
-    if (attendanceError) console.error("Attendance save error:", attendanceError);
+    if (attendanceError) {
+      console.error("Attendance save error:", attendanceError);
+      // Non-fatal — continue
+    }
 
-    const game = await updateGamification(userId, score, questions.length);
+    // Update gamification
+    let game = null;
+    try {
+      game = await updateGamification(userId, score, total);
+    } catch (gamErr) {
+      console.error("Gamification update error:", gamErr.message);
+    }
 
     res.json({
+      success: true,
       score,
-      total: questions.length,
-      percentage: Math.round((score / questions.length) * 100),
+      total,
+      percentage,
+      passed: score >= total / 2,
       attendance: attendanceStatus,
-      game,
-      passed: score >= questions.length / 2
+      answers: detailedAnswers,
+      game
     });
   } catch (err) {
     console.error("Submit quiz error:", err);
@@ -495,12 +552,12 @@ exports.submitQuiz = async (req, res) => {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Attendance endpoints (unchanged)
+// Attendance endpoints
 // ─────────────────────────────────────────────────────────────────────────────
 exports.getAttendanceReport = async (req, res) => {
   try {
     const { quizId } = req.params;
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from("attendance")
       .select(`*, users:user_id (email, full_name)`)
       .eq("quiz_id", quizId);
@@ -514,7 +571,11 @@ exports.getAttendanceReport = async (req, res) => {
 exports.getAttendanceStats = async (req, res) => {
   try {
     const { quizId } = req.params;
-    const { data } = await supabase.from("attendance").select("status").eq("quiz_id", quizId);
+    const { data, error } = await supabaseAdmin
+      .from("attendance")
+      .select("status")
+      .eq("quiz_id", quizId);
+    if (error) return res.status(400).json({ error: error.message });
     const present = data.filter(a => a.status === "present").length;
     const absent = data.filter(a => a.status === "absent").length;
     res.json({
@@ -529,7 +590,7 @@ exports.getAttendanceStats = async (req, res) => {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Generate quiz from raw text (unchanged)
+// Generate quiz from raw text
 // ─────────────────────────────────────────────────────────────────────────────
 exports.generateQuizFromText = async (req, res) => {
   try {
@@ -546,7 +607,7 @@ exports.generateQuizFromText = async (req, res) => {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Get AI model status (unchanged)
+// Get AI model status
 // ─────────────────────────────────────────────────────────────────────────────
 exports.getAIStatus = async (req, res) => {
   try {

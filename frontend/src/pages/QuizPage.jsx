@@ -6,15 +6,15 @@ function QuizPage() {
   const { quizId } = useParams();
   const navigate   = useNavigate();
 
-  const [quiz,      setQuiz]      = useState(null);
-  const [questions, setQuestions] = useState([]);
-  const [answers,   setAnswers]   = useState({});
-  const [timeLeft,  setTimeLeft]  = useState(null);
-  const [loading,   setLoading]   = useState(true);
-  const [error,     setError]     = useState("");
-  const [submitted, setSubmitted] = useState(false);
-  const [result,    setResult]    = useState(null);
-  const [submitting,setSubmitting]= useState(false);
+  const [quiz,       setQuiz]       = useState(null);
+  const [questions,  setQuestions]  = useState([]);
+  const [answers,    setAnswers]    = useState({});
+  const [timeLeft,   setTimeLeft]   = useState(null);
+  const [loading,    setLoading]    = useState(true);
+  const [error,      setError]      = useState("");
+  const [submitted,  setSubmitted]  = useState(false);
+  const [result,     setResult]     = useState(null);
+  const [submitting, setSubmitting] = useState(false);
 
   // Load quiz
   useEffect(() => {
@@ -30,11 +30,23 @@ function QuizPage() {
           setTimeLeft(data.quiz.duration * 60);
         }
       })
-      .catch(err => setError(err.message || "Could not load quiz."))
+      .catch(err => {
+        const msg = err.message || "Could not load quiz.";
+        // Surface friendly messages
+        if (msg.includes("not started") || msg.includes("upcoming")) {
+          setError("⏳ This quiz hasn't started yet. Check back when it opens.");
+        } else if (msg.includes("ended") || msg.includes("already ended")) {
+          setError("🔒 This quiz has ended. You can no longer take it.");
+        } else if (msg.includes("not assigned")) {
+          setError("⚠️ You are not assigned to this quiz.");
+        } else {
+          setError(msg);
+        }
+      })
       .finally(() => setLoading(false));
   }, [quizId, navigate]);
 
-  // Timer
+  // Auto-submit on timer expiry
   const handleSubmit = useCallback(async () => {
     if (submitting || submitted) return;
     setSubmitting(true);
@@ -43,7 +55,13 @@ function QuizPage() {
       setResult(data);
       setSubmitted(true);
     } catch (err) {
-      setError(err.message || "Submission failed.");
+      const msg = err.message || "Submission failed.";
+      if (msg.includes("already taken")) {
+        setError("You have already submitted this quiz.");
+        setSubmitted(true);
+      } else {
+        setError(msg);
+      }
     } finally {
       setSubmitting(false);
     }
@@ -70,26 +88,30 @@ function QuizPage() {
 
   // ── Loading ──────────────────────────────────────────────
   if (loading) return (
-    <div className="min-h-screen bg-[#0f0a0a] flex items-center justify-center">
-      <div className="text-center">
-        <div className="w-10 h-10 border-2 border-[#C9A227]/30 border-t-[#C9A227] rounded-full animate-spin mx-auto mb-4" />
-        <p className="text-white/50 text-sm">Loading quiz…</p>
+    <div style={{ minHeight: "100vh", background: "#0f0a0a", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ textAlign: "center" }}>
+        <div style={{ width: 40, height: 40, border: "2px solid rgba(201,162,39,.3)", borderTopColor: "#C9A227", borderRadius: "50%", animation: "spin .8s linear infinite", margin: "0 auto 1rem" }} />
+        <p style={{ color: "rgba(255,255,255,.4)", fontSize: ".9rem" }}>Loading quiz…</p>
       </div>
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>
   );
 
   // ── Error ────────────────────────────────────────────────
-  if (error) return (
-    <div className="min-h-screen bg-[#0f0a0a] flex items-center justify-center px-4">
-      <div className="bg-[#1a0a0a] border border-red-900/40 rounded-2xl p-8 max-w-md text-center">
-        <div className="w-14 h-14 bg-red-900/20 rounded-full flex items-center justify-center mx-auto mb-4">
-          <svg className="w-7 h-7 text-red-400" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
-          </svg>
+  if (error && !submitted) return (
+    <div style={{ minHeight: "100vh", background: "#0f0a0a", display: "flex", alignItems: "center", justifyContent: "center", padding: "1.5rem" }}>
+      <div style={{ background: "#1a0a0a", border: "1px solid rgba(239,68,68,.3)", borderRadius: 20, padding: "2.5rem 2rem", maxWidth: 420, width: "100%", textAlign: "center" }}>
+        <div style={{ fontSize: "2.5rem", marginBottom: "1rem" }}>
+          {error.startsWith("⏳") ? "⏳" : error.startsWith("🔒") ? "🔒" : "⚠️"}
         </div>
-        <h2 className="text-white font-semibold mb-2">Quiz Unavailable</h2>
-        <p className="text-white/50 text-sm mb-6">{error}</p>
-        <button onClick={() => navigate("/student")} className="px-6 py-2.5 bg-[#C9A227] text-[#1a0505] font-semibold rounded-xl text-sm">
+        <h2 style={{ color: "#fff", fontWeight: 700, marginBottom: ".75rem", fontSize: "1.1rem" }}>Quiz Unavailable</h2>
+        <p style={{ color: "rgba(255,255,255,.45)", fontSize: ".88rem", lineHeight: 1.6, marginBottom: "1.5rem" }}>
+          {error.replace(/^[⏳🔒⚠️]\s*/, "")}
+        </p>
+        <button
+          onClick={() => navigate("/student")}
+          style={{ padding: ".75rem 2rem", background: "#C9A227", color: "#1a0505", border: "none", borderRadius: 10, fontWeight: 700, cursor: "pointer", fontSize: ".9rem" }}
+        >
           Back to Dashboard
         </button>
       </div>
@@ -98,58 +120,151 @@ function QuizPage() {
 
   // ── Result ───────────────────────────────────────────────
   if (submitted && result) {
-    const score   = result.score ?? 0;
-    const total   = result.total ?? questions.length;
-    const percent = total > 0 ? Math.round((score / total) * 100) : 0;
-    const grade   = percent >= 90 ? "A" : percent >= 80 ? "B" : percent >= 70 ? "C" : percent >= 60 ? "D" : "F";
-    const attendance = result.attendance || "—";
+    const score    = result.score ?? 0;
+    const total    = result.total ?? questions.length;
+    const percent  = total > 0 ? Math.round((score / total) * 100) : 0;
+    const grade    = percent >= 90 ? "A" : percent >= 80 ? "B" : percent >= 70 ? "C" : percent >= 60 ? "D" : "F";
+    const passed   = percent >= 50;
+    const attendance = result.attendance || "present";
+    const game     = result.game;
+    const detailedAnswers = result.answers || [];
 
     return (
-      <div className="min-h-screen bg-[#0f0a0a] flex items-center justify-center px-4">
-        <div className="bg-[#1a0a0a] border border-white/10 rounded-2xl p-10 max-w-md w-full text-center">
-          <div className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-5 text-3xl font-bold ${
-            percent >= 80 ? "bg-green-900/30 text-green-400 border border-green-500/30" :
-            percent >= 60 ? "bg-yellow-900/30 text-yellow-400 border border-yellow-500/30" :
-            "bg-red-900/30 text-red-400 border border-red-500/30"
-          }`}>
-            {grade}
-          </div>
-          <h2 className="text-white text-2xl font-bold mb-1">Quiz Complete!</h2>
-          <p className="text-white/40 text-sm mb-8">Here are your results</p>
+      <div style={{ minHeight: "100vh", background: "#0f0a0a", color: "#fff", fontFamily: "system-ui, sans-serif" }}>
+        <style>{`
+          @keyframes pop{0%{transform:scale(.7);opacity:0}70%{transform:scale(1.1)}100%{transform:scale(1);opacity:1}}
+          @keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+        `}</style>
 
-          <div className="grid grid-cols-3 gap-4 mb-8">
+        {/* Header */}
+        <div style={{ background: "rgba(255,255,255,.04)", borderBottom: "1px solid rgba(255,255,255,.08)", padding: "1rem 2rem", display: "flex", alignItems: "center", gap: "1rem" }}>
+          <button onClick={() => navigate("/student")} style={{ background: "rgba(255,255,255,.06)", border: "1px solid rgba(255,255,255,.1)", color: "rgba(255,255,255,.6)", borderRadius: 8, padding: ".4rem .9rem", cursor: "pointer", fontSize: ".82rem" }}>
+            ← Dashboard
+          </button>
+          <span style={{ color: "rgba(255,255,255,.4)", fontSize: ".9rem" }}>{quiz?.title}</span>
+        </div>
+
+        <div style={{ maxWidth: 680, margin: "0 auto", padding: "2.5rem 1.5rem" }}>
+
+          {/* Grade circle */}
+          <div style={{ textAlign: "center", marginBottom: "2rem", animation: "fadeUp .5s ease both" }}>
+            <div style={{
+              width: 100, height: 100, borderRadius: "50%",
+              background: passed ? "rgba(16,185,129,.12)" : "rgba(239,68,68,.12)",
+              border: `2px solid ${passed ? "rgba(16,185,129,.4)" : "rgba(239,68,68,.4)"}`,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              margin: "0 auto 1rem",
+              animation: "pop .6s cubic-bezier(.34,1.56,.64,1) both"
+            }}>
+              <span style={{ fontSize: "2.2rem", fontWeight: 900, color: passed ? "#34d399" : "#f87171" }}>{grade}</span>
+            </div>
+            <h2 style={{ fontSize: "1.6rem", fontWeight: 800, marginBottom: ".4rem" }}>
+              {passed ? "🎉 Quiz Complete!" : "Quiz Submitted"}
+            </h2>
+            <p style={{ color: "rgba(255,255,255,.4)", fontSize: ".9rem" }}>
+              {passed ? "Great job! Keep it up." : "Keep practicing — you'll get it next time!"}
+            </p>
+          </div>
+
+          {/* Score cards */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: "1rem", marginBottom: "1.5rem", animation: "fadeUp .5s .1s ease both" }}>
             {[
-              { label: "Score",       value: `${score}/${total}` },
-              { label: "Percentage",  value: `${percent}%` },
-              { label: "Attendance",  value: attendance },
+              { label: "Score",      value: `${score}/${total}`,    color: "#fff" },
+              { label: "Percentage", value: `${percent}%`,           color: passed ? "#34d399" : "#f87171" },
+              { label: "Attendance", value: attendance,              color: attendance === "present" ? "#34d399" : "#fbbf24" },
             ].map(s => (
-              <div key={s.label} className="bg-white/5 rounded-xl p-3 border border-white/8">
-                <p className="text-xs text-white/30 mb-1">{s.label}</p>
-                <p className="text-lg font-bold text-white capitalize">{s.value}</p>
+              <div key={s.label} style={{ background: "rgba(255,255,255,.05)", border: "1px solid rgba(255,255,255,.08)", borderRadius: 14, padding: "1rem", textAlign: "center" }}>
+                <p style={{ fontSize: ".68rem", color: "rgba(255,255,255,.3)", textTransform: "uppercase", letterSpacing: ".1em", marginBottom: ".5rem" }}>{s.label}</p>
+                <p style={{ fontSize: "1.4rem", fontWeight: 800, color: s.color, textTransform: "capitalize" }}>{s.value}</p>
               </div>
             ))}
           </div>
 
-          {/* Points gained */}
-          {result.game && (
-            <div className="bg-[#C9A227]/10 border border-[#C9A227]/20 rounded-xl p-4 mb-6 text-left">
-              <p className="text-xs text-[#C9A227]/70 uppercase tracking-wider mb-2">Gamification</p>
-              <div className="grid grid-cols-2 gap-2 text-sm">
-                <span className="text-white/50">Points Earned</span>
-                <span className="text-[#C9A227] font-semibold">+{result.game.pointsEarned}</span>
-                <span className="text-white/50">Total Points</span>
-                <span className="text-white font-semibold">{result.game.totalPoints}</span>
-                <span className="text-white/50">Streak</span>
-                <span className="text-white font-semibold">🔥 {result.game.streak}</span>
-                <span className="text-white/50">Tier</span>
-                <span className="text-white font-semibold">{result.game.tier}</span>
+          {/* Gamification card */}
+          {game && (
+            <div style={{
+              background: "rgba(201,162,39,.08)", border: "1px solid rgba(201,162,39,.2)",
+              borderRadius: 14, padding: "1.2rem 1.4rem", marginBottom: "1.5rem",
+              animation: "fadeUp .5s .15s ease both"
+            }}>
+              <p style={{ fontSize: ".7rem", textTransform: "uppercase", letterSpacing: ".1em", color: "rgba(201,162,39,.7)", marginBottom: ".9rem" }}>
+                🏆 Gamification Update
+              </p>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: ".6rem" }}>
+                {[
+                  { label: "Points Earned",  value: `+${game.pointsEarned}`,          color: "#C9A227" },
+                  { label: "Streak Bonus",   value: game.streakBonus > 0 ? `+${game.streakBonus}` : "—", color: game.streakBonus > 0 ? "#f59e0b" : "rgba(255,255,255,.3)" },
+                  { label: "Total Points",   value: game.totalPoints.toLocaleString(), color: "#fff" },
+                  { label: "Current Streak", value: `🔥 ${game.streak} days`,          color: "#f87171" },
+                  { label: "Tier",           value: game.tier,                         color: "#a78bfa" },
+                ].map(item => (
+                  <div key={item.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: ".4rem 0", borderBottom: "1px solid rgba(255,255,255,.05)" }}>
+                    <span style={{ fontSize: ".78rem", color: "rgba(255,255,255,.4)" }}>{item.label}</span>
+                    <span style={{ fontSize: ".88rem", fontWeight: 700, color: item.color }}>{item.value}</span>
+                  </div>
+                ))}
+              </div>
+              {game.newBadges && game.newBadges.length > 0 && (
+                <div style={{ marginTop: ".9rem", paddingTop: ".9rem", borderTop: "1px solid rgba(255,255,255,.08)" }}>
+                  <p style={{ fontSize: ".7rem", color: "rgba(201,162,39,.7)", marginBottom: ".5rem" }}>🎖 New Badges Earned!</p>
+                  <div style={{ display: "flex", gap: ".5rem", flexWrap: "wrap" }}>
+                    {game.newBadges.map((b, i) => (
+                      <span key={i} style={{ padding: ".25rem .7rem", borderRadius: 8, background: "rgba(201,162,39,.15)", color: "#C9A227", fontSize: ".75rem", fontWeight: 600 }}>
+                        {b.badges?.name || "Badge"}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Answer review */}
+          {detailedAnswers.length > 0 && (
+            <div style={{ animation: "fadeUp .5s .2s ease both" }}>
+              <h3 style={{ fontSize: ".9rem", fontWeight: 700, marginBottom: "1rem", color: "rgba(255,255,255,.7)" }}>
+                Answer Review
+              </h3>
+              <div style={{ display: "flex", flexDirection: "column", gap: ".75rem" }}>
+                {detailedAnswers.map((a, i) => (
+                  <div key={i} style={{
+                    background: a.isCorrect ? "rgba(16,185,129,.06)" : "rgba(239,68,68,.06)",
+                    border: `1px solid ${a.isCorrect ? "rgba(16,185,129,.2)" : "rgba(239,68,68,.15)"}`,
+                    borderRadius: 12, padding: "1rem 1.2rem"
+                  }}>
+                    <div style={{ display: "flex", alignItems: "flex-start", gap: ".65rem", marginBottom: ".6rem" }}>
+                      <span style={{
+                        width: 22, height: 22, borderRadius: 6, flexShrink: 0,
+                        background: a.isCorrect ? "rgba(16,185,129,.2)" : "rgba(239,68,68,.15)",
+                        color: a.isCorrect ? "#34d399" : "#f87171",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        fontSize: ".7rem", fontWeight: 800
+                      }}>
+                        {a.isCorrect ? "✓" : "✗"}
+                      </span>
+                      <p style={{ fontSize: ".85rem", color: "rgba(255,255,255,.8)", lineHeight: 1.5, flex: 1 }}>
+                        {a.questionText || `Question ${i + 1}`}
+                      </p>
+                    </div>
+                    <div style={{ display: "flex", gap: "1rem", paddingLeft: "1.85rem", fontSize: ".75rem" }}>
+                      <span style={{ color: "rgba(255,255,255,.35)" }}>
+                        Your answer: <strong style={{ color: a.isCorrect ? "#34d399" : "#f87171" }}>{a.userAnswer || "—"}</strong>
+                      </span>
+                      {!a.isCorrect && (
+                        <span style={{ color: "rgba(255,255,255,.35)" }}>
+                          Correct: <strong style={{ color: "#34d399" }}>{a.correctAnswer}</strong>
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           )}
 
           <button
             onClick={() => navigate("/student")}
-            className="w-full py-3 bg-[#C9A227] hover:bg-[#b8911f] text-[#1a0505] font-semibold rounded-xl text-sm transition"
+            style={{ width: "100%", marginTop: "2rem", padding: ".9rem", background: "#C9A227", color: "#1a0505", border: "none", borderRadius: 12, fontWeight: 800, fontSize: ".95rem", cursor: "pointer" }}
           >
             Back to Dashboard
           </button>
@@ -162,97 +277,127 @@ function QuizPage() {
   const timerDanger = timeLeft !== null && timeLeft < 60;
 
   return (
-    <div className="min-h-screen bg-[#0f0a0a] text-white">
+    <div style={{ minHeight: "100vh", background: "#0f0a0a", color: "#fff", fontFamily: "system-ui, sans-serif" }}>
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+
       {/* Sticky header */}
-      <header className="sticky top-0 z-20 bg-[#0f0a0a]/90 backdrop-blur border-b border-white/8">
-        <div className="max-w-3xl mx-auto px-6 py-3 flex items-center justify-between">
+      <header style={{ position: "sticky", top: 0, zIndex: 20, background: "rgba(15,10,10,.92)", backdropFilter: "blur(12px)", borderBottom: "1px solid rgba(255,255,255,.08)" }}>
+        <div style={{ maxWidth: 800, margin: "0 auto", padding: ".85rem 1.5rem", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div>
-            <p className="text-xs text-white/30 uppercase tracking-widest">Quiz</p>
-            <p className="text-sm font-semibold text-white truncate max-w-xs">{quiz?.title || `#${quizId}`}</p>
+            <p style={{ fontSize: ".65rem", color: "rgba(255,255,255,.3)", textTransform: "uppercase", letterSpacing: ".1em" }}>Quiz</p>
+            <p style={{ fontSize: ".9rem", fontWeight: 600, color: "#fff", maxWidth: 280, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {quiz?.title || `Quiz #${quizId}`}
+            </p>
           </div>
-          <div className="flex items-center gap-4">
-            {/* Progress */}
-            <div className="text-xs text-white/40">
+          <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+            <span style={{ fontSize: ".75rem", color: "rgba(255,255,255,.35)" }}>
               {Object.keys(answers).length}/{questions.length} answered
-            </div>
-            {/* Timer */}
+            </span>
             {timeLeft !== null && (
-              <div className={`font-mono text-sm font-bold px-3 py-1.5 rounded-lg border ${
-                timerDanger
-                  ? "bg-red-900/30 border-red-500/40 text-red-400 animate-pulse"
-                  : "bg-white/5 border-white/10 text-white"
-              }`}>
+              <div style={{
+                fontFamily: "monospace", fontSize: ".9rem", fontWeight: 700, padding: ".4rem .85rem",
+                borderRadius: 8, border: `1px solid ${timerDanger ? "rgba(239,68,68,.5)" : "rgba(255,255,255,.15)"}`,
+                background: timerDanger ? "rgba(239,68,68,.12)" : "rgba(255,255,255,.05)",
+                color: timerDanger ? "#f87171" : "#fff",
+                animation: timerDanger ? "pulse .8s ease infinite" : "none"
+              }}>
                 ⏱ {fmt(timeLeft)}
               </div>
             )}
           </div>
         </div>
         {/* Progress bar */}
-        <div className="h-0.5 bg-white/5">
-          <div
-            className="h-full bg-[#C9A227] transition-all duration-300"
-            style={{ width: `${pct}%` }}
-          />
+        <div style={{ height: 3, background: "rgba(255,255,255,.05)" }}>
+          <div style={{ height: "100%", background: "#C9A227", transition: "width .3s", width: `${pct}%` }} />
         </div>
       </header>
 
-      <main className="max-w-3xl mx-auto px-6 py-8">
-        <div className="space-y-6">
+      <main style={{ maxWidth: 800, margin: "0 auto", padding: "2rem 1.5rem" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "1.2rem" }}>
           {questions.map((q, qi) => {
             const opts = [q.option_a, q.option_b, q.option_c, q.option_d].filter(Boolean);
             const selected = answers[q.id];
 
             return (
-              <div key={q.id} className="bg-[#1a0a0a] border border-white/8 rounded-2xl p-6">
-                <div className="flex items-start gap-4 mb-5">
-                  <span className="flex-shrink-0 w-7 h-7 bg-[#C9A227]/15 rounded-lg flex items-center justify-center text-xs font-bold text-[#C9A227]">
+              <div key={q.id} style={{ background: "rgba(255,255,255,.04)", border: "1px solid rgba(255,255,255,.08)", borderRadius: 16, padding: "1.4rem 1.5rem" }}>
+                <div style={{ display: "flex", alignItems: "flex-start", gap: "1rem", marginBottom: "1.2rem" }}>
+                  <span style={{ width: 28, height: 28, borderRadius: 8, background: "rgba(201,162,39,.12)", color: "#C9A227", display: "flex", alignItems: "center", justifyContent: "center", fontSize: ".75rem", fontWeight: 800, flexShrink: 0, marginTop: 1 }}>
                     {qi + 1}
                   </span>
-                  <p className="text-sm text-white/90 leading-relaxed pt-0.5">{q.question_text}</p>
+                  <p style={{ fontSize: ".9rem", color: "rgba(255,255,255,.9)", lineHeight: 1.6 }}>{q.question_text}</p>
                 </div>
-                <div className="grid grid-cols-1 gap-2">
-                  {opts.map((opt, oi) => (
-                    <button
-                      key={oi}
-                      onClick={() => setAnswers(prev => ({ ...prev, [q.id]: optLabels[oi] }))}
-                      className={`flex items-center gap-3 px-4 py-3 rounded-xl border text-sm text-left transition ${
-                        selected === optLabels[oi]
-                          ? "bg-[#C9A227]/15 border-[#C9A227]/50 text-white"
-                          : "bg-white/3 border-white/8 text-white/60 hover:border-white/20 hover:text-white/80"
-                      }`}
-                    >
-                      <span className={`w-6 h-6 rounded-md flex-shrink-0 flex items-center justify-center text-xs font-bold transition ${
-                        selected === optLabels[oi]
-                          ? "bg-[#C9A227] text-[#1a0505]"
-                          : "bg-white/8 text-white/40"
-                      }`}>
-                        {optLabels[oi]}
-                      </span>
-                      {opt}
-                    </button>
-                  ))}
+
+                <div style={{ display: "flex", flexDirection: "column", gap: ".6rem" }}>
+                  {opts.map((opt, oi) => {
+                    const letter = optLabels[oi];
+                    const isSelected = selected === letter;
+                    return (
+                      <button
+                        key={oi}
+                        onClick={() => setAnswers(prev => ({ ...prev, [q.id]: letter }))}
+                        style={{
+                          display: "flex", alignItems: "center", gap: ".85rem",
+                          padding: ".75rem 1rem", borderRadius: 10,
+                          border: `1px solid ${isSelected ? "rgba(201,162,39,.5)" : "rgba(255,255,255,.08)"}`,
+                          background: isSelected ? "rgba(201,162,39,.1)" : "rgba(255,255,255,.025)",
+                          color: isSelected ? "#fff" : "rgba(255,255,255,.55)",
+                          cursor: "pointer", textAlign: "left", transition: "all .15s",
+                          width: "100%"
+                        }}
+                      >
+                        <span style={{
+                          width: 28, height: 28, borderRadius: 7, flexShrink: 0,
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          fontSize: ".75rem", fontWeight: 800,
+                          background: isSelected ? "#C9A227" : "rgba(255,255,255,.08)",
+                          color: isSelected ? "#1a0505" : "rgba(255,255,255,.4)",
+                          transition: "all .15s"
+                        }}>
+                          {letter}
+                        </span>
+                        <span style={{ fontSize: ".88rem" }}>{opt}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             );
           })}
         </div>
 
-        {/* Submit */}
-        <div className="mt-8 bg-[#1a0a0a] border border-white/8 rounded-2xl p-5 flex items-center justify-between gap-4">
+        {/* Submit row */}
+        <div style={{
+          marginTop: "2rem", background: "rgba(255,255,255,.04)", border: "1px solid rgba(255,255,255,.08)",
+          borderRadius: 16, padding: "1.2rem 1.5rem",
+          display: "flex", alignItems: "center", justifyContent: "space-between", gap: "1rem",
+          flexWrap: "wrap"
+        }}>
           <div>
-            <p className="text-sm text-white/70 font-medium">
+            <p style={{ fontSize: ".88rem", fontWeight: 600, color: Object.keys(answers).length === questions.length ? "#34d399" : "rgba(255,255,255,.6)" }}>
               {Object.keys(answers).length === questions.length
-                ? "All questions answered ✓"
-                : `${questions.length - Object.keys(answers).length} question(s) unanswered`}
+                ? "✓ All questions answered"
+                : `${questions.length - Object.keys(answers).length} question(s) remaining`}
             </p>
-            <p className="text-xs text-white/30 mt-0.5">Unanswered questions will be marked incorrect</p>
+            <p style={{ fontSize: ".72rem", color: "rgba(255,255,255,.3)", marginTop: ".2rem" }}>
+              Unanswered questions will be marked incorrect
+            </p>
           </div>
           <button
             onClick={handleSubmit}
             disabled={submitting}
-            className="px-8 py-3 bg-[#C9A227] hover:bg-[#b8911f] text-[#1a0505] font-bold rounded-xl text-sm transition disabled:opacity-50"
+            style={{
+              padding: ".8rem 2rem", borderRadius: 10, border: "none",
+              background: "#C9A227", color: "#1a0505", fontWeight: 800, fontSize: ".9rem",
+              cursor: submitting ? "not-allowed" : "pointer", opacity: submitting ? .6 : 1,
+              transition: "opacity .15s", minWidth: 140
+            }}
           >
-            {submitting ? "Submitting…" : "Submit Quiz"}
+            {submitting
+              ? <span style={{ display: "flex", alignItems: "center", gap: ".5rem", justifyContent: "center" }}>
+                  <span style={{ width: 14, height: 14, border: "2px solid rgba(26,5,5,.3)", borderTopColor: "#1a0505", borderRadius: "50%", animation: "spin .7s linear infinite", display: "inline-block" }} />
+                  Submitting…
+                </span>
+              : "Submit Quiz →"}
           </button>
         </div>
       </main>
