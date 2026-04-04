@@ -13,11 +13,30 @@ const {
   deleteQuiz,
 } = require("../controllers/quizController");
 const { verifyToken, authorizeRole } = require("../middleware/authMiddleware");
+const { supabaseAdmin } = require("../supabaseClient");
 const aiService = require("../services/aiService");
 
-// ── Student routes ────────────────────────────────────────────────────────────
+// ── Student routes ─────────────────────────────────────────────────────────────
 router.post("/submit",     verifyToken, authorizeRole("student"), submitQuiz);
 router.get("/my-quizzes",  verifyToken, authorizeRole("student"), getQuizzesForStudent);
+
+// Student: get their past results (maps quizId → result for dashboard display)
+router.get("/my-results", verifyToken, authorizeRole("student"), async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { data, error } = await supabaseAdmin
+      .from("results")
+      .select("id, quiz_id, score, total, submitted_at, answers")
+      .eq("user_id", userId)
+      .order("submitted_at", { ascending: false });
+
+    if (error) throw new Error(error.message);
+    res.json(data || []);
+  } catch (err) {
+    console.error("my-results error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // ── Teacher routes ────────────────────────────────────────────────────────────
 router.post("/generate",   verifyToken, authorizeRole("teacher"), generateQuiz);
@@ -60,10 +79,10 @@ router.get("/ai/status", verifyToken, authorizeRole("teacher"), (req, res) => {
 });
 
 // ── Attendance ────────────────────────────────────────────────────────────────
-router.get("/attendance/:quizId",        getAttendanceReport);
-router.get("/attendance/stats/:quizId",  getAttendanceStats);
+router.get("/attendance/:quizId",        verifyToken, getAttendanceReport);
+router.get("/attendance/stats/:quizId",  verifyToken, getAttendanceStats);
 
-// ── Public quiz fetch (must be LAST) – added authentication middleware ────────
+// ── Public quiz fetch by ID – MUST BE LAST to avoid shadowing other GET routes ──
 router.get("/:quizId", verifyToken, authorizeRole("student"), getQuiz);
 
 module.exports = router;

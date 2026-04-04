@@ -6,50 +6,27 @@ const BASE = process.env.REACT_APP_API_URL || "http://localhost:5000";
 
 const apiFetch = async (path) => {
   const token = localStorage.getItem("token");
-
   const res = await fetch(`${BASE}${path}`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
+    headers: { Authorization: `Bearer ${token}` },
   });
-
   const data = await res.json();
-
-  if (!res.ok) {
-    console.error("Backend error:", data);
-    throw new Error(data.message || data.error || "Request failed");
-  }
-
+  if (!res.ok) throw new Error(data.message || data.error || "Request failed");
   return data;
 };
 
-/* ─── Styles (unchanged) ─────────────────────────────────────────────────── */
+/* ─── Styles ─────────────────────────────────────────────────────────────── */
 const Styles = () => (
   <style>{`
     @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400&display=swap');
     *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
 
-    @keyframes fadeUp {
-      from { opacity:0; transform:translateY(16px); }
-      to   { opacity:1; transform:translateY(0); }
-    }
-    @keyframes slideDown {
-      from { opacity:0; transform:translateY(-10px); }
-      to   { opacity:1; transform:translateY(0); }
-    }
-    @keyframes shimmer {
-      0%   { background-position:-400px 0; }
-      100% { background-position: 400px 0; }
-    }
-    @keyframes badge-pop {
-      0%   { transform:scale(.7); opacity:0; }
-      70%  { transform:scale(1.08); }
-      100% { transform:scale(1); opacity:1; }
-    }
-    @keyframes glow-pulse {
-      0%,100% { box-shadow:0 0 0 0 rgba(16,185,129,.2); }
-      50%      { box-shadow:0 0 0 8px rgba(16,185,129,.0); }
-    }
+    @keyframes fadeUp   { from{opacity:0;transform:translateY(16px);}to{opacity:1;transform:translateY(0);} }
+    @keyframes slideDown{ from{opacity:0;transform:translateY(-10px);}to{opacity:1;transform:translateY(0);} }
+    @keyframes shimmer  { 0%{background-position:-400px 0;}100%{background-position:400px 0;} }
+    @keyframes badge-pop{ 0%{transform:scale(.7);opacity:0;}70%{transform:scale(1.08);}100%{transform:scale(1);opacity:1;} }
+    @keyframes glow-pulse{ 0%,100%{box-shadow:0 0 0 0 rgba(16,185,129,.2);}50%{box-shadow:0 0 0 8px rgba(16,185,129,.0);} }
+    @keyframes spin     { to{transform:rotate(360deg);} }
+    @keyframes confetti { 0%{transform:translateY(0) rotate(0);opacity:1;}100%{transform:translateY(50px) rotate(720deg);opacity:0;} }
 
     .sd-root {
       min-height:100vh;
@@ -69,40 +46,18 @@ const Styles = () => (
       position:sticky; top:0; z-index:30;
       animation:slideDown .4s ease both;
     }
-    .sd-logo {
-      display:flex; align-items:center; gap:.65rem;
-      font-size:1rem; font-weight:800; color:#fff;
-    }
-    .sd-logo-icon {
-      width:30px; height:30px; border-radius:8px;
-      background:linear-gradient(135deg,#065f46,#6d28d9);
-      display:flex; align-items:center; justify-content:center;
-    }
+    .sd-logo { display:flex; align-items:center; gap:.65rem; font-size:1rem; font-weight:800; color:#fff; }
+    .sd-logo-icon { width:30px; height:30px; border-radius:8px; background:linear-gradient(135deg,#065f46,#6d28d9); display:flex; align-items:center; justify-content:center; }
     .sd-logo-icon svg { width:16px; height:16px; color:#fff; }
     .sd-topbar-right { display:flex; align-items:center; gap:.9rem; }
-    .sd-chip {
-      font-family:'DM Mono',monospace; font-size:.67rem;
-      padding:.2rem .65rem; border-radius:999px;
-      background:rgba(16,185,129,.12); border:1px solid rgba(16,185,129,.3);
-      color:#34d399; letter-spacing:.06em;
-    }
-    .sd-logout {
-      padding:.36rem .85rem; border-radius:8px;
-      border:1px solid rgba(255,255,255,.1);
-      background:rgba(255,255,255,.05);
-      color:rgba(255,255,255,.45); font-family:'Syne',sans-serif;
-      font-size:.78rem; cursor:pointer; transition:all .15s;
-    }
+    .sd-chip { font-family:'DM Mono',monospace; font-size:.67rem; padding:.2rem .65rem; border-radius:999px; background:rgba(16,185,129,.12); border:1px solid rgba(16,185,129,.3); color:#34d399; letter-spacing:.06em; }
+    .sd-logout { padding:.36rem .85rem; border-radius:8px; border:1px solid rgba(255,255,255,.1); background:rgba(255,255,255,.05); color:rgba(255,255,255,.45); font-family:'Syne',sans-serif; font-size:.78rem; cursor:pointer; transition:all .15s; }
     .sd-logout:hover { background:rgba(255,255,255,.1); color:#fff; }
 
     .sd-body { max-width:1080px; margin:0 auto; padding:2.5rem 2rem; }
 
     .sd-welcome { margin-bottom:2.5rem; animation:fadeUp .5s ease both; }
-    .sd-welcome-tag {
-      display:inline-flex; align-items:center; gap:.4rem;
-      font-size:.72rem; letter-spacing:.1em; text-transform:uppercase;
-      color:rgba(52,211,153,.6); margin-bottom:.6rem;
-    }
+    .sd-welcome-tag { display:inline-flex; align-items:center; gap:.4rem; font-size:.72rem; letter-spacing:.1em; text-transform:uppercase; color:rgba(52,211,153,.6); margin-bottom:.6rem; }
     .sd-welcome-tag span { display:inline-block; width:6px; height:6px; border-radius:50%; background:#10b981; }
     .sd-name { font-size:2rem; font-weight:800; color:#fff; letter-spacing:-.03em; }
     .sd-sub  { font-size:.88rem; color:rgba(255,255,255,.35); margin-top:.35rem; }
@@ -115,143 +70,100 @@ const Styles = () => (
       margin-bottom:2rem;
       animation:fadeUp .5s .05s ease both;
     }
-    .sd-teacher-card::before {
-      content:'';
-      position:absolute; inset:0;
-      background:radial-gradient(ellipse 60% 80% at 0% 50%, rgba(16,185,129,.08) 0%, transparent 70%);
-      pointer-events:none;
-    }
-    .sd-teacher-label {
-      font-size:.7rem; letter-spacing:.12em; text-transform:uppercase;
-      color:rgba(52,211,153,.6); margin-bottom:.9rem;
-      display:flex; align-items:center; gap:.45rem;
-    }
+    .sd-teacher-label { font-size:.7rem; letter-spacing:.12em; text-transform:uppercase; color:rgba(52,211,153,.6); margin-bottom:.9rem; display:flex; align-items:center; gap:.45rem; }
     .sd-teacher-label-dot { width:6px; height:6px; border-radius:50%; background:#10b981; animation:glow-pulse 2s infinite; }
     .sd-teacher-inner { display:flex; align-items:center; gap:1rem; }
-    .sd-teacher-avatar {
-      width:52px; height:52px; border-radius:14px;
-      background:rgba(30,58,138,.3); border:1px solid rgba(147,197,253,.15);
-      display:flex; align-items:center; justify-content:center;
-      font-size:1rem; font-weight:800; color:#93c5fd; flex-shrink:0;
-      animation:badge-pop .5s .2s ease both;
-    }
+    .sd-teacher-avatar { width:52px; height:52px; border-radius:14px; background:rgba(30,58,138,.3); border:1px solid rgba(147,197,253,.15); display:flex; align-items:center; justify-content:center; font-size:1rem; font-weight:800; color:#93c5fd; flex-shrink:0; animation:badge-pop .5s .2s ease both; }
     .sd-teacher-name  { font-size:1.1rem; font-weight:800; color:#fff; }
     .sd-teacher-email { font-size:.75rem; color:rgba(255,255,255,.35); font-family:'DM Mono',monospace; margin-top:.15rem; }
-    .sd-teacher-tier  {
-      margin-left:auto;
-      font-size:.75rem; font-weight:700; padding:.25rem .7rem;
-      border-radius:8px; background:rgba(139,92,246,.12); color:#a78bfa;
-      border:1px solid rgba(139,92,246,.2);
-    }
-    .sd-no-teacher {
-      display:flex; align-items:center; gap:.85rem;
-      padding:1.5rem 1.75rem;
-      background:rgba(255,255,255,.03);
-      border:1px dashed rgba(255,255,255,.1);
-      border-radius:18px; margin-bottom:2rem;
-      animation:fadeUp .5s .05s ease both;
-    }
-    .sd-no-teacher-icon {
-      width:42px; height:42px; border-radius:12px;
-      background:rgba(255,255,255,.06);
-      display:flex; align-items:center; justify-content:center; flex-shrink:0;
-    }
+    .sd-teacher-tier  { margin-left:auto; font-size:.75rem; font-weight:700; padding:.25rem .7rem; border-radius:8px; background:rgba(139,92,246,.12); color:#a78bfa; border:1px solid rgba(139,92,246,.2); }
+    .sd-no-teacher { display:flex; align-items:center; gap:.85rem; padding:1.5rem 1.75rem; background:rgba(255,255,255,.03); border:1px dashed rgba(255,255,255,.1); border-radius:18px; margin-bottom:2rem; animation:fadeUp .5s .05s ease both; }
+    .sd-no-teacher-icon { width:42px; height:42px; border-radius:12px; background:rgba(255,255,255,.06); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
     .sd-no-teacher-icon svg { width:20px; height:20px; color:rgba(255,255,255,.25); }
     .sd-no-teacher-text { font-size:.84rem; color:rgba(255,255,255,.3); }
 
-    .sd-stats {
-      display:grid; grid-template-columns:repeat(3,1fr); gap:1rem;
-      margin-bottom:2rem; animation:fadeUp .5s .1s ease both;
-    }
-    .sd-stat {
-      background:rgba(255,255,255,.04);
-      border:1px solid rgba(255,255,255,.07);
-      border-radius:14px; padding:1.2rem 1.4rem;
-    }
+    .sd-stats { display:grid; grid-template-columns:repeat(3,1fr); gap:1rem; margin-bottom:2rem; animation:fadeUp .5s .1s ease both; }
+    .sd-stat { background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.07); border-radius:14px; padding:1.2rem 1.4rem; }
     .sd-stat-label { font-size:.7rem; letter-spacing:.1em; text-transform:uppercase; color:rgba(255,255,255,.28); margin-bottom:.45rem; }
     .sd-stat-value { font-size:1.9rem; font-weight:800; color:#fff; }
     .sd-stat-hint  { font-size:.72rem; color:rgba(255,255,255,.22); margin-top:.3rem; }
 
-    .sd-quiz-entry {
+    /* ── Quiz section ── */
+    .sd-quiz-section { animation:fadeUp .5s .15s ease both; margin-bottom:2rem; }
+    .sd-quiz-section-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:1rem; }
+    .sd-quiz-section-title { font-size:1rem; font-weight:800; color:#fff; }
+    .sd-quiz-count { font-family:'DM Mono',monospace; font-size:.72rem; color:rgba(255,255,255,.3); padding:.18rem .55rem; background:rgba(255,255,255,.06); border-radius:6px; }
+    .sd-quiz-list { display:flex; flex-direction:column; gap:.75rem; }
+
+    .sd-quiz-card {
       background:rgba(255,255,255,.04);
       border:1px solid rgba(255,255,255,.08);
-      border-radius:16px; padding:1.4rem 1.6rem;
-      margin-bottom:2rem;
-      animation:fadeUp .5s .15s ease both;
+      border-radius:14px; padding:1.1rem 1.4rem;
+      display:flex; align-items:center; gap:1rem;
+      position:relative; overflow:hidden;
+      transition:all .15s;
     }
-    .sd-quiz-entry h3 { font-size:.88rem; font-weight:700; color:#fff; margin-bottom:.9rem; }
-    .sd-quiz-row { display:flex; gap:.75rem; }
-    .sd-quiz-input {
-      flex:1; padding:.65rem 1rem;
-      background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.12);
-      border-radius:10px; color:#fff;
-      font-family:'Syne',sans-serif; font-size:.84rem;
-      outline:none; transition:border-color .2s;
-    }
-    .sd-quiz-input:focus { border-color:rgba(16,185,129,.4); }
-    .sd-quiz-input::placeholder { color:rgba(255,255,255,.25); }
-    .sd-quiz-btn {
-      padding:.65rem 1.4rem; border-radius:10px; border:none;
-      background:linear-gradient(135deg,#10b981,#065f46);
-      color:#fff; font-family:'Syne',sans-serif; font-size:.84rem; font-weight:700;
-      cursor:pointer; transition:opacity .15s; white-space:nowrap;
-    }
-    .sd-quiz-btn:hover { opacity:.85; }
-    .sd-quiz-error { font-size:.76rem; color:#f87171; margin-top:.5rem; }
+    .sd-quiz-card.active  { border-color:rgba(16,185,129,.3); }
+    .sd-quiz-card.active::before { content:''; position:absolute; left:0; top:0; bottom:0; width:3px; background:#10b981; border-radius:2px; }
+    .sd-quiz-card.upcoming { border-color:rgba(245,158,11,.2); }
+    .sd-quiz-card.upcoming::before { content:''; position:absolute; left:0; top:0; bottom:0; width:3px; background:#f59e0b; border-radius:2px; }
+    .sd-quiz-card.ended   { opacity:.55; }
+    .sd-quiz-card:hover:not(.ended) { background:rgba(255,255,255,.07); }
 
-    .sd-lb { animation:fadeUp .5s .2s ease both; }
-    .sd-lb-header {
-      display:flex; align-items:center; justify-content:space-between;
-      margin-bottom:1rem;
+    .sd-quiz-card-icon { width:44px; height:44px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:1.3rem; flex-shrink:0; }
+    .sd-quiz-info { flex:1; min-width:0; }
+    .sd-quiz-title { font-weight:700; color:#fff; font-size:.88rem; margin-bottom:.25rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .sd-quiz-meta { display:flex; align-items:center; gap:.5rem; flex-wrap:wrap; }
+    .sd-quiz-status-badge { padding:.18rem .55rem; border-radius:6px; font-size:.68rem; font-weight:700; letter-spacing:.04em; }
+    .sd-quiz-status-badge.active   { background:rgba(16,185,129,.15); color:#34d399; border:1px solid rgba(16,185,129,.25); }
+    .sd-quiz-status-badge.upcoming { background:rgba(245,158,11,.12); color:#fbbf24; border:1px solid rgba(245,158,11,.2); }
+    .sd-quiz-status-badge.ended    { background:rgba(255,255,255,.06); color:rgba(255,255,255,.3); }
+    .sd-quiz-time { font-size:.7rem; color:rgba(255,255,255,.3); font-family:'DM Mono',monospace; }
+
+    .sd-quiz-btn {
+      padding:.5rem 1.2rem; border-radius:10px; border:none;
+      font-family:'Syne',sans-serif; font-size:.82rem; font-weight:700;
+      cursor:pointer; transition:all .15s; white-space:nowrap; flex-shrink:0;
     }
+    .sd-quiz-btn.take { background:linear-gradient(135deg,#10b981,#065f46); color:#fff; box-shadow:0 4px 12px rgba(16,185,129,.3); }
+    .sd-quiz-btn.take:hover { opacity:.88; transform:translateY(-1px); }
+    .sd-quiz-btn.disabled { background:rgba(255,255,255,.07); color:rgba(255,255,255,.3); cursor:not-allowed; }
+
+    .sd-quiz-score-chip {
+      display:inline-flex; align-items:center; gap:.3rem;
+      padding:.22rem .65rem; border-radius:6px; font-size:.72rem; font-weight:700;
+      background:rgba(251,191,36,.1); color:#fbbf24; border:1px solid rgba(251,191,36,.2);
+    }
+
+    .sd-empty-quiz {
+      padding:2rem 1.5rem; text-align:center;
+      border:1px dashed rgba(255,255,255,.08); border-radius:14px;
+      color:rgba(255,255,255,.25); font-size:.84rem;
+    }
+
+    /* leaderboard */
+    .sd-lb { animation:fadeUp .5s .2s ease both; }
+    .sd-lb-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:1rem; }
     .sd-lb-title { font-size:1rem; font-weight:800; color:#fff; }
     .sd-lb-tabs { display:flex; gap:.35rem; }
-    .sd-lb-tab {
-      padding:.25rem .65rem; border-radius:7px; cursor:pointer;
-      font-size:.74rem; font-weight:600;
-      border:1px solid rgba(255,255,255,.08);
-      background:rgba(255,255,255,.04);
-      color:rgba(255,255,255,.3); transition:all .15s;
-    }
+    .sd-lb-tab { padding:.25rem .65rem; border-radius:7px; cursor:pointer; font-size:.74rem; font-weight:600; border:1px solid rgba(255,255,255,.08); background:rgba(255,255,255,.04); color:rgba(255,255,255,.3); transition:all .15s; font-family:'Syne',sans-serif; }
     .sd-lb-tab.active { background:rgba(16,185,129,.15); border-color:rgba(16,185,129,.3); color:#34d399; }
-    .sd-lb-list {
-      background:rgba(255,255,255,.03);
-      border:1px solid rgba(255,255,255,.07);
-      border-radius:14px; overflow:hidden;
-    }
-    .sd-lb-row {
-      display:flex; align-items:center; gap:.9rem;
-      padding:.85rem 1.25rem;
-      border-bottom:1px solid rgba(255,255,255,.04);
-      transition:background .12s;
-    }
+    .sd-lb-list { background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.07); border-radius:14px; overflow:hidden; }
+    .sd-lb-row { display:flex; align-items:center; gap:.9rem; padding:.85rem 1.25rem; border-bottom:1px solid rgba(255,255,255,.04); transition:background .12s; }
     .sd-lb-row:last-child { border-bottom:none; }
     .sd-lb-row:hover { background:rgba(255,255,255,.025); }
-    .sd-lb-rank {
-      font-family:'DM Mono',monospace; font-size:.82rem;
-      font-weight:700; color:rgba(255,255,255,.25);
-      width:28px; text-align:center; flex-shrink:0;
-    }
+    .sd-lb-rank { font-family:'DM Mono',monospace; font-size:.82rem; font-weight:700; color:rgba(255,255,255,.25); width:28px; text-align:center; flex-shrink:0; }
     .sd-lb-rank.top1 { color:#fbbf24; }
     .sd-lb-rank.top2 { color:#9ca3af; }
     .sd-lb-rank.top3 { color:#b45309; }
-    .sd-lb-avatar {
-      width:32px; height:32px; border-radius:9px;
-      background:rgba(16,185,129,.15);
-      display:flex; align-items:center; justify-content:center;
-      font-size:.72rem; font-weight:800; color:#34d399; flex-shrink:0;
-    }
-    .sd-lb-name  { flex:1; font-size:.83rem; font-weight:600; color:rgba(255,255,255,.75); }
-    .sd-lb-pts   { font-family:'DM Mono',monospace; font-size:.8rem; font-weight:700; color:#fff; }
-    .sd-lb-tier  { font-size:.7rem; color:rgba(255,255,255,.25); margin-left:.35rem; }
-
+    .sd-lb-avatar { width:32px; height:32px; border-radius:9px; background:rgba(16,185,129,.15); display:flex; align-items:center; justify-content:center; font-size:.72rem; font-weight:800; color:#34d399; flex-shrink:0; }
+    .sd-lb-name { flex:1; font-size:.83rem; font-weight:600; color:rgba(255,255,255,.75); }
+    .sd-lb-pts  { font-family:'DM Mono',monospace; font-size:.8rem; font-weight:700; color:#fff; }
+    .sd-lb-tier { font-size:.7rem; color:rgba(255,255,255,.25); margin-left:.35rem; }
     .sd-lb-empty { padding:2.5rem; text-align:center; font-size:.82rem; color:rgba(255,255,255,.2); }
 
-    .skeleton {
-      height:14px; border-radius:5px;
-      background:linear-gradient(90deg,rgba(255,255,255,.04) 0%,rgba(255,255,255,.08) 50%,rgba(255,255,255,.04) 100%);
-      background-size:800px 100%; animation:shimmer 1.4s infinite;
-    }
+    .skeleton { height:14px; border-radius:5px; background:linear-gradient(90deg,rgba(255,255,255,.04) 0%,rgba(255,255,255,.08) 50%,rgba(255,255,255,.04) 100%); background-size:800px 100%; animation:shimmer 1.4s infinite; }
+    .sd-spinner { display:inline-block; width:14px; height:14px; border:2px solid rgba(255,255,255,.15); border-top-color:#10b981; border-radius:50%; animation:spin .7s linear infinite; }
 
     @media(max-width:700px){
       .sd-stats { grid-template-columns:1fr 1fr; }
@@ -261,50 +173,60 @@ const Styles = () => (
 );
 
 const initials = (name = "") =>
-  name.split(" ").slice(0,2).map(n=>n[0]).join("").toUpperCase() || "?";
+  name.split(" ").slice(0, 2).map(n => n[0]).join("").toUpperCase() || "?";
 
 const rankClass = (i) => i === 0 ? "top1" : i === 1 ? "top2" : i === 2 ? "top3" : "";
 const rankEmoji = (i) => i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : i + 1;
 
+const formatTime = (iso) => {
+  if (!iso) return "";
+  return new Date(iso).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+};
+
 export default function StudentDashboard() {
   const navigate = useNavigate();
-  const [userData, setUserData] = useState(null);
-  const [myTeacher, setMyTeacher] = useState(undefined); 
+  const [userData, setUserData]     = useState(null);
+  const [myTeacher, setMyTeacher]   = useState(undefined);
   const [leaderboard, setLeaderboard] = useState([]);
-  const [lbType, setLbType] = useState("overall");
-  const [lbLoading, setLbLoading] = useState(false);
+  const [lbType, setLbType]         = useState("overall");
+  const [lbLoading, setLbLoading]   = useState(false);
   const [pageLoading, setPageLoading] = useState(true);
-  const [teacherQuizzes, setTeacherQuizzes] = useState([]);
+  const [quizzes, setQuizzes]       = useState([]);
+  const [quizResults, setQuizResults] = useState({});    // map quizId → result
   const [loadingQuizzes, setLoadingQuizzes] = useState(false);
-  const [quizError, setQuizError] = useState("");
+  const [quizError, setQuizError]   = useState("");
 
-  // Load assigned quizzes
   const loadQuizzes = async () => {
     setLoadingQuizzes(true);
     setQuizError("");
     try {
-      const token = localStorage.getItem("token");
-      const res = await fetch(`${BASE}/api/quiz/my-quizzes`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (!res.ok) {
-        const errorText = await res.text();
-        throw new Error(`Failed to load quizzes: ${res.status} ${errorText}`);
-      }
-      const data = await res.json();
-      // Backend returns an array directly (see getQuizzesForStudent)
-      if (Array.isArray(data)) {
-        setTeacherQuizzes(data);
-      } else {
-        console.warn("Unexpected quizzes response:", data);
-        setTeacherQuizzes([]);
-      }
+      const data = await apiFetch("/api/quiz/my-quizzes");
+      setQuizzes(Array.isArray(data) ? data : []);
     } catch (err) {
-      console.error("Failed to fetch quizzes:", err);
       setQuizError(err.message);
-      setTeacherQuizzes([]);
+      setQuizzes([]);
     } finally {
       setLoadingQuizzes(false);
+    }
+  };
+
+  const loadResults = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${BASE}/api/quiz/my-results`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        // Build a map: quizId → result
+        const map = {};
+        (Array.isArray(data) ? data : []).forEach(r => {
+          map[r.quiz_id] = r;
+        });
+        setQuizResults(map);
+      }
+    } catch {
+      // Non-fatal
     }
   };
 
@@ -314,14 +236,13 @@ export default function StudentDashboard() {
     if (user.role !== "student") { navigate("/teacher"); return; }
     setUserData(user);
 
-    // Fetch teacher assignment
     apiFetch("/api/admin/my-teacher")
       .then(setMyTeacher)
       .catch(() => setMyTeacher(null))
       .finally(() => setPageLoading(false));
 
-    // Fetch quizzes
     loadQuizzes();
+    loadResults();
   }, [navigate]);
 
   useEffect(() => {
@@ -331,6 +252,11 @@ export default function StudentDashboard() {
       .catch(() => setLeaderboard([]))
       .finally(() => setLbLoading(false));
   }, [lbType]);
+
+  const handleTakeQuiz = (quiz) => {
+    if (quiz.status !== "active") return;
+    navigate(`/quiz/${quiz.id}`);
+  };
 
   const displayName = userData?.full_name || userData?.name || "Student";
 
@@ -342,7 +268,7 @@ export default function StudentDashboard() {
           <div className="sd-logo">
             <div className="sd-logo-icon">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 22 12 18.07 5.82 22 7 14.14 2 9.27l6.91-1.01z"/>
+                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.87L12 18.07 5.82 22 7 14.14 2 9.27l6.91-1.01z"/>
               </svg>
             </div>
             QuizSystem
@@ -391,10 +317,7 @@ export default function StudentDashboard() {
           ) : (
             <div className="sd-no-teacher">
               <div className="sd-no-teacher-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                  <circle cx="12" cy="8" r="4"/>
-                  <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
-                </svg>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
               </div>
               <p className="sd-no-teacher-text">No teacher assigned yet. Your admin will assign a teacher to you soon.</p>
             </div>
@@ -413,67 +336,106 @@ export default function StudentDashboard() {
               <p className="sd-stat-hint">consecutive days</p>
             </div>
             <div className="sd-stat">
-              <p className="sd-stat-label">Status</p>
-              <p className="sd-stat-value" style={{fontSize:"1.3rem",paddingTop:".3rem"}}>
-                {myTeacher ? "✅ Enrolled" : "⏳ Pending"}
-              </p>
-              <p className="sd-stat-hint">{myTeacher ? "assigned to teacher" : "awaiting assignment"}</p>
+              <p className="sd-stat-label">Quizzes Assigned</p>
+              <p className="sd-stat-value">{quizzes.length}</p>
+              <p className="sd-stat-hint">{quizzes.filter(q => q.status === "active").length} active now</p>
             </div>
           </div>
 
-          {/* Quizzes from Teacher */}
-          <div className="sd-quiz-entry">
-            <h3>Quizzes from Your Teacher</h3>
+          {/* Quizzes */}
+          <div className="sd-quiz-section">
+            <div className="sd-quiz-section-header">
+              <h2 className="sd-quiz-section-title">My Quizzes</h2>
+              <div style={{ display: "flex", alignItems: "center", gap: ".75rem" }}>
+                <span className="sd-quiz-count">{quizzes.length}</span>
+                <button
+                  onClick={loadQuizzes}
+                  style={{ background: "rgba(255,255,255,.06)", border: "1px solid rgba(255,255,255,.1)", borderRadius: 8, color: "rgba(255,255,255,.5)", padding: ".25rem .65rem", fontSize: ".74rem", cursor: "pointer", fontFamily: "'Syne',sans-serif" }}
+                >
+                  ↻ Refresh
+                </button>
+              </div>
+            </div>
+
             {loadingQuizzes ? (
-              <div style={{ textAlign: "center", padding: "1rem", color: "rgba(255,255,255,.4)" }}>
-                Loading quizzes...
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "2rem", gap: ".65rem", color: "rgba(255,255,255,.3)", fontSize: ".82rem" }}>
+                <span className="sd-spinner" /> Loading quizzes…
               </div>
             ) : quizError ? (
-              <div style={{ color: "#f87171", textAlign: "center", padding: "1rem" }}>
-                Error: {quizError}
+              <div style={{ padding: "1rem", background: "rgba(239,68,68,.08)", border: "1px solid rgba(239,68,68,.2)", borderRadius: 12, color: "#f87171", fontSize: ".82rem" }}>
+                ⚠ {quizError}
               </div>
-            ) : teacherQuizzes.length === 0 ? (
-              <p style={{ color: "rgba(255,255,255,.4)" }}>
-                No quizzes available yet. Your teacher will assign quizzes here.
-              </p>
+            ) : quizzes.length === 0 ? (
+              <div className="sd-empty-quiz">
+                📋 No quizzes assigned yet. Your teacher will send quizzes here.
+              </div>
             ) : (
-              <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "0.75rem" }}>
-                {teacherQuizzes.map(quiz => (
-                  <div 
-                    key={quiz.id} 
-                    style={{
-                      background: "rgba(255,255,255,.05)",
-                      border: "1px solid rgba(255,255,255,.1)",
-                      borderRadius: "12px",
-                      padding: "1rem",
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center"
-                    }}
-                  >
-                    <div>
-                      <p style={{ fontWeight: "600", marginBottom: "0.25rem" }}>{quiz.title}</p>
-                      <p style={{ fontSize: "0.7rem", color: "rgba(255,255,255,.4)" }}>
-                        {quiz.status === "active" ? "🟢 Available now" : 
-                         quiz.status === "upcoming" ? "⏳ Upcoming" : "🔒 Ended"}
-                      </p>
+              <div className="sd-quiz-list">
+                {quizzes.map(quiz => {
+                  const result = quizResults[quiz.id];
+                  const isActive  = quiz.status === "active";
+                  const isEnded   = quiz.status === "ended";
+                  const isDone    = !!result;
+
+                  return (
+                    <div key={quiz.id} className={`sd-quiz-card ${quiz.status}`}>
+                      <div className="sd-quiz-card-icon" style={{
+                        background: isActive ? "rgba(16,185,129,.12)" :
+                                    quiz.status === "upcoming" ? "rgba(245,158,11,.1)" :
+                                    "rgba(255,255,255,.05)"
+                      }}>
+                        {isActive ? "📝" : quiz.status === "upcoming" ? "⏳" : "🔒"}
+                      </div>
+
+                      <div className="sd-quiz-info">
+                        <div className="sd-quiz-title">{quiz.title}</div>
+                        <div className="sd-quiz-meta">
+                          <span className={`sd-quiz-status-badge ${quiz.status}`}>
+                            {isActive ? "● Live Now" : quiz.status === "upcoming" ? "⏰ Upcoming" : "Ended"}
+                          </span>
+                          {quiz.start_time && (
+                            <span className="sd-quiz-time">
+                              {isActive
+                                ? `Ends ${formatTime(quiz.end_time)}`
+                                : quiz.status === "upcoming"
+                                ? `Starts ${formatTime(quiz.start_time)}`
+                                : `Ended ${formatTime(quiz.end_time)}`}
+                            </span>
+                          )}
+                          {isDone && (
+                            <span className="sd-quiz-score-chip">
+                              ✓ {result.score}/{result.total} ({Math.round((result.score / result.total) * 100)}%)
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {isDone ? (
+                        <div style={{ textAlign: "center", flexShrink: 0 }}>
+                          <div style={{ fontSize: "1.1rem", fontWeight: 800, color: "#34d399" }}>
+                            {Math.round((result.score / result.total) * 100)}%
+                          </div>
+                          <div style={{ fontSize: ".65rem", color: "rgba(255,255,255,.3)", marginTop: ".15rem" }}>Score</div>
+                        </div>
+                      ) : (
+                        <button
+                          className={`sd-quiz-btn ${isActive ? "take" : "disabled"}`}
+                          onClick={() => handleTakeQuiz(quiz)}
+                          disabled={!isActive}
+                          title={
+                            isActive ? "Take this quiz" :
+                            quiz.status === "upcoming" ? "Quiz hasn't started yet" :
+                            "Quiz has ended"
+                          }
+                        >
+                          {isActive ? "Take Quiz →" :
+                           quiz.status === "upcoming" ? "Not Yet Open" :
+                           "Closed"}
+                        </button>
+                      )}
                     </div>
-                    <button
-                      onClick={() => navigate(`/quiz/${quiz.id}`)}
-                      style={{
-                        padding: "0.5rem 1rem",
-                        background: "#C9A227",
-                        border: "none",
-                        borderRadius: "8px",
-                        color: "#000",
-                        fontWeight: "600",
-                        cursor: "pointer"
-                      }}
-                    >
-                      Take Quiz
-                    </button>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -486,10 +448,10 @@ export default function StudentDashboard() {
                 {["overall","daily","weekly"].map(t => (
                   <button
                     key={t}
-                    className={`sd-lb-tab ${lbType===t?"active":""}`}
+                    className={`sd-lb-tab ${lbType === t ? "active" : ""}`}
                     onClick={() => setLbType(t)}
                   >
-                    {t.charAt(0).toUpperCase()+t.slice(1)}
+                    {t.charAt(0).toUpperCase() + t.slice(1)}
                   </button>
                 ))}
               </div>
@@ -507,12 +469,17 @@ export default function StudentDashboard() {
               ) : leaderboard.length === 0 ? (
                 <div className="sd-lb-empty">No data for this period</div>
               ) : (
-                leaderboard.slice(0,10).map((u,i) => (
+                leaderboard.slice(0, 10).map((u, i) => (
                   <div key={u.id || i} className="sd-lb-row">
                     <span className={`sd-lb-rank ${rankClass(i)}`}>{rankEmoji(i)}</span>
-                    <div className="sd-lb-avatar">{initials(u.full_name || u.id)}</div>
-                    <span className="sd-lb-name">{u.full_name || u.id}</span>
-                    <span className="sd-lb-pts">{u.points ?? 0}</span>
+                    <div className="sd-lb-avatar">{initials(u.full_name || "?")}</div>
+                    <span className="sd-lb-name">
+                      {u.full_name || "Unknown"}
+                      {u.id === userData?.id && (
+                        <span style={{ fontSize: ".65rem", color: "#10b981", marginLeft: ".4rem" }}>(you)</span>
+                      )}
+                    </span>
+                    <span className="sd-lb-pts">{(u.points ?? 0).toLocaleString()}</span>
                     <span className="sd-lb-tier">{u.tier}</span>
                   </div>
                 ))
