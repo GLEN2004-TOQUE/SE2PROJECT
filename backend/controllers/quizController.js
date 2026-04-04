@@ -497,15 +497,14 @@ exports.submitQuiz = async (req, res) => {
 
     // Save result
     const { error: resultError } = await supabaseAdmin
-      .from("results")
-      .insert([{
-        user_id: userId,
-        quiz_id: quizId,
-        score,
-        total,
-        answers: detailedAnswers,
-        submitted_at: new Date()
-      }]);
+  .from("results")
+  .insert([{
+    user_id: userId,
+    quiz_id: quizId,
+    score,
+    total,
+    submitted_at: new Date()
+  }]);
 
     if (resultError) {
       console.error("Result save error:", resultError);

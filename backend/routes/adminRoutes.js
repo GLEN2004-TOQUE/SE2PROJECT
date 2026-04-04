@@ -1,3 +1,4 @@
+const { supabaseAdmin } = require("../supabaseClient");
 const express = require("express");
 const router = express.Router();
 const {
@@ -11,6 +12,20 @@ const {
   getMyTeacher,
 } = require("../controllers/adminController");
 const { verifyToken, authorizeRole } = require("../middleware/authMiddleware");
+
+router.get("/me", verifyToken, async (req, res) => {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from("users")
+      .select("id, full_name, email, points, streak, tier, role")
+      .eq("id", req.user.id)
+      .single();
+    if (error) return res.status(400).json({ error: error.message });
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // ─── Admin-only routes ────────────────────────────────────────────────────────
 router.get("/users",       verifyToken, authorizeRole("admin"), getAllUsers);

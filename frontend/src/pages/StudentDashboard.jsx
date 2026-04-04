@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from "react-router-dom";
-import { getUser, logout, getLeaderboard } from "../services/api";
+import { getUser, logout, getLeaderboard, getMyProfile } from "../services/api";
 
 const BASE = process.env.REACT_APP_API_URL || "http://localhost:5000";
 
@@ -26,7 +26,6 @@ const Styles = () => (
     @keyframes badge-pop{ 0%{transform:scale(.7);opacity:0;}70%{transform:scale(1.08);}100%{transform:scale(1);opacity:1;} }
     @keyframes glow-pulse{ 0%,100%{box-shadow:0 0 0 0 rgba(16,185,129,.2);}50%{box-shadow:0 0 0 8px rgba(16,185,129,.0);} }
     @keyframes spin     { to{transform:rotate(360deg);} }
-    @keyframes confetti { 0%{transform:translateY(0) rotate(0);opacity:1;}100%{transform:translateY(50px) rotate(720deg);opacity:0;} }
 
     .sd-root {
       min-height:100vh;
@@ -50,7 +49,21 @@ const Styles = () => (
     .sd-logo-icon { width:30px; height:30px; border-radius:8px; background:linear-gradient(135deg,#065f46,#6d28d9); display:flex; align-items:center; justify-content:center; }
     .sd-logo-icon svg { width:16px; height:16px; color:#fff; }
     .sd-topbar-right { display:flex; align-items:center; gap:.9rem; }
-    .sd-chip { font-family:'DM Mono',monospace; font-size:.67rem; padding:.2rem .65rem; border-radius:999px; background:rgba(16,185,129,.12); border:1px solid rgba(16,185,129,.3); color:#34d399; letter-spacing:.06em; }
+    .sd-user-chip {
+      display:flex; align-items:center; gap:.55rem;
+      font-family:'Syne',sans-serif; font-size:.8rem; font-weight:700;
+      padding:.28rem .85rem .28rem .5rem;
+      border-radius:999px;
+      background:rgba(16,185,129,.12); border:1px solid rgba(16,185,129,.3);
+      color:#34d399;
+    }
+    .sd-user-chip-avatar {
+      width:24px; height:24px; border-radius:50%;
+      background:linear-gradient(135deg,#10b981,#065f46);
+      display:flex; align-items:center; justify-content:center;
+      font-size:.65rem; font-weight:800; color:#fff;
+      flex-shrink:0;
+    }
     .sd-logout { padding:.36rem .85rem; border-radius:8px; border:1px solid rgba(255,255,255,.1); background:rgba(255,255,255,.05); color:rgba(255,255,255,.45); font-family:'Syne',sans-serif; font-size:.78rem; cursor:pointer; transition:all .15s; }
     .sd-logout:hover { background:rgba(255,255,255,.1); color:#fff; }
 
@@ -88,7 +101,6 @@ const Styles = () => (
     .sd-stat-value { font-size:1.9rem; font-weight:800; color:#fff; }
     .sd-stat-hint  { font-size:.72rem; color:rgba(255,255,255,.22); margin-top:.3rem; }
 
-    /* ── Quiz section ── */
     .sd-quiz-section { animation:fadeUp .5s .15s ease both; margin-bottom:2rem; }
     .sd-quiz-section-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:1rem; }
     .sd-quiz-section-title { font-size:1rem; font-weight:800; color:#fff; }
@@ -141,7 +153,6 @@ const Styles = () => (
       color:rgba(255,255,255,.25); font-size:.84rem;
     }
 
-    /* leaderboard */
     .sd-lb { animation:fadeUp .5s .2s ease both; }
     .sd-lb-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:1rem; }
     .sd-lb-title { font-size:1rem; font-weight:800; color:#fff; }
@@ -152,6 +163,7 @@ const Styles = () => (
     .sd-lb-row { display:flex; align-items:center; gap:.9rem; padding:.85rem 1.25rem; border-bottom:1px solid rgba(255,255,255,.04); transition:background .12s; }
     .sd-lb-row:last-child { border-bottom:none; }
     .sd-lb-row:hover { background:rgba(255,255,255,.025); }
+    .sd-lb-row.is-me { background:rgba(16,185,129,.06); border-left:3px solid #10b981; }
     .sd-lb-rank { font-family:'DM Mono',monospace; font-size:.82rem; font-weight:700; color:rgba(255,255,255,.25); width:28px; text-align:center; flex-shrink:0; }
     .sd-lb-rank.top1 { color:#fbbf24; }
     .sd-lb-rank.top2 { color:#9ca3af; }
@@ -185,18 +197,20 @@ const formatTime = (iso) => {
 
 export default function StudentDashboard() {
   const navigate = useNavigate();
-  const [userData, setUserData]     = useState(null);
-  const [myTeacher, setMyTeacher]   = useState(undefined);
+  const [profile, setProfile]         = useState(null);  // full DB user data
+  const [myTeacher, setMyTeacher]     = useState(undefined);
   const [leaderboard, setLeaderboard] = useState([]);
-  const [lbType, setLbType]         = useState("overall");
-  const [lbLoading, setLbLoading]   = useState(false);
+  const [lbType, setLbType]           = useState("overall");
+  const [lbLoading, setLbLoading]     = useState(false);
   const [pageLoading, setPageLoading] = useState(true);
-  const [quizzes, setQuizzes]       = useState([]);
-  const [quizResults, setQuizResults] = useState({});    // map quizId → result
+  const [quizzes, setQuizzes]         = useState([]);
+  const [quizResults, setQuizResults] = useState({});
   const [loadingQuizzes, setLoadingQuizzes] = useState(false);
-  const [quizError, setQuizError]   = useState("");
+  const [quizError, setQuizError]     = useState("");
 
-  const loadQuizzes = async () => {
+  const tokenUser = getUser(); // just { id, role } from JWT
+
+  const loadQuizzes = useCallback(async () => {
     setLoadingQuizzes(true);
     setQuizError("");
     try {
@@ -208,9 +222,9 @@ export default function StudentDashboard() {
     } finally {
       setLoadingQuizzes(false);
     }
-  };
+  }, []);
 
-  const loadResults = async () => {
+  const loadResults = useCallback(async () => {
     try {
       const token = localStorage.getItem("token");
       const res = await fetch(`${BASE}/api/quiz/my-results`, {
@@ -218,24 +232,23 @@ export default function StudentDashboard() {
       });
       if (res.ok) {
         const data = await res.json();
-        // Build a map: quizId → result
         const map = {};
-        (Array.isArray(data) ? data : []).forEach(r => {
-          map[r.quiz_id] = r;
-        });
+        (Array.isArray(data) ? data : []).forEach(r => { map[r.quiz_id] = r; });
         setQuizResults(map);
       }
-    } catch {
-      // Non-fatal
-    }
-  };
+    } catch { /* non-fatal */ }
+  }, []);
 
   useEffect(() => {
-    const user = getUser();
-    if (!user) { navigate("/"); return; }
-    if (user.role !== "student") { navigate("/teacher"); return; }
-    setUserData(user);
+    if (!tokenUser) { navigate("/"); return; }
+    if (tokenUser.role !== "student") { navigate("/teacher"); return; }
 
+    // Fetch full profile from DB (gets full_name, points, streak, tier)
+    getMyProfile()
+      .then(setProfile)
+      .catch(() => {});
+
+    // Fetch teacher assignment
     apiFetch("/api/admin/my-teacher")
       .then(setMyTeacher)
       .catch(() => setMyTeacher(null))
@@ -243,7 +256,7 @@ export default function StudentDashboard() {
 
     loadQuizzes();
     loadResults();
-  }, [navigate]);
+  }, [navigate, loadQuizzes, loadResults]);
 
   useEffect(() => {
     setLbLoading(true);
@@ -258,7 +271,10 @@ export default function StudentDashboard() {
     navigate(`/quiz/${quiz.id}`);
   };
 
-  const displayName = userData?.full_name || userData?.name || "Student";
+  const displayName  = profile?.full_name || "Student";
+  const firstName    = displayName.split(" ")[0];
+  const avatarText   = initials(displayName);
+  const currentUserId = tokenUser?.id;
 
   return (
     <>
@@ -274,7 +290,11 @@ export default function StudentDashboard() {
             QuizSystem
           </div>
           <div className="sd-topbar-right">
-            <span className="sd-chip">STUDENT</span>
+            {/* Show full name instead of "STUDENT" */}
+            <div className="sd-user-chip">
+              <div className="sd-user-chip-avatar">{avatarText}</div>
+              {displayName}
+            </div>
             <button className="sd-logout" onClick={() => { logout(); navigate("/"); }}>Sign out</button>
           </div>
         </header>
@@ -283,7 +303,7 @@ export default function StudentDashboard() {
           {/* Welcome */}
           <div className="sd-welcome">
             <div className="sd-welcome-tag"><span /> Student Dashboard</div>
-            <h1 className="sd-name">Hello, {displayName.split(" ")[0]}! 👋</h1>
+            <h1 className="sd-name">Hello, {firstName}! 👋</h1>
             <p className="sd-sub">Track your progress and take quizzes assigned by your teacher</p>
           </div>
 
@@ -319,20 +339,20 @@ export default function StudentDashboard() {
               <div className="sd-no-teacher-icon">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
               </div>
-              <p className="sd-no-teacher-text">No teacher assigned yet. Your admin will assign a teacher to you soon.</p>
+              <p className="sd-no-teacher-text">No teacher assigned yet. Your admin will assign one soon.</p>
             </div>
           )}
 
-          {/* Stats */}
+          {/* Stats — now sourced from DB profile */}
           <div className="sd-stats">
             <div className="sd-stat">
               <p className="sd-stat-label">Your Points</p>
-              <p className="sd-stat-value">{userData?.points ?? 0}</p>
-              <p className="sd-stat-hint">{userData?.tier || "Beginner"}</p>
+              <p className="sd-stat-value">{profile ? (profile.points ?? 0) : <span className="skeleton" style={{width:60,display:"inline-block"}} />}</p>
+              <p className="sd-stat-hint">{profile?.tier || "Beginner"}</p>
             </div>
             <div className="sd-stat">
               <p className="sd-stat-label">Streak</p>
-              <p className="sd-stat-value">🔥 {userData?.streak ?? 0}</p>
+              <p className="sd-stat-value">🔥 {profile ? (profile.streak ?? 0) : "—"}</p>
               <p className="sd-stat-hint">consecutive days</p>
             </div>
             <div className="sd-stat">
@@ -372,10 +392,9 @@ export default function StudentDashboard() {
             ) : (
               <div className="sd-quiz-list">
                 {quizzes.map(quiz => {
-                  const result = quizResults[quiz.id];
-                  const isActive  = quiz.status === "active";
-                  const isEnded   = quiz.status === "ended";
-                  const isDone    = !!result;
+                  const result   = quizResults[quiz.id];
+                  const isActive = quiz.status === "active";
+                  const isDone   = !!result;
 
                   return (
                     <div key={quiz.id} className={`sd-quiz-card ${quiz.status}`}>
@@ -422,15 +441,9 @@ export default function StudentDashboard() {
                           className={`sd-quiz-btn ${isActive ? "take" : "disabled"}`}
                           onClick={() => handleTakeQuiz(quiz)}
                           disabled={!isActive}
-                          title={
-                            isActive ? "Take this quiz" :
-                            quiz.status === "upcoming" ? "Quiz hasn't started yet" :
-                            "Quiz has ended"
-                          }
                         >
                           {isActive ? "Take Quiz →" :
-                           quiz.status === "upcoming" ? "Not Yet Open" :
-                           "Closed"}
+                           quiz.status === "upcoming" ? "Not Yet Open" : "Closed"}
                         </button>
                       )}
                     </div>
@@ -467,19 +480,19 @@ export default function StudentDashboard() {
                   </div>
                 ))
               ) : leaderboard.length === 0 ? (
-                <div className="sd-lb-empty">No data for this period</div>
+                <div className="sd-lb-empty">No data for this period — complete a quiz to appear here!</div>
               ) : (
                 leaderboard.slice(0, 10).map((u, i) => (
-                  <div key={u.id || i} className="sd-lb-row">
+                  <div key={u.id || i} className={`sd-lb-row ${u.id === currentUserId ? "is-me" : ""}`}>
                     <span className={`sd-lb-rank ${rankClass(i)}`}>{rankEmoji(i)}</span>
                     <div className="sd-lb-avatar">{initials(u.full_name || "?")}</div>
                     <span className="sd-lb-name">
                       {u.full_name || "Unknown"}
-                      {u.id === userData?.id && (
-                        <span style={{ fontSize: ".65rem", color: "#10b981", marginLeft: ".4rem" }}>(you)</span>
+                      {u.id === currentUserId && (
+                        <span style={{ fontSize: ".65rem", color: "#10b981", marginLeft: ".4rem" }}>← you</span>
                       )}
                     </span>
-                    <span className="sd-lb-pts">{(u.points ?? 0).toLocaleString()}</span>
+                    <span className="sd-lb-pts">{(u.points ?? 0).toLocaleString()} pts</span>
                     <span className="sd-lb-tier">{u.tier}</span>
                   </div>
                 ))

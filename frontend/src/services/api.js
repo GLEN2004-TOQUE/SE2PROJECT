@@ -13,6 +13,8 @@ export const getUser = () => {
   }
 };
 
+export const getMyProfile = () => api('/api/admin/me');
+
 export const logout = () => {
   localStorage.removeItem('token');
 };
