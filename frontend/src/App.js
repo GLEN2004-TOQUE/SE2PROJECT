@@ -5,6 +5,8 @@ import TeacherDashboard from "./pages/TeacherDashboard";
 import StudentDashboard from "./pages/StudentDashboard";
 import AdminDashboard from "./pages/AdminDashboard";
 import QuizPage from "./pages/QuizPage";
+import UploadLecture from "./pages/UploadLecture";
+import GenerateQuiz from "./pages/GenerateQuiz";
 import ProtectedRoute from "./components/ProtectedRoute";
 
 function App() {
@@ -13,7 +15,7 @@ function App() {
       <Routes>
         {/* Public */}
         <Route path="/register" element={<Register />} />
-        <Route path="/"         element={<Login />} />
+        <Route path="/" element={<Login />} />
 
         {/* Admin */}
         <Route
@@ -34,6 +36,22 @@ function App() {
             </ProtectedRoute>
           }
         />
+        <Route
+          path="/upload-lecture"
+          element={
+            <ProtectedRoute role="teacher">
+              <UploadLecture />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/generate-quiz"
+          element={
+            <ProtectedRoute role="teacher">
+              <GenerateQuiz />
+            </ProtectedRoute>
+          }
+        />
 
         {/* Student */}
         <Route
@@ -44,8 +62,6 @@ function App() {
             </ProtectedRoute>
           }
         />
-
-        {/* Quiz (student takes quiz by ID) */}
         <Route
           path="/quiz/:quizId"
           element={

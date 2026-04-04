@@ -13,30 +13,24 @@ const { supabaseAdmin } = require("../supabaseClient");
 
 // ─── Quiz CRUD ────────────────────────────────────────────────────────────────
 
-/**
- * Create a new quiz row.
- */
-exports.createQuiz = async ({ course_id, title, start_time, end_time }) => {
+// Create a new quiz with associated questions (all-or-nothing)
+exports.createQuiz = async ({ course_id, title, start_time, end_time, teacher_id }) => {
   const { data, error } = await supabaseAdmin
     .from("quizzes")
-    .insert([{ course_id, title, start_time, end_time }])
+    .insert([{ course_id, title, start_time, end_time, teacher_id }])
     .select()
     .single();
-
   if (error) throw new Error(error.message);
   return data;
 };
 
-/**
- * Fetch a single quiz by ID.
- */
-exports.getQuizById = async (quizId) => {
+// Save generated questions to DB and create quiz
+exports.getQuizzesByTeacher = async (teacherId) => {
   const { data, error } = await supabaseAdmin
     .from("quizzes")
-    .select("*")
-    .eq("id", quizId)
-    .single();
-
+    .select("id, title, start_time, end_time, created_at")
+    .eq("teacher_id", teacherId)
+    .order("created_at", { ascending: false });
   if (error) throw new Error(error.message);
   return data;
 };

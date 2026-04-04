@@ -1,6 +1,7 @@
 const BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
 export const getToken = () => localStorage.getItem('token');
+export const getMyTeacherQuizzes = () => api('/api/quiz/my-quizzes');
 
 export const getUser = () => {
   const token = getToken();
