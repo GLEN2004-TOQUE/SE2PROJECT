@@ -6,14 +6,24 @@ const BASE = process.env.REACT_APP_API_URL || "http://localhost:5000";
 
 const apiFetch = async (path) => {
   const token = localStorage.getItem("token");
+
   const res = await fetch(`${BASE}${path}`, {
-    headers: { Authorization: `Bearer ${token}` },
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
   });
-  if (!res.ok) throw new Error("Request failed");
-  return res.json();
+
+  const data = await res.json();
+
+  if (!res.ok) {
+    console.error("Backend error:", data);
+    throw new Error(data.message || data.error || "Request failed");
+  }
+
+  return data;
 };
 
-/* ─── Styles ────────────────────────────────────────────────────────────── */
+/* ─── Styles (unchanged) ─────────────────────────────────────────────────── */
 const Styles = () => (
   <style>{`
     @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400&display=swap');
@@ -51,7 +61,6 @@ const Styles = () => (
       color:#e2e8f0;
     }
 
-    /* topbar */
     .sd-topbar {
       display:flex; align-items:center; justify-content:space-between;
       padding:0 2.5rem; height:62px;
@@ -86,10 +95,8 @@ const Styles = () => (
     }
     .sd-logout:hover { background:rgba(255,255,255,.1); color:#fff; }
 
-    /* body */
     .sd-body { max-width:1080px; margin:0 auto; padding:2.5rem 2rem; }
 
-    /* welcome strip */
     .sd-welcome { margin-bottom:2.5rem; animation:fadeUp .5s ease both; }
     .sd-welcome-tag {
       display:inline-flex; align-items:center; gap:.4rem;
@@ -100,7 +107,6 @@ const Styles = () => (
     .sd-name { font-size:2rem; font-weight:800; color:#fff; letter-spacing:-.03em; }
     .sd-sub  { font-size:.88rem; color:rgba(255,255,255,.35); margin-top:.35rem; }
 
-    /* teacher card — highlighted */
     .sd-teacher-card {
       position:relative; overflow:hidden;
       background:linear-gradient(135deg, rgba(16,185,129,.1) 0%, rgba(6,78,59,.15) 100%);
@@ -153,7 +159,6 @@ const Styles = () => (
     .sd-no-teacher-icon svg { width:20px; height:20px; color:rgba(255,255,255,.25); }
     .sd-no-teacher-text { font-size:.84rem; color:rgba(255,255,255,.3); }
 
-    /* stats */
     .sd-stats {
       display:grid; grid-template-columns:repeat(3,1fr); gap:1rem;
       margin-bottom:2rem; animation:fadeUp .5s .1s ease both;
@@ -167,7 +172,6 @@ const Styles = () => (
     .sd-stat-value { font-size:1.9rem; font-weight:800; color:#fff; }
     .sd-stat-hint  { font-size:.72rem; color:rgba(255,255,255,.22); margin-top:.3rem; }
 
-    /* quiz entry */
     .sd-quiz-entry {
       background:rgba(255,255,255,.04);
       border:1px solid rgba(255,255,255,.08);
@@ -195,7 +199,6 @@ const Styles = () => (
     .sd-quiz-btn:hover { opacity:.85; }
     .sd-quiz-error { font-size:.76rem; color:#f87171; margin-top:.5rem; }
 
-    /* leaderboard */
     .sd-lb { animation:fadeUp .5s .2s ease both; }
     .sd-lb-header {
       display:flex; align-items:center; justify-content:space-between;
@@ -244,7 +247,6 @@ const Styles = () => (
 
     .sd-lb-empty { padding:2.5rem; text-align:center; font-size:.82rem; color:rgba(255,255,255,.2); }
 
-    /* skeleton */
     .skeleton {
       height:14px; border-radius:5px;
       background:linear-gradient(90deg,rgba(255,255,255,.04) 0%,rgba(255,255,255,.08) 50%,rgba(255,255,255,.04) 100%);
@@ -272,38 +274,39 @@ export default function StudentDashboard() {
   const [lbType, setLbType] = useState("overall");
   const [lbLoading, setLbLoading] = useState(false);
   const [pageLoading, setPageLoading] = useState(true);
-  const [teacherQuizzes, setTeacherQuizzes] = useState([]); // ✅ Initialize as empty array
+  const [teacherQuizzes, setTeacherQuizzes] = useState([]);
   const [loadingQuizzes, setLoadingQuizzes] = useState(false);
+  const [quizError, setQuizError] = useState("");
 
-  // ✅ Fix: Ensure teacherQuizzes is always an array
-  useEffect(() => {
-    if (userData?.role === "student") {
-      setLoadingQuizzes(true);
-      fetch(`${BASE}/api/quiz/my-quizzes`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }
-      })
-        .then(res => {
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          return res.json();
-        })
-        .then(data => {
-          // ✅ Ensure data is an array
-          if (Array.isArray(data)) {
-            setTeacherQuizzes(data);
-          } else if (data && Array.isArray(data.quizzes)) {
-            setTeacherQuizzes(data.quizzes);
-          } else {
-            console.warn("Unexpected response format:", data);
-            setTeacherQuizzes([]);
-          }
-        })
-        .catch(err => {
-          console.error("Failed to fetch quizzes:", err);
-          setTeacherQuizzes([]); // ✅ Set to empty array on error
-        })
-        .finally(() => setLoadingQuizzes(false));
+  // Load assigned quizzes
+  const loadQuizzes = async () => {
+    setLoadingQuizzes(true);
+    setQuizError("");
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${BASE}/api/quiz/my-quizzes`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!res.ok) {
+        const errorText = await res.text();
+        throw new Error(`Failed to load quizzes: ${res.status} ${errorText}`);
+      }
+      const data = await res.json();
+      // Backend returns an array directly (see getQuizzesForStudent)
+      if (Array.isArray(data)) {
+        setTeacherQuizzes(data);
+      } else {
+        console.warn("Unexpected quizzes response:", data);
+        setTeacherQuizzes([]);
+      }
+    } catch (err) {
+      console.error("Failed to fetch quizzes:", err);
+      setQuizError(err.message);
+      setTeacherQuizzes([]);
+    } finally {
+      setLoadingQuizzes(false);
     }
-  }, [userData]);
+  };
 
   useEffect(() => {
     const user = getUser();
@@ -311,37 +314,30 @@ export default function StudentDashboard() {
     if (user.role !== "student") { navigate("/teacher"); return; }
     setUserData(user);
 
+    // Fetch teacher assignment
     apiFetch("/api/admin/my-teacher")
       .then(setMyTeacher)
       .catch(() => setMyTeacher(null))
       .finally(() => setPageLoading(false));
+
+    // Fetch quizzes
+    loadQuizzes();
   }, [navigate]);
 
   useEffect(() => {
     setLbLoading(true);
     getLeaderboard(lbType)
-      .then(data => {
-        // ✅ Ensure leaderboard is array
-        if (Array.isArray(data)) {
-          setLeaderboard(data);
-        } else {
-          setLeaderboard([]);
-        }
-      })
+      .then(data => setLeaderboard(Array.isArray(data) ? data : []))
       .catch(() => setLeaderboard([]))
       .finally(() => setLbLoading(false));
   }, [lbType]);
 
   const displayName = userData?.full_name || userData?.name || "Student";
 
-  // ✅ Safe check before using .map()
-  const safeQuizzes = Array.isArray(teacherQuizzes) ? teacherQuizzes : [];
-
   return (
     <>
       <Styles />
       <div className="sd-root">
-        {/* Topbar */}
         <header className="sd-topbar">
           <div className="sd-logo">
             <div className="sd-logo-icon">
@@ -360,19 +356,14 @@ export default function StudentDashboard() {
         <div className="sd-body">
           {/* Welcome */}
           <div className="sd-welcome">
-            <div className="sd-welcome-tag">
-              <span /> Student Dashboard
-            </div>
+            <div className="sd-welcome-tag"><span /> Student Dashboard</div>
             <h1 className="sd-name">Hello, {displayName.split(" ")[0]}! 👋</h1>
             <p className="sd-sub">Track your progress and take quizzes assigned by your teacher</p>
           </div>
 
           {/* My Teacher */}
           {pageLoading ? (
-            <div style={{
-              background:"rgba(255,255,255,.03)", border:"1px solid rgba(255,255,255,.07)",
-              borderRadius:18, padding:"1.5rem 1.75rem", marginBottom:"2rem"
-            }}>
+            <div style={{ background:"rgba(255,255,255,.03)", border:"1px solid rgba(255,255,255,.07)", borderRadius:18, padding:"1.5rem 1.75rem", marginBottom:"2rem" }}>
               <div className="skeleton" style={{width:100,marginBottom:".9rem"}} />
               <div style={{display:"flex",gap:"1rem",alignItems:"center"}}>
                 <div style={{width:52,height:52,borderRadius:14,background:"rgba(255,255,255,.05)"}} />
@@ -394,9 +385,7 @@ export default function StudentDashboard() {
                   <div className="sd-teacher-name">{myTeacher.full_name}</div>
                   <div className="sd-teacher-email">{myTeacher.email}</div>
                 </div>
-                {myTeacher.tier && (
-                  <div className="sd-teacher-tier">{myTeacher.tier}</div>
-                )}
+                {myTeacher.tier && <div className="sd-teacher-tier">{myTeacher.tier}</div>}
               </div>
             </div>
           ) : (
@@ -407,9 +396,7 @@ export default function StudentDashboard() {
                   <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
                 </svg>
               </div>
-              <p className="sd-no-teacher-text">
-                No teacher assigned yet. Your admin will assign a teacher to you soon.
-              </p>
+              <p className="sd-no-teacher-text">No teacher assigned yet. Your admin will assign a teacher to you soon.</p>
             </div>
           )}
 
@@ -434,20 +421,24 @@ export default function StudentDashboard() {
             </div>
           </div>
 
-          {/* Quiz Entry - ✅ Fixed with safeQuizzes */}
+          {/* Quizzes from Teacher */}
           <div className="sd-quiz-entry">
             <h3>Quizzes from Your Teacher</h3>
             {loadingQuizzes ? (
               <div style={{ textAlign: "center", padding: "1rem", color: "rgba(255,255,255,.4)" }}>
                 Loading quizzes...
               </div>
-            ) : safeQuizzes.length === 0 ? (
+            ) : quizError ? (
+              <div style={{ color: "#f87171", textAlign: "center", padding: "1rem" }}>
+                Error: {quizError}
+              </div>
+            ) : teacherQuizzes.length === 0 ? (
               <p style={{ color: "rgba(255,255,255,.4)" }}>
                 No quizzes available yet. Your teacher will assign quizzes here.
               </p>
             ) : (
               <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "0.75rem" }}>
-                {safeQuizzes.map(quiz => (
+                {teacherQuizzes.map(quiz => (
                   <div 
                     key={quiz.id} 
                     style={{
@@ -463,7 +454,8 @@ export default function StudentDashboard() {
                     <div>
                       <p style={{ fontWeight: "600", marginBottom: "0.25rem" }}>{quiz.title}</p>
                       <p style={{ fontSize: "0.7rem", color: "rgba(255,255,255,.4)" }}>
-                        Created {quiz.created_at ? new Date(quiz.created_at).toLocaleDateString() : "recently"}
+                        {quiz.status === "active" ? "🟢 Available now" : 
+                         quiz.status === "upcoming" ? "⏳ Upcoming" : "🔒 Ended"}
                       </p>
                     </div>
                     <button
@@ -527,7 +519,6 @@ export default function StudentDashboard() {
               )}
             </div>
           </div>
-
         </div>
       </div>
     </>

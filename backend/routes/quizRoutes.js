@@ -10,6 +10,7 @@ const {
   getQuizzesForStudent,
   getTeacherQuizzes,
   scheduleQuiz,
+  deleteQuiz,
 } = require("../controllers/quizController");
 const { verifyToken, authorizeRole } = require("../middleware/authMiddleware");
 const aiService = require("../services/aiService");
@@ -23,6 +24,7 @@ router.post("/generate",   verifyToken, authorizeRole("teacher"), generateQuiz);
 router.post("/save",       verifyToken, authorizeRole("teacher"), saveQuestions);
 router.post("/schedule",   verifyToken, authorizeRole("teacher"), scheduleQuiz);
 router.get("/my-quizzes-teacher", verifyToken, authorizeRole("teacher"), getTeacherQuizzes);
+router.delete("/:quizId",  verifyToken, authorizeRole("teacher"), deleteQuiz);
 
 // ── Generate from text ────────────────────────────────────────────────────────
 router.post("/generate-from-text", verifyToken, authorizeRole("teacher"), async (req, res) => {
@@ -61,7 +63,7 @@ router.get("/ai/status", verifyToken, authorizeRole("teacher"), (req, res) => {
 router.get("/attendance/:quizId",        getAttendanceReport);
 router.get("/attendance/stats/:quizId",  getAttendanceStats);
 
-// ── Public quiz fetch (must be LAST to avoid route collisions) ────────────────
-router.get("/:quizId", getQuiz);
+// ── Public quiz fetch (must be LAST) – added authentication middleware ────────
+router.get("/:quizId", verifyToken, authorizeRole("student"), getQuiz);
 
 module.exports = router;
