@@ -4,6 +4,7 @@ const {
   getAllStudents, getAllTeachers, getAllUsers,
   getAssignments, assignTeacherToStudent,
   removeAssignment, getMyStudents, getMyTeacher,
+  createTeacher, toggleUserStatus, deleteUser, getAdminLeaderboard,
 } = require("../controllers/adminController");
 const { verifyToken, authorizeRole } = require("../middleware/authMiddleware");
 const { supabaseAdmin } = require("../supabaseClient");
@@ -24,17 +25,25 @@ router.get("/me", verifyToken, async (req, res) => {
 });
 
 // ─── Admin-only routes ────────────────────────────────────────────────────
-router.get("/users",       verifyToken, authorizeRole("admin"), getAllUsers);
-router.get("/students",    verifyToken, authorizeRole("admin"), getAllStudents);
-router.get("/teachers",    verifyToken, authorizeRole("admin"), getAllTeachers);
-router.get("/assignments", verifyToken, authorizeRole("admin"), getAssignments);
-router.post("/assign",     verifyToken, authorizeRole("admin"), assignTeacherToStudent);
+router.get("/users",        verifyToken, authorizeRole("admin"), getAllUsers);
+router.get("/students",     verifyToken, authorizeRole("admin"), getAllStudents);
+router.get("/teachers",     verifyToken, authorizeRole("admin"), getAllTeachers);
+router.get("/assignments",  verifyToken, authorizeRole("admin"), getAssignments);
+router.post("/assign",      verifyToken, authorizeRole("admin"), assignTeacherToStudent);
 router.delete("/assign/:studentId", verifyToken, authorizeRole("admin"), removeAssignment);
 
+// ─── Teacher management ───────────────────────────────────────────────────
+router.post("/teachers/create",         verifyToken, authorizeRole("admin"), createTeacher);
+router.patch("/users/:userId/status",   verifyToken, authorizeRole("admin"), toggleUserStatus);
+router.delete("/users/:userId",         verifyToken, authorizeRole("admin"), deleteUser);
+
+// ─── Admin leaderboard (all students) ────────────────────────────────────
+router.get("/leaderboard",  verifyToken, authorizeRole("admin"), getAdminLeaderboard);
+
 // ─── Teacher: see assigned students ──────────────────────────────────────
-router.get("/my-students", verifyToken, authorizeRole("teacher"), getMyStudents);
+router.get("/my-students",  verifyToken, authorizeRole("teacher"), getMyStudents);
 
 // ─── Student: see assigned teacher ───────────────────────────────────────
-router.get("/my-teacher",  verifyToken, authorizeRole("student"), getMyTeacher);
+router.get("/my-teacher",   verifyToken, authorizeRole("student"), getMyTeacher);
 
 module.exports = router;
