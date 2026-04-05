@@ -335,6 +335,55 @@ const Styles = () => (
       .td-actions{ grid-template-columns:1fr; }
       .td-body   { padding:1.5rem 1rem; }
     }
+      .td-pw-modal-overlay {
+  position:fixed; inset:0; z-index:60;
+  background:rgba(0,0,0,.7); backdrop-filter:blur(8px);
+  display:flex; align-items:center; justify-content:center; padding:1.5rem;
+  animation:fadeIn .2s ease both;
+}
+.td-pw-modal {
+  background:#0e1118; border:1px solid rgba(255,255,255,.1);
+  border-radius:22px; padding:2rem 2.2rem;
+  width:100%; max-width:400px;
+  animation:modalIn .28s cubic-bezier(.34,1.56,.64,1) both;
+  box-shadow:0 40px 80px rgba(0,0,0,.7);
+}
+.td-pw-input {
+  width:100%; padding:.65rem .9rem;
+  background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.1);
+  border-radius:10px; color:#fff;
+  font-family:'Syne',sans-serif; font-size:.85rem;
+  outline:none; margin-bottom:.9rem; transition:border-color .2s;
+}
+.td-pw-input:focus { border-color:rgba(99,102,241,.5); }
+.td-pw-label {
+  display:block; font-size:.68rem; letter-spacing:.09em;
+  text-transform:uppercase; color:rgba(165,180,252,.5);
+  margin-bottom:.4rem; font-weight:600;
+}
+.td-pw-error {
+  padding:.55rem .75rem; border-radius:8px;
+  background:rgba(239,68,68,.1); border:1px solid rgba(239,68,68,.25);
+  color:#f87171; font-size:.78rem; margin-bottom:.8rem;
+}
+.td-pw-success {
+  text-align:center; padding:1.5rem 0;
+}
+.td-pw-success-ring {
+  width:64px; height:64px; border-radius:50%;
+  background:rgba(16,185,129,.12); border:2px solid rgba(16,185,129,.4);
+  display:flex; align-items:center; justify-content:center;
+  margin:0 auto .9rem; animation:successRing .5s ease both;
+}
+.td-pw-success-ring svg { width:30px; height:30px; color:#34d399; }
+.td-change-pw-btn {
+  padding:.36rem .85rem; border-radius:8px;
+  border:1px solid rgba(99,102,241,.35);
+  background:rgba(99,102,241,.1); color:#a5b4fc;
+  font-family:'Syne',sans-serif; font-size:.78rem; font-weight:600;
+  cursor:pointer; transition:all .15s;
+}
+.td-change-pw-btn:hover { background:rgba(99,102,241,.22); border-color:rgba(99,102,241,.6); }
   `}</style>
 );
 
@@ -392,6 +441,12 @@ export default function TeacherDashboard() {
   const [sendSuccess, setSendSuccess] = useState(null); // { message }
   const [toast, setToast] = useState(null);
 
+  const [pwModal, setPwModal]   = useState(false);
+  const [pwForm, setPwForm]     = useState({ current: "", next: "", confirm: "" });
+  const [pwLoading, setPwLoading] = useState(false);
+  const [pwError, setPwError]   = useState("");
+  const [pwSuccess, setPwSuccess] = useState(false);
+
   const showToast = (msg, type = "success") => {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 3600);
@@ -425,6 +480,37 @@ export default function TeacherDashboard() {
         : [...prev, studentId]
     );
   };
+
+  const handleChangePassword = async (e) => {
+  e.preventDefault();
+  setPwError("");
+  if (pwForm.next.length < 6) {
+    setPwError("New password must be at least 6 characters.");
+    return;
+  }
+  if (pwForm.next !== pwForm.confirm) {
+    setPwError("New passwords do not match.");
+    return;
+  }
+  if (pwForm.current === pwForm.next) {
+    setPwError("New password must be different from the current one.");
+    return;
+  }
+  setPwLoading(true);
+  try {
+    await apiFetch("/api/admin/change-password", {
+      method: "POST",
+      body: JSON.stringify({ currentPassword: pwForm.current, newPassword: pwForm.next }),
+    });
+    setPwSuccess(true);
+    setPwForm({ current: "", next: "", confirm: "" });
+    setTimeout(() => { setPwModal(false); setPwSuccess(false); }, 2200);
+  } catch (err) {
+    setPwError(err.message);
+  } finally {
+    setPwLoading(false);
+  }
+};
 
   const handleSend = async () => {
     if (!startTime || !endTime) { showToast("Please set both times", "error"); return; }
@@ -604,6 +690,92 @@ export default function TeacherDashboard() {
         </div>
       )}
 
+      {pwModal && (
+  <div className="td-pw-modal-overlay" onClick={() => !pwLoading && (setPwModal(false), setPwSuccess(false))}>
+    <div className="td-pw-modal" onClick={e => e.stopPropagation()}>
+ 
+      {pwSuccess ? (
+        <div className="td-pw-success">
+          <div className="td-pw-success-ring">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path d="M20 6L9 17l-5-5"/>
+            </svg>
+          </div>
+          <h3 style={{color:"#fff",fontWeight:800,marginBottom:".35rem"}}>Password Changed!</h3>
+          <p style={{color:"rgba(255,255,255,.4)",fontSize:".83rem"}}>Your new password is now active.</p>
+        </div>
+      ) : (
+        <>
+          <div style={{
+            width:48,height:48,borderRadius:13,
+            background:"rgba(99,102,241,.18)",border:"1px solid rgba(99,102,241,.3)",
+            display:"flex",alignItems:"center",justifyContent:"center",
+            marginBottom:"1.2rem",
+          }}>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#a5b4fc" strokeWidth="2">
+              <rect x="5" y="11" width="14" height="10" rx="2"/>
+              <path d="M8 11V7a4 4 0 018 0v4"/>
+            </svg>
+          </div>
+ 
+          <h2 style={{fontSize:"1.1rem",fontWeight:800,color:"#fff",marginBottom:".35rem"}}>
+            Change Password
+          </h2>
+          <p style={{fontSize:".81rem",color:"rgba(255,255,255,.35)",marginBottom:"1.4rem",lineHeight:1.6}}>
+            Enter your current password, then choose a new one (min. 6 characters).
+          </p>
+ 
+          {pwError && <div className="td-pw-error">{pwError}</div>}
+ 
+          <form onSubmit={handleChangePassword}>
+            <label className="td-pw-label">Current Password</label>
+            <input
+              className="td-pw-input" type="password"
+              placeholder="••••••••" required
+              value={pwForm.current}
+              onChange={e => setPwForm(p => ({ ...p, current: e.target.value }))}
+            />
+ 
+            <label className="td-pw-label">New Password</label>
+            <input
+              className="td-pw-input" type="password"
+              placeholder="Min. 6 characters" required
+              value={pwForm.next}
+              onChange={e => setPwForm(p => ({ ...p, next: e.target.value }))}
+            />
+ 
+            <label className="td-pw-label">Confirm New Password</label>
+            <input
+              className="td-pw-input" type="password"
+              placeholder="Repeat new password" required
+              value={pwForm.confirm}
+              onChange={e => setPwForm(p => ({ ...p, confirm: e.target.value }))}
+              style={{marginBottom:"1.2rem"}}
+            />
+ 
+            <div style={{display:"flex",gap:".75rem"}}>
+              <button type="button"
+                className="td-btn-cancel"
+                onClick={() => setPwModal(false)}
+                disabled={pwLoading}>
+                Cancel
+              </button>
+              <button type="submit"
+                className="td-btn-send"
+                disabled={pwLoading}>
+                {pwLoading
+                  ? <span className="td-spinner"/>
+                  : "Update Password"}
+              </button>
+            </div>
+          </form>
+        </>
+      )}
+ 
+    </div>
+  </div>
+)}
+
       <div className="td-root">
         {/* Topbar */}
         <header className="td-topbar">
@@ -613,6 +785,9 @@ export default function TeacherDashboard() {
           </div>
           <div className="td-topbar-right">
             <span className="td-chip">TEACHER</span>
+            <button className="td-change-pw-btn" onClick={() => { setPwModal(true); setPwError(""); }}>
+  Change Password
+</button>
             <button className="td-logout" onClick={() => { logout(); navigate("/"); }}>Sign out</button>
           </div>
         </header>

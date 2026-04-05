@@ -1,5 +1,6 @@
 const { supabaseAdmin } = require("../supabaseClient");
 const bcrypt = require("bcrypt");
+const { sendTeacherCredentials, generateTempPassword } = require("../services/emailService");
 
 // ─── Get all users by role ───────────────────────────────────────────────────
 
@@ -45,18 +46,17 @@ exports.getAllUsers = async (req, res) => {
 };
 
 // ─── Create Teacher ───────────────────────────────────────────────────────────
+// Auto-generates a temporary password and emails it to the teacher.
 
 exports.createTeacher = async (req, res) => {
   try {
-    const { fullName, email, password } = req.body;
-    if (!fullName || !email || !password) {
-      return res.status(400).json({ error: "Full name, email, and password are required" });
-    }
-    if (password.length < 6) {
-      return res.status(400).json({ error: "Password must be at least 6 characters" });
+    const { fullName, email } = req.body;
+
+    if (!fullName || !email) {
+      return res.status(400).json({ error: "Full name and email are required" });
     }
 
-    // Check duplicate email
+    // Check duplicate
     const { data: existing } = await supabaseAdmin
       .from("users")
       .select("id")
@@ -64,8 +64,11 @@ exports.createTeacher = async (req, res) => {
       .maybeSingle();
     if (existing) return res.status(409).json({ error: "Email already registered" });
 
-    const hashedPassword = await bcrypt.hash(password, 10);
+    // Generate temp password
+    const tempPassword = generateTempPassword();
+    const hashedPassword = await bcrypt.hash(tempPassword, 10);
 
+    // Insert into DB
     const { data, error } = await supabaseAdmin
       .from("users")
       .insert([{
@@ -82,18 +85,85 @@ exports.createTeacher = async (req, res) => {
       .single();
 
     if (error) return res.status(400).json({ error: error.message });
-    res.status(201).json({ message: `Teacher account for ${fullName} created successfully`, user: data });
+
+    // Send credentials email (non-fatal)
+    let emailSent = false;
+    try {
+      await sendTeacherCredentials(email.toLowerCase().trim(), fullName.trim(), tempPassword);
+      emailSent = true;
+      console.log(`✅ Credentials email sent to ${email}`);
+    } catch (emailErr) {
+      console.error(`❌ Email send failed for ${email}:`, emailErr.message);
+    }
+
+    res.status(201).json({
+      message: emailSent
+        ? `Teacher account created. Login credentials have been sent to ${email}.`
+        : `Teacher account created, but the credentials email could not be delivered. Please share login details manually.`,
+      user: data,
+      emailSent,
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 };
 
-// ─── Toggle user status (activate / deactivate) ───────────────────────────────
+// ─── Change Password (teacher or any authenticated user) ─────────────────────
+
+exports.changePassword = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ error: "Both current and new password are required" });
+    }
+    if (newPassword.length < 6) {
+      return res.status(400).json({ error: "New password must be at least 6 characters" });
+    }
+    if (currentPassword === newPassword) {
+      return res.status(400).json({ error: "New password must differ from the current password" });
+    }
+
+    // Fetch hashed password
+    const { data: user, error: fetchErr } = await supabaseAdmin
+      .from("users")
+      .select("password")
+      .eq("id", userId)
+      .single();
+
+    if (fetchErr || !user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    // Verify current password
+    const valid = await bcrypt.compare(currentPassword, user.password);
+    if (!valid) {
+      return res.status(401).json({ error: "Current password is incorrect" });
+    }
+
+    // Hash and persist new password
+    const hashedNew = await bcrypt.hash(newPassword, 10);
+    const { error: updateErr } = await supabaseAdmin
+      .from("users")
+      .update({ password: hashedNew })
+      .eq("id", userId);
+
+    if (updateErr) return res.status(400).json({ error: updateErr.message });
+
+    console.log(`✅ Password updated for user ${userId}`);
+    res.json({ message: "Password changed successfully" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// ─── Toggle user status ───────────────────────────────────────────────────────
 
 exports.toggleUserStatus = async (req, res) => {
   try {
     const { userId } = req.params;
-    const { status } = req.body; // boolean: true = active, false = inactive
+    const { status } = req.body;
 
     if (typeof status !== "boolean") {
       return res.status(400).json({ error: "status must be a boolean" });
@@ -122,7 +192,6 @@ exports.deleteUser = async (req, res) => {
   try {
     const { userId } = req.params;
 
-    // Fetch user first so we can return their name in message
     const { data: user } = await supabaseAdmin
       .from("users")
       .select("id, full_name, role")
@@ -131,21 +200,13 @@ exports.deleteUser = async (req, res) => {
 
     if (!user) return res.status(404).json({ error: "User not found" });
 
-    // Remove from teacher_student_assignments first (FK cleanup)
     await supabaseAdmin.from("teacher_student_assignments").delete().eq("student_id", userId);
     await supabaseAdmin.from("teacher_student_assignments").delete().eq("teacher_id", userId);
-
-    // Remove quiz assignments (students)
     await supabaseAdmin.from("quiz_assignments").delete().eq("student_id", userId);
-
-    // Remove results + attendance
     await supabaseAdmin.from("results").delete().eq("user_id", userId);
     await supabaseAdmin.from("attendance").delete().eq("user_id", userId);
-
-    // Remove user badges
     await supabaseAdmin.from("user_badges").delete().eq("user_id", userId);
 
-    // Finally delete user
     const { error } = await supabaseAdmin.from("users").delete().eq("id", userId);
     if (error) return res.status(400).json({ error: error.message });
 
@@ -155,7 +216,7 @@ exports.deleteUser = async (req, res) => {
   }
 };
 
-// ─── Admin Leaderboard (all students, no section filter) ──────────────────────
+// ─── Admin Leaderboard ────────────────────────────────────────────────────────
 
 exports.getAdminLeaderboard = async (req, res) => {
   try {
@@ -239,8 +300,6 @@ exports.removeAssignment = async (req, res) => {
   }
 };
 
-// ─── For teacher: get their assigned students ─────────────────────────────────
-
 exports.getMyStudents = async (req, res) => {
   try {
     const teacherId = req.user.id;
@@ -256,8 +315,6 @@ exports.getMyStudents = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
-
-// ─── For student: get their assigned teacher ─────────────────────────────────
 
 exports.getMyTeacher = async (req, res) => {
   try {
