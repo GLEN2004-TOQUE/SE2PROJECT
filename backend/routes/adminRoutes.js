@@ -4,7 +4,8 @@ const {
   getAllStudents, getAllTeachers, getAllUsers,
   getAssignments, assignTeacherToStudent,
   removeAssignment, getMyStudents, getMyTeacher,
-  createTeacher, toggleUserStatus, deleteUser, getAdminLeaderboard,
+  createTeacher, toggleUserStatus, deleteUser,
+  getAdminLeaderboard, changePassword,
 } = require("../controllers/adminController");
 const { verifyToken, authorizeRole } = require("../middleware/authMiddleware");
 const { supabaseAdmin } = require("../supabaseClient");
@@ -24,6 +25,9 @@ router.get("/me", verifyToken, async (req, res) => {
   }
 });
 
+// ─── Change password (any authenticated user — teacher, student, admin) ────
+router.patch("/change-password", verifyToken, changePassword);
+
 // ─── Admin-only routes ────────────────────────────────────────────────────
 router.get("/users",        verifyToken, authorizeRole("admin"), getAllUsers);
 router.get("/students",     verifyToken, authorizeRole("admin"), getAllStudents);
@@ -37,7 +41,7 @@ router.post("/teachers/create",         verifyToken, authorizeRole("admin"), cre
 router.patch("/users/:userId/status",   verifyToken, authorizeRole("admin"), toggleUserStatus);
 router.delete("/users/:userId",         verifyToken, authorizeRole("admin"), deleteUser);
 
-// ─── Admin leaderboard (all students) ────────────────────────────────────
+// ─── Admin leaderboard ────────────────────────────────────────────────────
 router.get("/leaderboard",  verifyToken, authorizeRole("admin"), getAdminLeaderboard);
 
 // ─── Teacher: see assigned students ──────────────────────────────────────
