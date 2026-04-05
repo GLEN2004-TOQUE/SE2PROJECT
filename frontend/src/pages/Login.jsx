@@ -350,7 +350,7 @@ function Login() {
     setIsLoading(true);
     try {
       const response = await fetch(
-        `${process.env.REACT_APP_API_URL || "http://localhost:5000"}/login`,
+        `${process.env.REACT_APP_API_URL || "http://localhost:5000" || "https://backend-7lik.onrender.com" }/login`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },

@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { getUser, logout } from "../services/api";
 
-const BASE = process.env.REACT_APP_API_URL || "http://localhost:5000";
+const BASE = process.env.REACT_APP_API_URL || "http://localhost:5000" || "https://backend-7lik.onrender.com";
 
 const apiFetch = async (path, opts = {}) => {
   const token = localStorage.getItem("token");
