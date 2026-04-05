@@ -22,6 +22,7 @@
   },
   "homepage": "https://github.com/GLEN2004-TOQUE/SE2PROJECT#readme",
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "@supabase/supabase-js": "^2.97.0",
     "bcrypt": "^6.0.0",
     "cors": "^2.8.6",
