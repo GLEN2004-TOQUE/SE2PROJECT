@@ -552,7 +552,7 @@ export default function AdminDashboard() {
   const [selectedTeacher, setSelectedTeacher] = useState("");
   const [confirming, setConfirming] = useState(false);
   const [createTeacherModal, setCreateTeacherModal] = useState(false);
-  const [newTeacher, setNewTeacher] = useState({ fullName: "", email: "", password: "" });
+  const [newTeacher, setNewTeacher] = useState({ fullName: "", email: "" });
   const [creating, setCreating] = useState(false);
   const [deleteModal, setDeleteModal] = useState(null);
   const [deleting, setDeleting] = useState(false);
@@ -632,17 +632,25 @@ export default function AdminDashboard() {
 
   /* ── Create teacher ── */
   const handleCreateTeacher = async (e) => {
-    e.preventDefault();
-    setCreating(true);
-    try {
-      const r = await apiFetch("/api/admin/teachers/create", { method: "POST", body: JSON.stringify(newTeacher) });
-      showToast(r.message);
-      setCreateTeacherModal(false);
-      setNewTeacher({ fullName: "", email: "", password: "" });
-      loadData();
-    } catch (e) { showToast(e.message, "err"); }
-    finally { setCreating(false); }
-  };
+  e.preventDefault();
+  setCreating(true);
+  try {
+    const r = await apiFetch("/api/admin/teachers/create", {
+      method: "POST",
+      body: JSON.stringify(newTeacher),   // only fullName + email
+    });
+    // Show different message if email failed
+    showToast(r.message, "ok");
+    // If email failed, show the temp password so admin can share manually
+    if (!r.emailSent && r.tempPassword) {
+      setTimeout(() => showToast(`Temp password: ${r.tempPassword}`, "ok"), 3700);
+    }
+    setCreateTeacherModal(false);
+    setNewTeacher({ fullName: "", email: "" });
+    loadData();
+  } catch (e) { showToast(e.message, "err"); }
+  finally { setCreating(false); }
+};
 
   /* ── Toggle status ── */
   const toggleStatus = async (userId, currentStatus, name) => {
@@ -739,39 +747,58 @@ export default function AdminDashboard() {
 
       {/* ── Create Teacher Modal ── */}
       {createTeacherModal && (
-        <div className="a-overlay" onClick={() => setCreateTeacherModal(false)}>
-          <div className="a-modal" onClick={e => e.stopPropagation()}>
-            <div className="a-modal-icon" style={{ background: "rgba(16,185,129,.14)", border: "1px solid rgba(16,185,129,.3)" }}>
-              <svg style={{ color: "#34d399" }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="22" height="22"><path d="M4 4h16v10H4z"/><path d="M2 20l10-6 10 6"/></svg>
-            </div>
-            <h2 className="a-modal-title">Create Teacher Account</h2>
-            <p className="a-modal-sub">Create a new teacher account. They can log in immediately after creation.</p>
-            <form onSubmit={handleCreateTeacher}>
-              <div className="a-field">
-                <label>Full Name</label>
-                <input type="text" placeholder="e.g., Maria Santos" required
-                  value={newTeacher.fullName} onChange={e => setNewTeacher(p => ({ ...p, fullName: e.target.value }))} />
-              </div>
-              <div className="a-field">
-                <label>Email Address</label>
-                <input type="email" placeholder="teacher@school.edu" required
-                  value={newTeacher.email} onChange={e => setNewTeacher(p => ({ ...p, email: e.target.value }))} />
-              </div>
-              <div className="a-field">
-                <label>Password (min. 6 characters)</label>
-                <input type="password" placeholder="••••••••" required minLength={6}
-                  value={newTeacher.password} onChange={e => setNewTeacher(p => ({ ...p, password: e.target.value }))} />
-              </div>
-              <div className="a-modal-btns">
-                <button type="button" className="a-btn-cancel" onClick={() => setCreateTeacherModal(false)}>Cancel</button>
-                <button type="submit" className="a-btn-primary" disabled={creating}>
-                  {creating ? <span className="spinner" /> : "✦ Create Teacher"}
-                </button>
-              </div>
-            </form>
-          </div>
+  <div className="a-overlay" onClick={() => setCreateTeacherModal(false)}>
+    <div className="a-modal" onClick={e => e.stopPropagation()}>
+      <div className="a-modal-icon" style={{ background: "rgba(16,185,129,.14)", border: "1px solid rgba(16,185,129,.3)" }}>
+        <svg style={{ color: "#34d399" }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="22" height="22">
+          <path d="M4 4h16v10H4z"/><path d="M2 20l10-6 10 6"/>
+        </svg>
+      </div>
+      <h2 className="a-modal-title">Create Teacher Account</h2>
+      <p className="a-modal-sub">
+        A temporary password will be <strong>auto-generated</strong> and sent directly
+        to the teacher's email. They can change it after logging in.
+      </p>
+      <form onSubmit={handleCreateTeacher}>
+        <div className="a-field">
+          <label>Full Name</label>
+          <input type="text" placeholder="e.g., Maria Santos" required
+            value={newTeacher.fullName}
+            onChange={e => setNewTeacher(p => ({ ...p, fullName: e.target.value }))} />
         </div>
-      )}
+        <div className="a-field">
+          <label>Email Address</label>
+          <input type="email" placeholder="teacher@school.edu" required
+            value={newTeacher.email}
+            onChange={e => setNewTeacher(p => ({ ...p, email: e.target.value }))} />
+        </div>
+        {/* Info note */}
+        <div style={{
+          display:"flex", alignItems:"flex-start", gap:".6rem",
+          padding:".75rem .9rem", borderRadius:9,
+          background:"rgba(16,185,129,.07)", border:"1px solid rgba(16,185,129,.18)",
+          marginBottom:"1rem",
+        }}>
+          <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="#34d399" strokeWidth="1.8" style={{flexShrink:0,marginTop:1}}>
+            <circle cx="10" cy="10" r="8"/><line x1="10" y1="6" x2="10" y2="10"/>
+            <circle cx="10" cy="13.5" r=".5" fill="#34d399"/>
+          </svg>
+          <p style={{margin:0,fontSize:".76rem",color:"rgba(52,211,153,.8)",lineHeight:1.55}}>
+            A secure temporary password will be generated and emailed to the teacher automatically.
+            They must change it on first login.
+          </p>
+        </div>
+        <div className="a-modal-btns">
+          <button type="button" className="a-btn-cancel"
+            onClick={() => setCreateTeacherModal(false)}>Cancel</button>
+          <button type="submit" className="a-btn-primary" disabled={creating}>
+            {creating ? <span className="spinner" /> : "✦ Create & Send Credentials"}
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+)}
 
       {/* ── Delete Confirm Modal ── */}
       {deleteModal && (
