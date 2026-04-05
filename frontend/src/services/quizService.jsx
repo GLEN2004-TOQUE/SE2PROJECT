@@ -1,4 +1,4 @@
-const BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+const BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000' || "https://backend-7lik.onrender.com";
 
 const authHeaders = () => {
   const token = localStorage.getItem('token');

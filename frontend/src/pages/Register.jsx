@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 
-const BASE = process.env.REACT_APP_API_URL || "http://localhost:5000";
+const BASE = process.env.REACT_APP_API_URL || "http://localhost:5000" || "https://backend-7lik.onrender.com";
 
 const COURSES = {
   college:    ["BSCS", "BSOA", "BTVTED"],
@@ -781,4 +781,4 @@ export default function Register() {
       </div>
     </>
   );
-}
+} 
