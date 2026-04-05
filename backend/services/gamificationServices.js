@@ -12,11 +12,18 @@ const getTier = (totalPoints) => {
   return "Beginner";
 };
 
-exports.getLeaderboard = async (type = "overall") => {
+// ← now accepts section param
+exports.getLeaderboard = async (type = "overall", section = null) => {
   let query = supabaseAdmin
     .from("users")
-    .select("id, full_name, points, tier, streak")
-    .eq("status", true);
+    .select("id, full_name, points, tier, streak, section")
+    .eq("status", true)
+    .eq("role", "student");   // students only
+
+  // Filter by section if provided
+  if (section) {
+    query = query.eq("section", section);
+  }
 
   if (type === "daily") {
     const today = new Date().toISOString().split("T")[0];
@@ -27,9 +34,12 @@ exports.getLeaderboard = async (type = "overall") => {
     query = query.gte("last_quiz_date", weekAgo.toISOString());
   }
 
-  const { data, error } = await query.order("points", { ascending: false }).limit(10);
+  const { data, error } = await query
+    .order("points", { ascending: false })
+    .limit(50);
+
   if (error) throw new Error(error.message);
-  return data;
+  return data || [];
 };
 
 exports.getBadges = async () => {
@@ -100,10 +110,14 @@ exports.updateGamification = async (userId, score, total) => {
 
   await supabaseAdmin
     .from("users")
-    .update({ points: totalPoints, streak: newStreak, last_quiz_date: new Date().toISOString(), tier })
+    .update({
+      points: totalPoints,
+      streak: newStreak,
+      last_quiz_date: new Date().toISOString(),
+      tier,
+    })
     .eq("id", userId);
 
-  // Award badges
   const { data: badges } = await supabaseAdmin
     .from("badges")
     .select("*")
@@ -117,7 +131,6 @@ exports.updateGamification = async (userId, score, total) => {
         .eq("user_id", userId)
         .eq("badge_id", badge.id)
         .maybeSingle();
-
       if (!existing) {
         await supabaseAdmin
           .from("user_badges")
