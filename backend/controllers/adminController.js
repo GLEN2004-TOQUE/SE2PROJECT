@@ -1,6 +1,6 @@
 const { supabaseAdmin } = require("../supabaseClient");
 const bcrypt = require("bcrypt");
-const { sendTeacherCredentials, generateTempPassword } = require("../services/emailService");
+const { sendTeacherCredentials, generateTempPassword, sendPasswordChangedEmail } = require("../services/emailService");
 
 // ─── Get all users by role ───────────────────────────────────────────────────
 
@@ -46,7 +46,6 @@ exports.getAllUsers = async (req, res) => {
 };
 
 // ─── Create Teacher ───────────────────────────────────────────────────────────
-// Auto-generates a temporary password and emails it to the teacher.
 
 exports.createTeacher = async (req, res) => {
   try {
@@ -56,7 +55,6 @@ exports.createTeacher = async (req, res) => {
       return res.status(400).json({ error: "Full name and email are required" });
     }
 
-    // Check duplicate
     const { data: existing } = await supabaseAdmin
       .from("users")
       .select("id")
@@ -64,11 +62,9 @@ exports.createTeacher = async (req, res) => {
       .maybeSingle();
     if (existing) return res.status(409).json({ error: "Email already registered" });
 
-    // Generate temp password
     const tempPassword = generateTempPassword();
     const hashedPassword = await bcrypt.hash(tempPassword, 10);
 
-    // Insert into DB
     const { data, error } = await supabaseAdmin
       .from("users")
       .insert([{
@@ -86,7 +82,6 @@ exports.createTeacher = async (req, res) => {
 
     if (error) return res.status(400).json({ error: error.message });
 
-    // Send credentials email (non-fatal)
     let emailSent = false;
     try {
       await sendTeacherCredentials(email.toLowerCase().trim(), fullName.trim(), tempPassword);
@@ -108,7 +103,7 @@ exports.createTeacher = async (req, res) => {
   }
 };
 
-// ─── Change Password (teacher or any authenticated user) ─────────────────────
+// ─── Change Password ──────────────────────────────────────────────────────────
 
 exports.changePassword = async (req, res) => {
   try {
@@ -125,10 +120,10 @@ exports.changePassword = async (req, res) => {
       return res.status(400).json({ error: "New password must differ from the current password" });
     }
 
-    // Fetch hashed password
+    // Fetch user with password + contact info
     const { data: user, error: fetchErr } = await supabaseAdmin
       .from("users")
-      .select("password")
+      .select("password, email, full_name")
       .eq("id", userId)
       .single();
 
@@ -142,7 +137,7 @@ exports.changePassword = async (req, res) => {
       return res.status(401).json({ error: "Current password is incorrect" });
     }
 
-    // Hash and persist new password
+    // Hash and save new password
     const hashedNew = await bcrypt.hash(newPassword, 10);
     const { error: updateErr } = await supabaseAdmin
       .from("users")
@@ -152,6 +147,15 @@ exports.changePassword = async (req, res) => {
     if (updateErr) return res.status(400).json({ error: updateErr.message });
 
     console.log(`✅ Password updated for user ${userId}`);
+
+    // Send confirmation email (non-fatal)
+    try {
+      await sendPasswordChangedEmail(user.email, user.full_name);
+      console.log(`📧 Password-changed email sent to ${user.email}`);
+    } catch (emailErr) {
+      console.error(`⚠️ Password-changed email failed:`, emailErr.message);
+    }
+
     res.json({ message: "Password changed successfully" });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -233,7 +237,7 @@ exports.getAdminLeaderboard = async (req, res) => {
   }
 };
 
-// ─── Assignments ─────────────────────────────────────────────────────────────
+// ─── Assignments ──────────────────────────────────────────────────────────────
 
 exports.getAssignments = async (req, res) => {
   try {

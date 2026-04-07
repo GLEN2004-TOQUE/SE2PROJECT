@@ -498,13 +498,14 @@ export default function TeacherDashboard() {
   }
   setPwLoading(true);
   try {
+    
     await apiFetch("/api/admin/change-password", {
-      method: "POST",
+      method: "PATCH",
       body: JSON.stringify({ currentPassword: pwForm.current, newPassword: pwForm.next }),
     });
     setPwSuccess(true);
     setPwForm({ current: "", next: "", confirm: "" });
-    setTimeout(() => { setPwModal(false); setPwSuccess(false); }, 2200);
+    setTimeout(() => { setPwModal(false); setPwSuccess(false); }, 2500);
   } catch (err) {
     setPwError(err.message);
   } finally {
