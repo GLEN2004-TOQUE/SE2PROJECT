@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
+import { canAttemptAuth, isValidEmail, sanitizeEmail } from "../utils/security";
 
 /* ─── Inline styles & keyframes injected once ─── */
 const GlobalStyles = () => (
@@ -347,6 +348,15 @@ function Login() {
   const handleLogin = async (e) => {
     e.preventDefault();
     setErrorMsg("");
+    const cleanEmail = sanitizeEmail(email);
+    if (!isValidEmail(cleanEmail)) {
+      setErrorMsg("Please enter a valid email.");
+      return;
+    }
+    if (!canAttemptAuth()) {
+      setErrorMsg("Too many attempts. Please wait a few minutes.");
+      return;
+    }
     setIsLoading(true);
     try {
       const response = await fetch(
@@ -354,7 +364,7 @@ function Login() {
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, password }),
+          body: JSON.stringify({ email: cleanEmail, password }),
         }
       );
       const data = await response.json();
@@ -472,6 +482,5 @@ function Login() {
     </>
   );
 }
-fetch('http://localhost:5000/health').then(r => r.json()).then(console.log)
 
 export default Login;
