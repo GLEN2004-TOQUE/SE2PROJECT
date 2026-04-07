@@ -1,6 +1,9 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from "react-router-dom";
 import { getUser, logout, getMyProfile } from "../services/api";
+import { BarChart } from "@mui/x-charts/BarChart";
+import { LineChart } from "@mui/x-charts/LineChart";
+import { PieChart } from "@mui/x-charts/PieChart";
 
 const BASE = process.env.REACT_APP_API_URL || "http://localhost:5000" || "https://backend-7lik.onrender.com";
 
@@ -28,41 +31,62 @@ const Styles = () => (
 
     .sd-root {
       min-height:100vh;
-      background:#080c12;
+      background:#090608;
       background-image:
-        radial-gradient(ellipse 60% 45% at 90% 10%, rgba(16,185,129,.1) 0%, transparent 65%),
-        radial-gradient(ellipse 50% 40% at 10% 90%, rgba(139,92,246,.08) 0%, transparent 65%);
+        radial-gradient(ellipse 60% 45% at 90% 10%, rgba(127,29,29,.24) 0%, transparent 65%),
+        radial-gradient(ellipse 50% 40% at 10% 90%, rgba(251,191,36,.1) 0%, transparent 65%);
       font-family:'Syne', sans-serif; color:#e2e8f0;
     }
 
     .sd-topbar {
       display:flex; align-items:center; justify-content:space-between;
       padding:0 2.5rem; height:62px;
-      background:rgba(8,12,18,.9); backdrop-filter:blur(14px);
+      background:rgba(18,8,10,.72); backdrop-filter:blur(14px);
       border-bottom:1px solid rgba(255,255,255,.07);
       position:sticky; top:0; z-index:30;
       animation:slideDown .4s ease both;
     }
     .sd-logo { display:flex; align-items:center; gap:.65rem; font-size:1rem; font-weight:800; color:#fff; }
-    .sd-logo-icon { width:30px; height:30px; border-radius:8px; background:linear-gradient(135deg,#065f46,#6d28d9); display:flex; align-items:center; justify-content:center; }
+    .sd-logo-icon { width:30px; height:30px; border-radius:8px; background:linear-gradient(135deg,#7f1d1d,#fbbf24); display:flex; align-items:center; justify-content:center; }
     .sd-logo-icon svg { width:16px; height:16px; color:#fff; }
     .sd-topbar-right { display:flex; align-items:center; gap:.9rem; }
     .sd-user-chip {
       display:flex; align-items:center; gap:.55rem;
       font-size:.8rem; font-weight:700;
       padding:.28rem .85rem .28rem .5rem; border-radius:999px;
-      background:rgba(16,185,129,.12); border:1px solid rgba(16,185,129,.3); color:#34d399;
+      background:rgba(251,191,36,.14); border:1px solid rgba(251,191,36,.3); color:#fde68a;
     }
     .sd-user-chip-avatar {
       width:24px; height:24px; border-radius:50%;
-      background:linear-gradient(135deg,#10b981,#065f46);
+      background:linear-gradient(135deg,#7f1d1d,#fbbf24);
       display:flex; align-items:center; justify-content:center;
       font-size:.65rem; font-weight:800; color:#fff; flex-shrink:0;
     }
     .sd-logout { padding:.36rem .85rem; border-radius:8px; border:1px solid rgba(255,255,255,.1); background:rgba(255,255,255,.05); color:rgba(255,255,255,.45); font-family:'Syne',sans-serif; font-size:.78rem; cursor:pointer; transition:all .15s; }
     .sd-logout:hover { background:rgba(255,255,255,.1); color:#fff; }
 
-    .sd-body { max-width:1080px; margin:0 auto; padding:2.5rem 2rem; }
+    .sd-layout { display:grid; grid-template-columns:220px 1fr; gap:1rem; max-width:1280px; margin:0 auto; padding:1.2rem; }
+    .sd-side {
+      background:linear-gradient(140deg, rgba(255,255,255,.09), rgba(255,255,255,.02));
+      border:1px solid rgba(255,255,255,.12);
+      backdrop-filter:blur(16px);
+      border-radius:14px;
+      padding:1rem;
+      height:fit-content;
+      position:sticky; top:76px;
+    }
+    .sd-side-item {
+      display:flex; align-items:center; gap:.55rem;
+      padding:.6rem .7rem; border-radius:9px;
+      color:rgba(255,255,255,.74); font-size:.82rem; cursor:pointer;
+      border:1px solid transparent;
+    }
+    .sd-side-item.active {
+      background:rgba(251,191,36,.15);
+      color:#fde68a;
+      border-color:rgba(251,191,36,.35);
+    }
+    .sd-body { max-width:none; margin:0; padding:1.2rem 1.2rem 2rem; }
 
     .sd-welcome { margin-bottom:2rem; animation:fadeUp .5s ease both; }
     .sd-welcome-tag { display:inline-flex; align-items:center; gap:.4rem; font-size:.72rem; letter-spacing:.1em; text-transform:uppercase; color:rgba(52,211,153,.6); margin-bottom:.6rem; }
@@ -86,8 +110,9 @@ const Styles = () => (
     /* Teacher card */
     .sd-teacher-card {
       position:relative; overflow:hidden;
-      background:linear-gradient(135deg, rgba(16,185,129,.1) 0%, rgba(6,78,59,.15) 100%);
-      border:1px solid rgba(16,185,129,.2); border-radius:18px;
+      background:linear-gradient(135deg, rgba(127,29,29,.24) 0%, rgba(251,191,36,.08) 100%);
+      border:1px solid rgba(251,191,36,.2); border-radius:18px;
+      backdrop-filter:blur(14px);
       padding:1.5rem 1.75rem; margin-bottom:2rem;
       animation:fadeUp .5s .05s ease both;
     }
@@ -105,7 +130,8 @@ const Styles = () => (
 
     /* Stats */
     .sd-stats { display:grid; grid-template-columns:repeat(3,1fr); gap:1rem; margin-bottom:2rem; animation:fadeUp .5s .1s ease both; }
-    .sd-stat { background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.07); border-radius:14px; padding:1.2rem 1.4rem; }
+    .sd-stat { background:linear-gradient(140deg, rgba(255,255,255,.1), rgba(255,255,255,.02)); border:1px solid rgba(255,255,255,.12); backdrop-filter:blur(14px); border-radius:14px; padding:1.2rem 1.4rem; }
+    .sd-analytics-grid { display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-bottom:2rem; animation:fadeUp .5s .13s ease both; }
     .sd-stat-label { font-size:.7rem; letter-spacing:.1em; text-transform:uppercase; color:rgba(255,255,255,.28); margin-bottom:.45rem; }
     .sd-stat-value { font-size:1.9rem; font-weight:800; color:#fff; }
     .sd-stat-hint  { font-size:.72rem; color:rgba(255,255,255,.22); margin-top:.3rem; }
@@ -117,7 +143,8 @@ const Styles = () => (
     .sd-quiz-count { font-family:'DM Mono',monospace; font-size:.72rem; color:rgba(255,255,255,.3); padding:.18rem .55rem; background:rgba(255,255,255,.06); border-radius:6px; }
     .sd-quiz-list { display:flex; flex-direction:column; gap:.75rem; }
     .sd-quiz-card {
-      background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08);
+      background:linear-gradient(140deg, rgba(255,255,255,.09), rgba(255,255,255,.015)); border:1px solid rgba(255,255,255,.11);
+      backdrop-filter:blur(14px);
       border-radius:14px; padding:1.1rem 1.4rem;
       display:flex; align-items:center; gap:1rem;
       position:relative; overflow:hidden; transition:all .15s;
@@ -157,7 +184,7 @@ const Styles = () => (
     .sd-lb-tabs { display:flex; gap:.35rem; }
     .sd-lb-tab { padding:.25rem .65rem; border-radius:7px; cursor:pointer; font-size:.74rem; font-weight:600; border:1px solid rgba(255,255,255,.08); background:rgba(255,255,255,.04); color:rgba(255,255,255,.3); transition:all .15s; font-family:'Syne',sans-serif; }
     .sd-lb-tab.active { background:rgba(16,185,129,.15); border-color:rgba(16,185,129,.3); color:#34d399; }
-    .sd-lb-list { background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.07); border-radius:14px; overflow:hidden; }
+    .sd-lb-list { background:linear-gradient(140deg, rgba(255,255,255,.08), rgba(255,255,255,.015)); border:1px solid rgba(255,255,255,.1); backdrop-filter:blur(14px); border-radius:14px; overflow:hidden; }
     .sd-lb-row { display:flex; align-items:center; gap:.9rem; padding:.85rem 1.25rem; border-bottom:1px solid rgba(255,255,255,.04); transition:background .12s; }
     .sd-lb-row:last-child { border-bottom:none; }
     .sd-lb-row:hover { background:rgba(255,255,255,.025); }
@@ -179,7 +206,10 @@ const Styles = () => (
     .sd-spinner { display:inline-block; width:14px; height:14px; border:2px solid rgba(255,255,255,.15); border-top-color:#10b981; border-radius:50%; animation:spin .7s linear infinite; }
 
     @media(max-width:700px){
+      .sd-layout { grid-template-columns:1fr; padding:.8rem; }
+      .sd-side { position:static; }
       .sd-stats { grid-template-columns:1fr 1fr; }
+      .sd-analytics-grid { grid-template-columns:1fr; }
       .sd-body  { padding:1.5rem 1rem; }
       .sd-topbar { padding:0 1rem; }
     }
@@ -202,6 +232,7 @@ const formatTime = (iso) => {
 
 export default function StudentDashboard() {
   const navigate = useNavigate();
+  const [activeView, setActiveView] = useState("overview");
 
   const [profile, setProfile]           = useState(null);
   const [myTeacher, setMyTeacher]       = useState(undefined);
@@ -211,8 +242,13 @@ export default function StudentDashboard() {
   const [pageLoading, setPageLoading]   = useState(true);
   const [quizzes, setQuizzes]           = useState([]);
   const [quizResults, setQuizResults]   = useState({});
+  const [attendanceMap, setAttendanceMap] = useState({});
   const [loadingQuizzes, setLoadingQuizzes] = useState(false);
   const [quizError, setQuizError]       = useState("");
+  const [profilePhoto, setProfilePhoto] = useState("");
+  const [pwForm, setPwForm] = useState({ current: "", next: "", confirm: "" });
+  const [pwLoading, setPwLoading] = useState(false);
+  const [pwMsg, setPwMsg] = useState("");
 
   const tokenUser = getUser();
 
@@ -262,6 +298,17 @@ export default function StudentDashboard() {
     } catch { /* non-fatal */ }
   }, []);
 
+  const loadAttendance = useCallback(async () => {
+    try {
+      const data = await apiFetch("/api/quiz/my-attendance");
+      const map = {};
+      (Array.isArray(data) ? data : []).forEach((a) => { map[a.quiz_id] = a; });
+      setAttendanceMap(map);
+    } catch {
+      setAttendanceMap({});
+    }
+  }, []);
+
   useEffect(() => {
     if (!tokenUser) { navigate("/"); return; }
     if (tokenUser.role !== "student") { navigate("/teacher"); return; }
@@ -275,9 +322,11 @@ export default function StudentDashboard() {
       .catch(() => setMyTeacher(null))
       .finally(() => setPageLoading(false));
 
-    loadQuizzes();
-    loadResults();
-  }, [navigate, loadQuizzes, loadResults]);
+    if (tokenUser?.id) {
+      setProfilePhoto(localStorage.getItem(`student_photo_${tokenUser.id}`) || "");
+    }
+
+  }, [navigate, tokenUser]);
 
   useEffect(() => {
     loadLeaderboard(lbType);
@@ -287,6 +336,47 @@ export default function StudentDashboard() {
     if (quiz.status !== "active") return;
     navigate(`/quiz/${quiz.id}`);
   };
+  const handleRefreshQuizzes = async () => {
+    await loadQuizzes();
+    await loadResults();
+    await loadAttendance();
+  };
+  const handlePhotoPick = (e) => {
+    const file = e.target.files?.[0];
+    if (!file || !tokenUser?.id) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const src = String(reader.result || "");
+      setProfilePhoto(src);
+      localStorage.setItem(`student_photo_${tokenUser.id}`, src);
+    };
+    reader.readAsDataURL(file);
+  };
+  const handleChangePassword = async (e) => {
+    e.preventDefault();
+    setPwMsg("");
+    if (pwForm.next.length < 6) return setPwMsg("New password must be at least 6 characters.");
+    if (pwForm.next !== pwForm.confirm) return setPwMsg("Passwords do not match.");
+    setPwLoading(true);
+    try {
+      const res = await fetch(`${BASE}/api/admin/change-password`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
+        body: JSON.stringify({ currentPassword: pwForm.current, newPassword: pwForm.next }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || data.message || "Password update failed");
+      setPwMsg("Password updated successfully.");
+      setPwForm({ current: "", next: "", confirm: "" });
+    } catch (err) {
+      setPwMsg(err.message);
+    } finally {
+      setPwLoading(false);
+    }
+  };
 
   const displayName   = profile?.full_name || "Student";
   const firstName     = displayName.split(" ")[0];
@@ -294,6 +384,20 @@ export default function StudentDashboard() {
   const currentUserId = tokenUser?.id;
   const mySection     = profile?.section || "";
   const myCourse      = profile?.course  || "";
+  const completedQuizzes = quizzes.filter((q) => !!quizResults[q.id]);
+  const completionRate = quizzes.length ? Math.round((completedQuizzes.length / quizzes.length) * 100) : 0;
+  const scores = completedQuizzes.map((q) => {
+    const r = quizResults[q.id];
+    return r?.total ? Math.round((r.score / r.total) * 100) : 0;
+  });
+  const avgScore = scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : 0;
+  const quizStatusCount = [
+    quizzes.filter((q) => q.status === "active").length,
+    quizzes.filter((q) => q.status === "upcoming").length,
+    quizzes.filter((q) => q.status === "ended").length,
+  ];
+  const scoreTrend = scores.length ? scores.slice(-6) : [0];
+  const progressSpark = quizzes.slice(0, 7).reverse().map((_, i) => i + 1);
 
   return (
     <>
@@ -311,7 +415,11 @@ export default function StudentDashboard() {
           </div>
           <div className="sd-topbar-right">
             <div className="sd-user-chip">
-              <div className="sd-user-chip-avatar">{avatarText}</div>
+              <div className="sd-user-chip-avatar" style={{ overflow: "hidden" }}>
+                {profilePhoto ? (
+                  <img src={profilePhoto} alt="Student" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                ) : avatarText}
+              </div>
               {displayName}
             </div>
             <button className="sd-logout"
@@ -321,7 +429,13 @@ export default function StudentDashboard() {
           </div>
         </header>
 
+        <div className="sd-layout">
+          <aside className="sd-side">
+            <div className={`sd-side-item ${activeView === "overview" ? "active" : ""}`} onClick={() => setActiveView("overview")}>Overview</div>
+            <div className={`sd-side-item ${activeView === "settings" ? "active" : ""}`} onClick={() => setActiveView("settings")}>Settings</div>
+          </aside>
         <div className="sd-body">
+          <div style={{ display: activeView === "overview" ? "block" : "none" }}>
           {/* ── Welcome ── */}
           <div className="sd-welcome">
             <div className="sd-welcome-tag"><span /> Student Dashboard</div>
@@ -357,14 +471,17 @@ export default function StudentDashboard() {
                 Your Assigned Teacher
               </div>
               <div className="sd-teacher-inner">
-                <div className="sd-teacher-avatar">{initials(myTeacher.full_name)}</div>
+                <div className="sd-teacher-avatar" style={{ overflow: "hidden" }}>
+                  <img
+                    src={`https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(myTeacher.full_name || "Teacher")}`}
+                    alt={myTeacher.full_name}
+                    style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                  />
+                </div>
                 <div>
                   <div className="sd-teacher-name">{myTeacher.full_name}</div>
                   <div className="sd-teacher-email">{myTeacher.email}</div>
                 </div>
-                {myTeacher.tier && (
-                  <div className="sd-teacher-tier">{myTeacher.tier}</div>
-                )}
               </div>
             </div>
           ) : (
@@ -404,13 +521,64 @@ export default function StudentDashboard() {
             </div>
           </div>
 
+          <div className="sd-analytics-grid">
+            <div className="sd-stat">
+              <p className="sd-stat-label">Completion Analytics</p>
+              <p className="sd-stat-hint" style={{ marginBottom: ".4rem" }}>{completionRate}% completion</p>
+              <BarChart
+                xAxis={[{ scaleType: "band", data: ["Completed", "Pending"] }]}
+                series={[{ data: [completedQuizzes.length, Math.max(quizzes.length - completedQuizzes.length, 0)], color: "#fbbf24" }]}
+                height={180}
+              />
+            </div>
+            <div className="sd-stat">
+              <p className="sd-stat-label">Score Trend</p>
+              <p className="sd-stat-hint" style={{ marginBottom: ".4rem" }}>Average score: {avgScore}%</p>
+              <LineChart
+                xAxis={[{ scaleType: "point", data: scoreTrend.map((_, i) => `Q${i + 1}`) }]}
+                series={[{ data: scoreTrend, curve: "linear", color: "#f59e0b" }]}
+                height={180}
+              />
+            </div>
+            <div className="sd-stat">
+              <p className="sd-stat-label">Quiz Load (Stacked)</p>
+              <LineChart
+                xAxis={[{ scaleType: "point", data: ["Now"] }]}
+                series={[
+                  { data: [quizStatusCount[0]], area: true, stack: "total", label: "Active", color: "#34d399" },
+                  { data: [quizStatusCount[1]], area: true, stack: "total", label: "Upcoming", color: "#fbbf24" },
+                  { data: [quizStatusCount[2]], area: true, stack: "total", label: "Ended", color: "#7f1d1d" },
+                ]}
+                height={180}
+              />
+            </div>
+            <div className="sd-stat">
+              <p className="sd-stat-label">Performance Share</p>
+              <PieChart
+                series={[{
+                  startAngle: 0,
+                  endAngle: 360,
+                  innerRadius: 24,
+                  outerRadius: 70,
+                  cornerRadius: 0,
+                  data: [
+                    { id: 1, value: completionRate, label: "Completed %", color: "#fbbf24" },
+                    { id: 2, value: Math.max(100 - completionRate, 0), label: "Remaining %", color: "#7f1d1d" },
+                  ],
+                }]}
+                height={180}
+              />
+              <div className="sd-stat-hint">Progress sparkline: {progressSpark.join(" • ")}</div>
+            </div>
+          </div>
+
           {/* ── My Quizzes ── */}
           <div className="sd-quiz-section">
             <div className="sd-quiz-section-header">
               <h2 className="sd-quiz-section-title">My Quizzes</h2>
               <div style={{display:"flex",alignItems:"center",gap:".75rem"}}>
                 <span className="sd-quiz-count">{quizzes.length}</span>
-                <button onClick={loadQuizzes} style={{
+                <button onClick={handleRefreshQuizzes} style={{
                   background:"rgba(255,255,255,.06)",
                   border:"1px solid rgba(255,255,255,.1)",
                   borderRadius:8, color:"rgba(255,255,255,.5)",
@@ -471,6 +639,11 @@ export default function StudentDashboard() {
                           {isDone && (
                             <span className="sd-quiz-score-chip">
                               ✓ {result.score}/{result.total} ({Math.round((result.score / result.total) * 100)}%)
+                            </span>
+                          )}
+                          {attendanceMap[quiz.id] && (
+                            <span className="sd-quiz-score-chip" style={{ background: "rgba(127,29,29,.12)", color: "#fde68a", borderColor: "rgba(251,191,36,.3)" }}>
+                              {attendanceMap[quiz.id].status === "present" ? "Present" : "Absent"} · {formatTime(attendanceMap[quiz.id].timestamp)}
                             </span>
                           )}
                         </div>
@@ -579,7 +752,28 @@ export default function StudentDashboard() {
               )}
             </div>
           </div>
+          </div>
 
+          {activeView === "settings" && (
+            <div className="sd-stat" style={{ marginBottom: "2rem" }}>
+              <p className="sd-stat-label">Student Settings</p>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+                <div>
+                  <p className="sd-stat-hint" style={{ marginBottom: ".4rem" }}>Profile picture</p>
+                  <input type="file" accept="image/*" onChange={handlePhotoPick} />
+                </div>
+                <form onSubmit={handleChangePassword}>
+                  <input className="sd-quiz-btn disabled" style={{ width: "100%", marginBottom: ".4rem", textAlign: "left" }} type="password" placeholder="Current password" value={pwForm.current} onChange={(e)=>setPwForm((p)=>({ ...p, current: e.target.value }))} />
+                  <input className="sd-quiz-btn disabled" style={{ width: "100%", marginBottom: ".4rem", textAlign: "left" }} type="password" placeholder="New password" value={pwForm.next} onChange={(e)=>setPwForm((p)=>({ ...p, next: e.target.value }))} />
+                  <input className="sd-quiz-btn disabled" style={{ width: "100%", marginBottom: ".4rem", textAlign: "left" }} type="password" placeholder="Confirm password" value={pwForm.confirm} onChange={(e)=>setPwForm((p)=>({ ...p, confirm: e.target.value }))} />
+                  <button className="sd-quiz-btn take" type="submit" disabled={pwLoading}>{pwLoading ? "Updating..." : "Change Password"}</button>
+                  {pwMsg && <p className="sd-stat-hint" style={{ marginTop: ".35rem" }}>{pwMsg}</p>}
+                </form>
+              </div>
+            </div>
+          )}
+
+        </div>
         </div>
       </div>
     </>
