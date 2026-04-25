@@ -1,9 +1,6 @@
 const { supabaseAdmin } = require("../supabaseClient");
-const bcrypt = require("bcrypt");
-<<<<<<< HEAD
-=======
+const bcrypt = require("bcryptjs");
 const { sendTeacherCredentials, generateTempPassword } = require("../services/emailService");
->>>>>>> testing-main
 
 // ─── Get all users by role ───────────────────────────────────────────────────
 
@@ -49,21 +46,6 @@ exports.getAllUsers = async (req, res) => {
 };
 
 // ─── Create Teacher ───────────────────────────────────────────────────────────
-<<<<<<< HEAD
-
-exports.createTeacher = async (req, res) => {
-  try {
-    const { fullName, email, password } = req.body;
-    if (!fullName || !email || !password) {
-      return res.status(400).json({ error: "Full name, email, and password are required" });
-    }
-    if (password.length < 6) {
-      return res.status(400).json({ error: "Password must be at least 6 characters" });
-    }
-
-    // Check duplicate email
-=======
-// Auto-generates a temporary password and emails it to the teacher.
 
 exports.createTeacher = async (req, res) => {
   try {
@@ -73,8 +55,6 @@ exports.createTeacher = async (req, res) => {
       return res.status(400).json({ error: "Full name, email, and subject are required" });
     }
 
-    // Check duplicate
->>>>>>> testing-main
     const { data: existing } = await supabaseAdmin
       .from("users")
       .select("id")
@@ -82,16 +62,9 @@ exports.createTeacher = async (req, res) => {
       .maybeSingle();
     if (existing) return res.status(409).json({ error: "Email already registered" });
 
-<<<<<<< HEAD
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-=======
-    // Generate temp password
     const tempPassword = generateTempPassword();
     const hashedPassword = await bcrypt.hash(tempPassword, 10);
 
-    // Insert into DB
->>>>>>> testing-main
     const { data, error } = await supabaseAdmin
       .from("users")
       .insert([{
@@ -109,11 +82,7 @@ exports.createTeacher = async (req, res) => {
       .single();
 
     if (error) return res.status(400).json({ error: error.message });
-<<<<<<< HEAD
-    res.status(201).json({ message: `Teacher account for ${fullName} created successfully`, user: data });
-=======
 
-    // Send credentials email (non-fatal)
     let emailSent = false;
     try {
       await sendTeacherCredentials(email.toLowerCase().trim(), fullName.trim(), tempPassword);
@@ -130,16 +99,12 @@ exports.createTeacher = async (req, res) => {
       user: data,
       emailSent,
     });
->>>>>>> testing-main
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 };
 
-<<<<<<< HEAD
-// ─── Toggle user status (activate / deactivate) ───────────────────────────────
-=======
-// ─── Change Password (teacher or any authenticated user) ─────────────────────
+// ─── Change Password ─────────────────────────────────────────────────────────
 
 exports.changePassword = async (req, res) => {
   try {
@@ -156,7 +121,6 @@ exports.changePassword = async (req, res) => {
       return res.status(400).json({ error: "New password must differ from the current password" });
     }
 
-    // Fetch hashed password
     const { data: user, error: fetchErr } = await supabaseAdmin
       .from("users")
       .select("password")
@@ -167,13 +131,11 @@ exports.changePassword = async (req, res) => {
       return res.status(404).json({ error: "User not found" });
     }
 
-    // Verify current password
     const valid = await bcrypt.compare(currentPassword, user.password);
     if (!valid) {
       return res.status(401).json({ error: "Current password is incorrect" });
     }
 
-    // Hash and persist new password
     const hashedNew = await bcrypt.hash(newPassword, 10);
     const { error: updateErr } = await supabaseAdmin
       .from("users")
@@ -190,16 +152,11 @@ exports.changePassword = async (req, res) => {
 };
 
 // ─── Toggle user status ───────────────────────────────────────────────────────
->>>>>>> testing-main
 
 exports.toggleUserStatus = async (req, res) => {
   try {
     const { userId } = req.params;
-<<<<<<< HEAD
-    const { status } = req.body; // boolean: true = active, false = inactive
-=======
     const { status } = req.body;
->>>>>>> testing-main
 
     if (typeof status !== "boolean") {
       return res.status(400).json({ error: "status must be a boolean" });
@@ -228,10 +185,6 @@ exports.deleteUser = async (req, res) => {
   try {
     const { userId } = req.params;
 
-<<<<<<< HEAD
-    // Fetch user first so we can return their name in message
-=======
->>>>>>> testing-main
     const { data: user } = await supabaseAdmin
       .from("users")
       .select("id, full_name, role")
@@ -240,23 +193,6 @@ exports.deleteUser = async (req, res) => {
 
     if (!user) return res.status(404).json({ error: "User not found" });
 
-<<<<<<< HEAD
-    // Remove from teacher_student_assignments first (FK cleanup)
-    await supabaseAdmin.from("teacher_student_assignments").delete().eq("student_id", userId);
-    await supabaseAdmin.from("teacher_student_assignments").delete().eq("teacher_id", userId);
-
-    // Remove quiz assignments (students)
-    await supabaseAdmin.from("quiz_assignments").delete().eq("student_id", userId);
-
-    // Remove results + attendance
-    await supabaseAdmin.from("results").delete().eq("user_id", userId);
-    await supabaseAdmin.from("attendance").delete().eq("user_id", userId);
-
-    // Remove user badges
-    await supabaseAdmin.from("user_badges").delete().eq("user_id", userId);
-
-    // Finally delete user
-=======
     await supabaseAdmin.from("teacher_student_assignments").delete().eq("student_id", userId);
     await supabaseAdmin.from("teacher_student_assignments").delete().eq("teacher_id", userId);
     await supabaseAdmin.from("quiz_assignments").delete().eq("student_id", userId);
@@ -264,7 +200,6 @@ exports.deleteUser = async (req, res) => {
     await supabaseAdmin.from("attendance").delete().eq("user_id", userId);
     await supabaseAdmin.from("user_badges").delete().eq("user_id", userId);
 
->>>>>>> testing-main
     const { error } = await supabaseAdmin.from("users").delete().eq("id", userId);
     if (error) return res.status(400).json({ error: error.message });
 
@@ -274,11 +209,7 @@ exports.deleteUser = async (req, res) => {
   }
 };
 
-<<<<<<< HEAD
-// ─── Admin Leaderboard (all students, no section filter) ──────────────────────
-=======
 // ─── Admin Leaderboard ────────────────────────────────────────────────────────
->>>>>>> testing-main
 
 exports.getAdminLeaderboard = async (req, res) => {
   try {
@@ -463,7 +394,6 @@ exports.resetSingleMyStudentPoints = async (req, res) => {
       .maybeSingle();
     if (!link) return res.status(403).json({ error: "You can only reset your assigned students" });
 
-    // Remove point-related history for this student.
     await supabaseAdmin.from("results").delete().eq("user_id", studentId);
     await supabaseAdmin.from("attendance").delete().eq("user_id", studentId);
     await supabaseAdmin.from("user_badges").delete().eq("user_id", studentId);
