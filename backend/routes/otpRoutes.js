@@ -1,7 +1,7 @@
 const express = require('express');
 const router  = express.Router();
 const pool    = require('../config/db');
-const bcrypt  = require('bcrypt');
+const bcrypt  = require('bcryptjs');
 const { sendOTP, verifyOTP, debugStore } = require('../services/emailService');
 
 router.get('/health', (req, res) => {
@@ -85,4 +85,4 @@ router.post('/verify-and-register', async (req, res) => {
   }
 });
 
-module.exports = router; 
+module.exports = router;

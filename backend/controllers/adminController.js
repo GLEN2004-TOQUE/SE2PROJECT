@@ -1,5 +1,5 @@
 const { supabaseAdmin } = require("../supabaseClient");
-const bcrypt = require("bcrypt");
+const bcrypt = require("bcryptjs");
 const { sendTeacherCredentials, generateTempPassword } = require("../services/emailService");
 
 // ─── Get all users by role ───────────────────────────────────────────────────
@@ -46,7 +46,6 @@ exports.getAllUsers = async (req, res) => {
 };
 
 // ─── Create Teacher ───────────────────────────────────────────────────────────
-// Auto-generates a temporary password and emails it to the teacher.
 
 exports.createTeacher = async (req, res) => {
   try {
@@ -56,7 +55,6 @@ exports.createTeacher = async (req, res) => {
       return res.status(400).json({ error: "Full name, email, and subject are required" });
     }
 
-    // Check duplicate
     const { data: existing } = await supabaseAdmin
       .from("users")
       .select("id")
@@ -64,11 +62,9 @@ exports.createTeacher = async (req, res) => {
       .maybeSingle();
     if (existing) return res.status(409).json({ error: "Email already registered" });
 
-    // Generate temp password
     const tempPassword = generateTempPassword();
     const hashedPassword = await bcrypt.hash(tempPassword, 10);
 
-    // Insert into DB
     const { data, error } = await supabaseAdmin
       .from("users")
       .insert([{
@@ -87,7 +83,6 @@ exports.createTeacher = async (req, res) => {
 
     if (error) return res.status(400).json({ error: error.message });
 
-    // Send credentials email (non-fatal)
     let emailSent = false;
     try {
       await sendTeacherCredentials(email.toLowerCase().trim(), fullName.trim(), tempPassword);
@@ -109,7 +104,7 @@ exports.createTeacher = async (req, res) => {
   }
 };
 
-// ─── Change Password (teacher or any authenticated user) ─────────────────────
+// ─── Change Password ─────────────────────────────────────────────────────────
 
 exports.changePassword = async (req, res) => {
   try {
@@ -126,7 +121,6 @@ exports.changePassword = async (req, res) => {
       return res.status(400).json({ error: "New password must differ from the current password" });
     }
 
-    // Fetch hashed password
     const { data: user, error: fetchErr } = await supabaseAdmin
       .from("users")
       .select("password")
@@ -137,13 +131,11 @@ exports.changePassword = async (req, res) => {
       return res.status(404).json({ error: "User not found" });
     }
 
-    // Verify current password
     const valid = await bcrypt.compare(currentPassword, user.password);
     if (!valid) {
       return res.status(401).json({ error: "Current password is incorrect" });
     }
 
-    // Hash and persist new password
     const hashedNew = await bcrypt.hash(newPassword, 10);
     const { error: updateErr } = await supabaseAdmin
       .from("users")
@@ -402,7 +394,6 @@ exports.resetSingleMyStudentPoints = async (req, res) => {
       .maybeSingle();
     if (!link) return res.status(403).json({ error: "You can only reset your assigned students" });
 
-    // Remove point-related history for this student.
     await supabaseAdmin.from("results").delete().eq("user_id", studentId);
     await supabaseAdmin.from("attendance").delete().eq("user_id", studentId);
     await supabaseAdmin.from("user_badges").delete().eq("user_id", studentId);

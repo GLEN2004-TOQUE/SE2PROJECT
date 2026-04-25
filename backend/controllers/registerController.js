@@ -1,16 +1,14 @@
-const pool = require('../config/db'); // your Postgres pool
-const bcrypt = require('bcrypt');
+const pool = require('../config/db');
+const bcrypt = require('bcryptjs');
 
 exports.register = async (req, res) => {
   try {
     const { fullName, email, password, role } = req.body;
 
-    // Validate input
     if (!fullName || !email || !password || !role) {
       return res.status(400).json({ message: "All fields are required" });
     }
 
-    // Check if user already exists
     const existing = await pool.query(
       'SELECT id FROM users WHERE LOWER(email) = LOWER($1)',
       [email]
@@ -19,10 +17,8 @@ exports.register = async (req, res) => {
       return res.status(400).json({ message: "Email already registered" });
     }
 
-    // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Insert new user
     const newUser = await pool.query(
       `INSERT INTO users (full_name, email, password, role, status)
        VALUES ($1, $2, $3, $4, true)
