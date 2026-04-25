@@ -3,11 +3,9 @@ const router = express.Router();
 const {
   getAllStudents, getAllTeachers, getAllUsers,
   getAssignments, assignTeacherToStudent,
-  removeAssignment, getMyStudents, getMyTeacher, assignSubjectToMyStudent, resetMyStudentsPoints, resetSingleMyStudentPoints,
+  removeAssignment, getMyStudents, getMyTeacher,
   createTeacher, toggleUserStatus, deleteUser,
   getAdminLeaderboard, changePassword,
-  createCertificateRequest, getMyCertificateRequests,
-  getAllCertificateRequests, updateCertificateRequestStatus,
 } = require("../controllers/adminController");
 const { verifyToken, authorizeRole } = require("../middleware/authMiddleware");
 const { supabaseAdmin } = require("../supabaseClient");
@@ -65,7 +63,6 @@ router.post("/teachers/create",         verifyToken, authorizeRole("admin"), cre
 router.patch("/users/:userId/status",   verifyToken, authorizeRole("admin"), toggleUserStatus);
 router.delete("/users/:userId",         verifyToken, authorizeRole("admin"), deleteUser);
 
-// ─── Admin leaderboard ────────────────────────────────────────────────────
 router.get("/leaderboard",  verifyToken, authorizeRole("admin"), getAdminLeaderboard);
 
 // ─── Teacher: see assigned students ──────────────────────────────────────
