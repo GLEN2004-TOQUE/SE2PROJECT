@@ -5,7 +5,7 @@ import { BarChart } from "@mui/x-charts/BarChart";
 import { LineChart } from "@mui/x-charts/LineChart";
 import { SparkLineChart } from "@mui/x-charts/SparkLineChart";
 
-const BASE = process.env.REACT_APP_API_URL || "http://localhost:5000" || "https://backend-7lik.onrender.com";
+const BASE_URL = process.env.REACT_APP_API_URL || "https://backend-7lik.onrender.com";
 
 const apiFetch = async (path, opts = {}) => {
   const token = localStorage.getItem("token");
@@ -464,7 +464,7 @@ export default function TeacherDashboard() {
   const [activeView, setActiveView] = useState("overview");
   const [teacherName, setTeacherName] = useState("");
   const [teacherProfile, setTeacherProfile] = useState(null);
-  const [profileForm, setProfileForm] = useState({ fullName: "", subject: "", photoUrl: "" });
+  const [profileForm, setProfileForm] = useState({ fullName: "", subject: "" });
   const [addingSubject, setAddingSubject] = useState(false);
   const [newSubjectDraft, setNewSubjectDraft] = useState("");
   const [myStudents, setMyStudents] = useState([]);
@@ -746,7 +746,6 @@ export default function TeacherDashboard() {
       setProfileForm({
         fullName: profile.full_name || "",
         subject: profile.subject || "",
-        photoUrl: localStorage.getItem(`teacher_photo_${profile.id}`) || "",
       });
     } catch {
       const user = getUser();
@@ -762,9 +761,6 @@ export default function TeacherDashboard() {
       });
       setTeacherProfile(result.user);
       setTeacherName(result.user.full_name);
-      if (result.user?.id) {
-        localStorage.setItem(`teacher_photo_${result.user.id}`, profileForm.photoUrl || "");
-      }
       showToast(successMsg, "success");
     } catch (err) {
       showToast(err.message, "error");
@@ -802,13 +798,7 @@ export default function TeacherDashboard() {
     setAddingSubject(false);
     setNewSubjectDraft("");
   };
-  const handlePhotoFileChange = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => setProfileForm((p) => ({ ...p, photoUrl: String(reader.result || "") }));
-    reader.readAsDataURL(file);
-  };
+
 
   useEffect(() => {
     const user = getUser();
@@ -1000,13 +990,7 @@ export default function TeacherDashboard() {
           <>
           {/* Welcome */}
           <div className="td-welcome">
-            {profileForm.photoUrl ? (
-              <img
-                src={profileForm.photoUrl}
-                alt="Teacher profile"
-                style={{ width: 56, height: 56, borderRadius: 14, objectFit: "cover", border: "1px solid rgba(255,255,255,.2)", marginBottom: ".75rem" }}
-              />
-            ) : null}
+
             <div className="td-welcome-tag"><span /> Teacher Dashboard</div>
             <h1 className="td-name">Welcome back{teacherName ? `, ${teacherName.split(" ")[0]}` : ""}! 👋</h1>
             <p className="td-sub">
@@ -1377,14 +1361,7 @@ export default function TeacherDashboard() {
                 <h2 className="td-section-title">Settings</h2>
               </div>
               <div className="td-settings-grid">
-                <div className="td-stat">
-                  <p className="td-stat-label">Profile Photo</p>
-                  {profileForm.photoUrl ? (
-                    <img src={profileForm.photoUrl} alt="Teacher profile" style={{ width: 70, height: 70, borderRadius: 14, objectFit: "cover", border: "1px solid rgba(255,255,255,.2)", marginBottom: ".7rem" }} />
-                  ) : <p className="td-stat-hint">No photo selected</p>}
-                  <input type="file" accept="image/*" onChange={handlePhotoFileChange} className="td-modal-input" />
-                  <p className="td-stat-hint">Choose from your folders and save locally for this browser.</p>
-                </div>
+
 
                 <form className="td-stat" onSubmit={saveFullName}>
                   <p className="td-stat-label">Full Name</p>
