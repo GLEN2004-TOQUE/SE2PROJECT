@@ -62,12 +62,6 @@ router.delete("/assign/:studentId", verifyToken, authorizeRole("admin"), removeA
 router.post("/teachers/create",         verifyToken, authorizeRole("admin"), createTeacher);
 router.patch("/users/:userId/status",   verifyToken, authorizeRole("admin"), toggleUserStatus);
 router.delete("/users/:userId",         verifyToken, authorizeRole("admin"), deleteUser);
-
-<<<<<<< HEAD
-// ─── Admin leaderboard (all students) ────────────────────────────────────
-=======
-// ─── Admin leaderboard ────────────────────────────────────────────────────
->>>>>>> testing-main
 router.get("/leaderboard",  verifyToken, authorizeRole("admin"), getAdminLeaderboard);
 
 // ─── Teacher: see assigned students ──────────────────────────────────────

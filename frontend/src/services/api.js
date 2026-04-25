@@ -1,4 +1,4 @@
-const BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000' || "https://backend-7lik.onrender.com";
+const BASE_URL = process.env.REACT_APP_API_URL ||  "https://backend-7lik.onrender.com";
 
 export const getToken = () => localStorage.getItem('token');
 export const getMyTeacherQuizzes = () => api('/api/quiz/my-quizzes');

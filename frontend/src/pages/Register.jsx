@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { canAttemptAuth, isStrongPassword, isValidEmail, sanitizeEmail, sanitizeText } from "../utils/security";
 
-const BASE = process.env.REACT_APP_API_URL || "http://localhost:5000" || "https://backend-7lik.onrender.com";
+const BASE = process.env.REACT_APP_API_URL || "https://backend-7lik.onrender.com";
 
 const COURSES = {
   college:    ["BSCS", "BSOA", "BTVTED"],

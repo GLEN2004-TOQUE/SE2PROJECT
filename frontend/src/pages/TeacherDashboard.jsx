@@ -5,7 +5,7 @@ import { BarChart } from "@mui/x-charts/BarChart";
 import { LineChart } from "@mui/x-charts/LineChart";
 import { SparkLineChart } from "@mui/x-charts/SparkLineChart";
 
-const BASE_URL = process.env.REACT_APP_API_URL || "https://backend-7lik.onrender.com";
+const BASE = process.env.REACT_APP_API_URL || "https://backend-7lik.onrender.com";
 
 const apiFetch = async (path, opts = {}) => {
   const token = localStorage.getItem("token");
