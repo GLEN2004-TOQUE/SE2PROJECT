@@ -25,7 +25,7 @@ exports.getAllTeachers = async (req, res) => {
   try {
     const { data, error } = await supabaseAdmin
       .from("users")
-      .select("id, full_name, email, role, status, points, tier, created_at")
+      .select("id, full_name, email, role, status, points, tier, subject, created_at")
       .eq("role", "teacher")
       .order("full_name", { ascending: true });
     if (error) return res.status(400).json({ error: error.message });
@@ -67,10 +67,10 @@ exports.createTeacher = async (req, res) => {
 
 exports.createTeacher = async (req, res) => {
   try {
-    const { fullName, email } = req.body;
+    const { fullName, email, subject } = req.body;
 
-    if (!fullName || !email) {
-      return res.status(400).json({ error: "Full name and email are required" });
+    if (!fullName || !email || !subject) {
+      return res.status(400).json({ error: "Full name, email, and subject are required" });
     }
 
     // Check duplicate
@@ -99,12 +99,13 @@ exports.createTeacher = async (req, res) => {
         email: email.toLowerCase().trim(),
         password: hashedPassword,
         role: "teacher",
+        subject: subject.trim(),
         status: true,
         points: 0,
         streak: 0,
         tier: "Beginner",
       }])
-      .select("id, full_name, email, role, status, created_at")
+      .select("id, full_name, email, role, status, subject, created_at")
       .single();
 
     if (error) return res.status(400).json({ error: error.message });
@@ -330,18 +331,26 @@ exports.assignTeacherToStudent = async (req, res) => {
       .from("users").select("id, full_name, role").eq("id", studentId).eq("role", "student").single();
     if (!student) return res.status(404).json({ error: "Student not found" });
 
+    const { data: existingLink } = await supabaseAdmin
+      .from("teacher_student_assignments")
+      .select("id")
+      .eq("teacher_id", teacherId)
+      .eq("student_id", studentId)
+      .maybeSingle();
+
+    if (existingLink) {
+      return res.status(409).json({ error: `${student.full_name} is already assigned to ${teacher.full_name}` });
+    }
+
     const { data, error } = await supabaseAdmin
       .from("teacher_student_assignments")
-      .upsert(
-        { teacher_id: teacherId, student_id: studentId, assigned_at: new Date().toISOString() },
-        { onConflict: "student_id" }
-      )
+      .insert({ teacher_id: teacherId, student_id: studentId, assigned_at: new Date().toISOString() })
       .select(`id, assigned_at, teacher:teacher_id(id, full_name, email), student:student_id(id, full_name, email)`)
       .single();
 
     if (error) return res.status(400).json({ error: error.message });
     res.json({
-      message: `${student.full_name} has been successfully assigned to ${teacher.full_name}`,
+      message: `${student.full_name} has been successfully added under ${teacher.full_name}`,
       assignment: data,
     });
   } catch (err) {
@@ -352,10 +361,15 @@ exports.assignTeacherToStudent = async (req, res) => {
 exports.removeAssignment = async (req, res) => {
   try {
     const { studentId } = req.params;
-    const { error } = await supabaseAdmin
-      .from("teacher_student_assignments").delete().eq("student_id", studentId);
+    const { teacherId } = req.query;
+    const query = supabaseAdmin
+      .from("teacher_student_assignments")
+      .delete()
+      .eq("student_id", studentId);
+    if (teacherId) query.eq("teacher_id", teacherId);
+    const { error } = await query;
     if (error) return res.status(400).json({ error: error.message });
-    res.json({ message: "Assignment removed successfully" });
+    res.json({ message: teacherId ? "Teacher assignment removed successfully" : "All assignments removed successfully" });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -366,12 +380,104 @@ exports.getMyStudents = async (req, res) => {
     const teacherId = req.user.id;
     const { data, error } = await supabaseAdmin
       .from("teacher_student_assignments")
-      .select(`assigned_at, student:student_id ( id, full_name, email, points, tier, streak, status )`)
+      .select(`assigned_at, student:student_id ( id, full_name, email, points, tier, streak, status, section, course )`)
       .eq("teacher_id", teacherId)
       .order("assigned_at", { ascending: false });
 
     if (error) return res.status(400).json({ error: error.message });
     res.json(data.map((d) => ({ ...d.student, assigned_at: d.assigned_at })));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+exports.assignSubjectToMyStudent = async (req, res) => {
+  try {
+    const teacherId = req.user.id;
+    const { studentId } = req.params;
+    const { subject } = req.body;
+    if (!subject || !subject.trim()) {
+      return res.status(400).json({ error: "subject is required" });
+    }
+
+    const { data: assignment } = await supabaseAdmin
+      .from("teacher_student_assignments")
+      .select("id")
+      .eq("teacher_id", teacherId)
+      .eq("student_id", studentId)
+      .maybeSingle();
+    if (!assignment) {
+      return res.status(403).json({ error: "You can only assign subjects to your own students" });
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from("users")
+      .update({ course: subject.trim() })
+      .eq("id", studentId)
+      .eq("role", "student")
+      .select("id, full_name, email, points, tier, streak, status, section, course")
+      .single();
+    if (error) return res.status(400).json({ error: error.message });
+    res.json({ message: "Student subject assigned", student: data });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+exports.resetMyStudentsPoints = async (req, res) => {
+  try {
+    const teacherId = req.user.id;
+    const { data: links, error: linkErr } = await supabaseAdmin
+      .from("teacher_student_assignments")
+      .select("student_id")
+      .eq("teacher_id", teacherId);
+    if (linkErr) return res.status(400).json({ error: linkErr.message });
+
+    const studentIds = (links || []).map((l) => l.student_id).filter(Boolean);
+    if (!studentIds.length) return res.json({ message: "No assigned students to reset", count: 0 });
+
+    const { error: updateErr } = await supabaseAdmin
+      .from("users")
+      .update({ points: 0, streak: 0, tier: "Beginner" })
+      .in("id", studentIds)
+      .eq("role", "student");
+    if (updateErr) return res.status(400).json({ error: updateErr.message });
+
+    res.json({ message: "Assigned students' points have been reset", count: studentIds.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+exports.resetSingleMyStudentPoints = async (req, res) => {
+  try {
+    const teacherId = req.user.id;
+    const { studentId } = req.params;
+    if (!studentId) return res.status(400).json({ error: "studentId is required" });
+
+    const { data: link } = await supabaseAdmin
+      .from("teacher_student_assignments")
+      .select("id")
+      .eq("teacher_id", teacherId)
+      .eq("student_id", studentId)
+      .maybeSingle();
+    if (!link) return res.status(403).json({ error: "You can only reset your assigned students" });
+
+    // Remove point-related history for this student.
+    await supabaseAdmin.from("results").delete().eq("user_id", studentId);
+    await supabaseAdmin.from("attendance").delete().eq("user_id", studentId);
+    await supabaseAdmin.from("user_badges").delete().eq("user_id", studentId);
+
+    const { data, error } = await supabaseAdmin
+      .from("users")
+      .update({ points: 0, streak: 0, tier: "Beginner" })
+      .eq("id", studentId)
+      .eq("role", "student")
+      .select("id, full_name, points, streak, tier")
+      .single();
+    if (error) return res.status(400).json({ error: error.message });
+
+    res.json({ message: `${data.full_name}'s points were reset`, student: data });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -389,6 +495,124 @@ exports.getMyTeacher = async (req, res) => {
     if (error) return res.status(400).json({ error: error.message });
     if (!data) return res.json(null);
     res.json({ ...data.teacher, assigned_at: data.assigned_at });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// ─── Certificate requests ─────────────────────────────────────────────────────
+
+exports.createCertificateRequest = async (req, res) => {
+  try {
+    const teacherId = req.user.id;
+    const { studentId } = req.body;
+    if (!studentId) return res.status(400).json({ error: "studentId is required" });
+
+    const { data: student } = await supabaseAdmin
+      .from("users")
+      .select("id, full_name, role")
+      .eq("id", studentId)
+      .eq("role", "student")
+      .single();
+    if (!student) return res.status(404).json({ error: "Student not found" });
+
+    const { data: existing } = await supabaseAdmin
+      .from("certificate_requests")
+      .select("id, status")
+      .eq("student_id", studentId)
+      .eq("teacher_id", teacherId)
+      .eq("status", "pending")
+      .maybeSingle();
+    if (existing) {
+      return res.status(409).json({ error: "A pending certificate request already exists for this student" });
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from("certificate_requests")
+      .insert({
+        student_id: studentId,
+        teacher_id: teacherId,
+        requested_by: teacherId,
+        status: "pending",
+      })
+      .select(`
+        id, status, created_at, approved_at,
+        student:student_id ( id, full_name, email, points, section ),
+        teacher:teacher_id ( id, full_name, email )
+      `)
+      .single();
+    if (error) return res.status(400).json({ error: error.message });
+    res.status(201).json({ message: "Certificate request submitted", request: data });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+exports.getMyCertificateRequests = async (req, res) => {
+  try {
+    const teacherId = req.user.id;
+    const { data, error } = await supabaseAdmin
+      .from("certificate_requests")
+      .select(`
+        id, status, created_at, approved_at,
+        student:student_id ( id, full_name, email, points, section ),
+        teacher:teacher_id ( id, full_name, email )
+      `)
+      .eq("teacher_id", teacherId)
+      .order("created_at", { ascending: false });
+    if (error) {
+      if (error.code === "42P01") return res.json([]);
+      return res.status(400).json({ error: error.message });
+    }
+    res.json(data || []);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+exports.getAllCertificateRequests = async (req, res) => {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from("certificate_requests")
+      .select(`
+        id, status, created_at, approved_at,
+        student:student_id ( id, full_name, email, points, section ),
+        teacher:teacher_id ( id, full_name, email )
+      `)
+      .order("created_at", { ascending: false });
+    if (error) {
+      if (error.code === "42P01") return res.json([]);
+      return res.status(400).json({ error: error.message });
+    }
+    res.json(data || []);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+exports.updateCertificateRequestStatus = async (req, res) => {
+  try {
+    const { requestId } = req.params;
+    const { status } = req.body;
+    if (!["approved", "rejected"].includes(status)) {
+      return res.status(400).json({ error: "status must be approved or rejected" });
+    }
+    const patch = {
+      status,
+      approved_at: status === "approved" ? new Date().toISOString() : null,
+    };
+    const { data, error } = await supabaseAdmin
+      .from("certificate_requests")
+      .update(patch)
+      .eq("id", requestId)
+      .select(`
+        id, status, created_at, approved_at,
+        student:student_id ( id, full_name, email, points, section ),
+        teacher:teacher_id ( id, full_name, email )
+      `)
+      .single();
+    if (error) return res.status(400).json({ error: error.message });
+    res.json({ message: `Certificate request ${status}`, request: data });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

@@ -588,6 +588,52 @@ exports.getAttendanceStats = async (req, res) => {
   }
 };
 
+exports.getMyAttendance = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { data, error } = await supabaseAdmin
+      .from("attendance")
+      .select("quiz_id, status, timestamp")
+      .eq("user_id", userId)
+      .order("timestamp", { ascending: false });
+    if (error) return res.status(400).json({ error: error.message });
+    res.json(data || []);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+exports.getTeacherAttendanceTimeline = async (req, res) => {
+  try {
+    const teacherId = req.user.id;
+    const { data: quizzes, error: qErr } = await supabaseAdmin
+      .from("quizzes")
+      .select("id")
+      .eq("teacher_id", teacherId);
+    if (qErr) return res.status(400).json({ error: qErr.message });
+    const quizIds = (quizzes || []).map((q) => q.id);
+    if (!quizIds.length) return res.json([]);
+
+    const { data: records, error: aErr } = await supabaseAdmin
+      .from("attendance")
+      .select("quiz_id, status, timestamp")
+      .in("quiz_id", quizIds)
+      .order("timestamp", { ascending: true });
+    if (aErr) return res.status(400).json({ error: aErr.message });
+
+    const byDate = {};
+    (records || []).forEach((r) => {
+      const key = new Date(r.timestamp).toISOString().slice(0, 10);
+      if (!byDate[key]) byDate[key] = { date: key, present: 0, absent: 0 };
+      if (r.status === "present") byDate[key].present += 1;
+      else byDate[key].absent += 1;
+    });
+    res.json(Object.values(byDate));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Generate quiz from raw text
 // ─────────────────────────────────────────────────────────────────────────────

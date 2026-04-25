@@ -7,6 +7,8 @@ const {
   getQuiz,
   getAttendanceReport,
   getAttendanceStats,
+  getMyAttendance,
+  getTeacherAttendanceTimeline,
   getQuizzesForStudent,
   getTeacherQuizzes,
   scheduleQuiz,
@@ -19,6 +21,7 @@ const aiService = require("../services/aiService");
 // ── Student routes ─────────────────────────────────────────────────────────────
 router.post("/submit",     verifyToken, authorizeRole("student"), submitQuiz);
 router.get("/my-quizzes",  verifyToken, authorizeRole("student"), getQuizzesForStudent);
+router.get("/my-attendance", verifyToken, authorizeRole("student"), getMyAttendance);
 
 // Student: get their past results (maps quizId → result for dashboard display)
 router.get("/my-results", verifyToken, authorizeRole("student"), async (req, res) => {
@@ -81,6 +84,7 @@ router.get("/ai/status", verifyToken, authorizeRole("teacher"), (req, res) => {
 // ── Attendance ────────────────────────────────────────────────────────────────
 router.get("/attendance/:quizId",        verifyToken, getAttendanceReport);
 router.get("/attendance/stats/:quizId",  verifyToken, getAttendanceStats);
+router.get("/attendance/teacher/timeline", verifyToken, authorizeRole("teacher"), getTeacherAttendanceTimeline);
 
 // ── Public quiz fetch by ID – MUST BE LAST to avoid shadowing other GET routes ──
 router.get("/:quizId", verifyToken, authorizeRole("student"), getQuiz);

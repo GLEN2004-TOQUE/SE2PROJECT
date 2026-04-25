@@ -9,7 +9,7 @@ const quizRoutes = require('./routes/quizRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const aiService = require('./services/aiService');
 const gameRoutes = require('./routes/gamificationRoutes');
-const otpRoutes = require('./routes/otpRoutes'); // ← ADD THIS
+const otpRoutes = require('./routes/otpRoutes'); 
 
 const app = express();
 
@@ -22,7 +22,7 @@ app.use(cors({
     "https://se2project.onrender.com",
   ],
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 app.use(express.json());

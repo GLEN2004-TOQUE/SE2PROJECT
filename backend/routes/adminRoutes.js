@@ -4,12 +4,8 @@ const {
   getAllStudents, getAllTeachers, getAllUsers,
   getAssignments, assignTeacherToStudent,
   removeAssignment, getMyStudents, getMyTeacher,
-<<<<<<< HEAD
-  createTeacher, toggleUserStatus, deleteUser, getAdminLeaderboard,
-=======
   createTeacher, toggleUserStatus, deleteUser,
   getAdminLeaderboard, changePassword,
->>>>>>> testing-main
 } = require("../controllers/adminController");
 const { verifyToken, authorizeRole } = require("../middleware/authMiddleware");
 const { supabaseAdmin } = require("../supabaseClient");
@@ -19,11 +15,33 @@ router.get("/me", verifyToken, async (req, res) => {
   try {
     const { data, error } = await supabaseAdmin
       .from("users")
-      .select("id, full_name, email, points, streak, tier, role, course, section")
+      .select("id, full_name, email, points, streak, tier, role, course, section, subject")
       .eq("id", req.user.id)
       .single();
     if (error) return res.status(400).json({ error: error.message });
     res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.patch("/me", verifyToken, async (req, res) => {
+  try {
+    const updates = {};
+    const { fullName, subject } = req.body || {};
+    if (typeof fullName === "string" && fullName.trim()) updates.full_name = fullName.trim();
+    if (typeof subject === "string" && subject.trim()) updates.subject = subject.trim();
+    if (!Object.keys(updates).length) {
+      return res.status(400).json({ error: "No valid fields to update" });
+    }
+    const { data, error } = await supabaseAdmin
+      .from("users")
+      .update(updates)
+      .eq("id", req.user.id)
+      .select("id, full_name, email, points, streak, tier, role, course, section, subject")
+      .single();
+    if (error) return res.status(400).json({ error: error.message });
+    res.json({ message: "Profile updated", user: data });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -54,8 +72,17 @@ router.get("/leaderboard",  verifyToken, authorizeRole("admin"), getAdminLeaderb
 
 // ─── Teacher: see assigned students ──────────────────────────────────────
 router.get("/my-students",  verifyToken, authorizeRole("teacher"), getMyStudents);
+router.patch("/my-students/:studentId/subject", verifyToken, authorizeRole("teacher"), assignSubjectToMyStudent);
+router.patch("/my-students/reset-points", verifyToken, authorizeRole("teacher"), resetMyStudentsPoints);
+router.patch("/my-students/:studentId/reset-points", verifyToken, authorizeRole("teacher"), resetSingleMyStudentPoints);
+router.get("/my-certificate-requests", verifyToken, authorizeRole("teacher"), getMyCertificateRequests);
+router.post("/certificate-requests", verifyToken, authorizeRole("teacher"), createCertificateRequest);
 
 // ─── Student: see assigned teacher ───────────────────────────────────────
 router.get("/my-teacher",   verifyToken, authorizeRole("student"), getMyTeacher);
+
+// ─── Admin: certificate approvals ────────────────────────────────────────
+router.get("/certificate-requests", verifyToken, authorizeRole("admin"), getAllCertificateRequests);
+router.patch("/certificate-requests/:requestId/status", verifyToken, authorizeRole("admin"), updateCertificateRequestStatus);
 
 module.exports = router;

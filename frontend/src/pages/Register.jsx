@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import { canAttemptAuth, isStrongPassword, isValidEmail, sanitizeEmail, sanitizeText } from "../utils/security";
 
-const BASE = process.env.REACT_APP_API_URL || "http://localhost:5000";
+const BASE = process.env.REACT_APP_API_URL || "http://localhost:5000" || "https://backend-7lik.onrender.com";
 
 const COURSES = {
   college:    ["BSCS", "BSOA", "BTVTED"],
@@ -403,18 +404,26 @@ export default function Register() {
   const handleSendOTP = async (e) => {
     e.preventDefault();
     setError(""); setSuccess("");
-    if (!fullName || !email || !password || !level || !course || !section) {
+    const cleanName = sanitizeText(fullName);
+    const cleanEmail = sanitizeEmail(email);
+    if (!cleanName || !cleanEmail || !password || !level || !course || !section) {
       setError("Please fill in all fields including Section."); return;
     }
-    if (password.length < 6) {
+    if (!isValidEmail(cleanEmail)) {
+      setError("Please use a valid email address."); return;
+    }
+    if (!isStrongPassword(password)) {
       setError("Password must be at least 6 characters."); return;
+    }
+    if (!canAttemptAuth()) {
+      setError("Too many attempts. Please wait a few minutes."); return;
     }
     setLoading(true);
     try {
       const res = await fetch(`${BASE}/otp/send`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email: cleanEmail }),
       });
       const data = await res.json();
       if (!res.ok) { setError(data.message); return; }
@@ -436,7 +445,7 @@ export default function Register() {
       const res = await fetch(`${BASE}/otp/send`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email: sanitizeEmail(email) }),
       });
       const data = await res.json();
       if (!res.ok) { setError(data.message); return; }
@@ -487,7 +496,7 @@ export default function Register() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          fullName, email, password,
+          fullName: sanitizeText(fullName), email: sanitizeEmail(email), password,
           role: "student", course, section, otp
         }),
       });
@@ -781,4 +790,4 @@ export default function Register() {
       </div>
     </>
   );
-}
+} 

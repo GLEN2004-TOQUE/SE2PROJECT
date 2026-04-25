@@ -1,4 +1,4 @@
-const BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+const BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000' || "https://backend-7lik.onrender.com";
 
 export const getToken = () => localStorage.getItem('token');
 export const getMyTeacherQuizzes = () => api('/api/quiz/my-quizzes');
@@ -14,7 +14,7 @@ export const getUser = () => {
 };
 
 export const getMyProfile = () => api('/api/admin/me');
-
+export const getAdminStats = () => api('/api/admin/stats');
 export const logout = () => {
   localStorage.removeItem('token');
 };
@@ -29,8 +29,21 @@ const authHeaders = (extra = {}) => {
 
 // ─── Core fetch helpers ───────────────────────────────────────────────────────
 
+const withTimeout = async (url, opts = {}, timeoutMs = 15000) => {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...opts, signal: controller.signal });
+  } finally {
+    clearTimeout(id);
+  }
+};
+
 export const api = async (endpoint, options = {}) => {
-  const res = await fetch(`${BASE_URL}${endpoint}`, {
+  if (typeof endpoint !== "string" || !endpoint.startsWith("/")) {
+    throw new Error("Invalid API endpoint");
+  }
+  const res = await withTimeout(`${BASE_URL}${endpoint}`, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
@@ -38,7 +51,8 @@ export const api = async (endpoint, options = {}) => {
       ...(options.headers || {}),
     },
   });
-  const data = await res.json();
+  let data = null;
+  try { data = await res.json(); } catch { data = { error: "Invalid server response" }; }
   if (!res.ok) throw new Error(data.message || data.error || 'Request failed');
   return data;
 };

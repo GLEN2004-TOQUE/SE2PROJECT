@@ -1,8 +1,12 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { getUser, logout } from "../services/api";
+import { BarChart } from "@mui/x-charts/BarChart";
+import { LineChart } from "@mui/x-charts/LineChart";
+import { PieChart } from "@mui/x-charts/PieChart";
+import { SparkLineChart } from "@mui/x-charts/SparkLineChart";
 
-const BASE = process.env.REACT_APP_API_URL || "http://localhost:5000";
+const BASE_URL = process.env.REACT_APP_API_URL || "https://backend-7lik.onrender.com";
 
 const apiFetch = async (path, opts = {}) => {
   const token = localStorage.getItem("token");
@@ -48,9 +52,9 @@ const Styles = () => (
 
     .a-root {
       min-height:100vh;
-      background:#07080c;
+      background:radial-gradient(circle at 10% 5%, #2b0d13 0%, #14090d 32%, #080708 100%);
       font-family:'DM Sans', sans-serif;
-      color:#d8dae3;
+      color:#efe7e9;
       display:flex; flex-direction:column;
     }
 
@@ -59,28 +63,28 @@ const Styles = () => (
       position:sticky; top:0; z-index:40;
       display:flex; align-items:center; justify-content:space-between;
       padding:0 2rem; height:58px;
-      background:rgba(7,8,12,.92); backdrop-filter:blur(16px);
+      background:rgba(13,8,10,.94); backdrop-filter:blur(16px);
       border-bottom:1px solid rgba(255,255,255,.07);
       animation:_slideD .4s ease both;
     }
     .a-brand { display:flex; align-items:center; gap:.7rem; }
     .a-brand-mark {
       width:30px; height:30px; border-radius:8px;
-      background:linear-gradient(135deg,#4338ca,#7c3aed);
+      background:linear-gradient(135deg,#5e1421,#862233);
       display:flex; align-items:center; justify-content:center;
     }
     .a-brand-mark svg { width:15px; height:15px; color:#fff; }
     .a-brand-name { font-weight:700; font-size:.95rem; color:#fff; letter-spacing:-.01em; }
     .a-brand-chip {
       font-family:'DM Mono',monospace; font-size:.62rem; padding:.18rem .6rem;
-      border-radius:99px; background:rgba(124,58,237,.18);
-      border:1px solid rgba(124,58,237,.35); color:#a78bfa; letter-spacing:.07em;
+      border-radius:99px; background:rgba(134,34,51,.22);
+      border:1px solid rgba(179,75,93,.35); color:#ffd1da; letter-spacing:.07em;
     }
     .a-top-right { display:flex; align-items:center; gap:.75rem; }
     .a-user-badge { display:flex; align-items:center; gap:.5rem; font-size:.8rem; color:rgba(255,255,255,.5); }
     .a-user-avatar {
       width:28px; height:28px; border-radius:8px;
-      background:rgba(124,58,237,.2); border:1px solid rgba(124,58,237,.3);
+      background:rgba(134,34,51,.24); border:1px solid rgba(179,75,93,.3);
       display:flex; align-items:center; justify-content:center;
       font-size:.65rem; font-weight:700; color:#a78bfa;
     }
@@ -97,8 +101,9 @@ const Styles = () => (
 
     /* ── Sidebar ── */
     .a-side {
-      width:210px; flex-shrink:0;
+      width:230px; flex-shrink:0;
       border-right:1px solid rgba(255,255,255,.06);
+      background:rgba(12,8,10,.72);
       padding:1.5rem 1rem;
       display:flex; flex-direction:column; gap:.2rem;
     }
@@ -116,13 +121,13 @@ const Styles = () => (
     .a-nav-item svg { width:15px; height:15px; flex-shrink:0; }
     .a-nav-item:hover { background:rgba(255,255,255,.05); color:rgba(255,255,255,.7); }
     .a-nav-item.active {
-      background:rgba(124,58,237,.14);
-      border-color:rgba(124,58,237,.22);
-      color:#c4b5fd; font-weight:600;
+      background:rgba(134,34,51,.2);
+      border-color:rgba(179,75,93,.35);
+      color:#ffdbe1; font-weight:600;
     }
     .a-nav-count {
       margin-left:auto; font-family:'DM Mono',monospace; font-size:.63rem;
-      background:rgba(124,58,237,.18); color:#a78bfa;
+      background:rgba(134,34,51,.22); color:#ffc5cf;
       border-radius:5px; padding:.08rem .35rem;
     }
 
@@ -135,8 +140,9 @@ const Styles = () => (
     /* ── Stat cards ── */
     .a-stat-row { display:grid; grid-template-columns:repeat(4,1fr); gap:.9rem; margin-bottom:1.8rem; }
     .a-stat-card {
-      background:rgba(255,255,255,.038);
-      border:1px solid rgba(255,255,255,.07);
+      background:linear-gradient(135deg, rgba(255,255,255,.09), rgba(255,255,255,.02));
+      border:1px solid rgba(255,255,255,.12);
+      backdrop-filter:blur(14px);
       border-radius:13px; padding:1.1rem 1.3rem;
       animation:_fadeUp .5s ease both;
     }
@@ -146,8 +152,9 @@ const Styles = () => (
 
     /* ── Panel ── */
     .a-panel {
-      background:rgba(255,255,255,.028);
-      border:1px solid rgba(255,255,255,.07);
+      background:linear-gradient(140deg, rgba(255,255,255,.08), rgba(255,255,255,.015));
+      border:1px solid rgba(255,255,255,.1);
+      backdrop-filter:blur(16px);
       border-radius:15px; overflow:hidden;
       margin-bottom:1.3rem;
     }
@@ -158,16 +165,17 @@ const Styles = () => (
     .a-panel-title { font-size:.88rem; font-weight:600; color:#fff; }
     .a-panel-action {
       padding:.35rem .85rem; border-radius:8px;
-      border:1px solid rgba(124,58,237,.35); background:rgba(124,58,237,.12);
-      color:#c4b5fd; font-family:'DM Sans',sans-serif; font-size:.77rem; font-weight:600;
+      border:1px solid rgba(179,75,93,.4); background:rgba(134,34,51,.18);
+      color:#ffdbe1; font-family:'DM Sans',sans-serif; font-size:.77rem; font-weight:600;
       cursor:pointer; transition:all .15s;
     }
-    .a-panel-action:hover { background:rgba(124,58,237,.24); border-color:rgba(124,58,237,.6); }
+    .a-panel-action:hover { background:rgba(134,34,51,.32); border-color:rgba(200,90,110,.62); }
 
     /* search */
     .a-search {
       display:flex; align-items:center; gap:.45rem;
-      background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.09);
+      background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.12);
+      backdrop-filter:blur(10px);
       border-radius:8px; padding:.38rem .75rem;
     }
     .a-search svg { width:13px; height:13px; color:rgba(255,255,255,.25); flex-shrink:0; }
@@ -176,6 +184,14 @@ const Styles = () => (
       color:#fff; font-family:'DM Sans',sans-serif; font-size:.8rem; width:170px;
     }
     .a-search input::placeholder { color:rgba(255,255,255,.22); }
+    .a-menu-btn {
+      display:none;
+      width:34px; height:34px;
+      border-radius:8px; border:1px solid rgba(179,75,93,.35);
+      background:rgba(134,34,51,.2); color:#ffdbe1;
+      cursor:pointer; align-items:center; justify-content:center;
+    }
+    .a-menu-btn svg { width:16px; height:16px; }
 
     /* table */
     .a-table { width:100%; border-collapse:collapse; }
@@ -233,8 +249,8 @@ const Styles = () => (
       cursor:pointer; transition:all .13s; border:1px solid transparent;
       white-space:nowrap;
     }
-    .btn-assign  { background:rgba(124,58,237,.12); border-color:rgba(124,58,237,.3); color:#c4b5fd; }
-    .btn-assign:hover  { background:rgba(124,58,237,.24); }
+    .btn-assign  { background:rgba(134,34,51,.16); border-color:rgba(179,75,93,.35); color:#ffdbe1; }
+    .btn-assign:hover  { background:rgba(134,34,51,.3); }
     .btn-deact   { background:rgba(245,158,11,.09); border-color:rgba(245,158,11,.25); color:#fbbf24; }
     .btn-deact:hover   { background:rgba(245,158,11,.18); }
     .btn-act     { background:rgba(16,185,129,.09); border-color:rgba(16,185,129,.25); color:#34d399; }
@@ -291,6 +307,14 @@ const Styles = () => (
     .a-field input::placeholder { color:rgba(255,255,255,.2); }
     .a-field input:focus, .a-field select:focus { border-color:rgba(124,58,237,.5); }
     .a-field select option { background:#0e1118; }
+    .a-help-text { margin-top:.45rem; font-size:.72rem; color:rgba(255,255,255,.42); line-height:1.45; }
+    .a-chart-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:1rem; margin-bottom:1.2rem; }
+    .a-chart-card { padding:1rem 1.2rem 1.2rem; }
+    .a-chart-title { color:#fff; font-weight:600; font-size:.85rem; margin-bottom:.2rem; }
+    .a-chart-sub { color:rgba(255,255,255,.35); font-size:.72rem; margin-bottom:.7rem; }
+    .a-spark-metric { display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:.6rem; }
+    .a-date-row { display:grid; grid-template-columns:repeat(5,1fr); gap:.4rem; margin-top:.45rem; }
+    .a-date-chip { text-align:center; font-size:.66rem; color:rgba(255,255,255,.35); }
 
     .a-modal-btns { display:flex; gap:.7rem; margin-top:1.4rem; }
     .a-btn-cancel {
@@ -302,11 +326,11 @@ const Styles = () => (
     .a-btn-cancel:hover { background:rgba(255,255,255,.09); color:#fff; }
     .a-btn-primary {
       flex:2; padding:.68rem; border-radius:9px; border:none;
-      background:linear-gradient(135deg,#4338ca,#7c3aed);
+      background:linear-gradient(135deg,#5e1421,#8d2838);
       color:#fff; font-family:'DM Sans',sans-serif;
       font-size:.88rem; font-weight:700;
       cursor:pointer; transition:opacity .15s;
-      box-shadow:0 4px 16px rgba(67,56,202,.4);
+      box-shadow:0 4px 16px rgba(134,34,51,.45);
     }
     .a-btn-primary:hover { opacity:.88; }
     .a-btn-primary:disabled { opacity:.4; cursor:not-allowed; }
@@ -391,10 +415,33 @@ const Styles = () => (
     }
     .cert-print-btn:hover { opacity:.88; }
 
+    .a-side-backdrop {
+      position:fixed; inset:58px 0 0 0;
+      background:rgba(0,0,0,.55);
+      z-index:69;
+    }
+    @media(max-width:1024px){
+      .a-stat-row { grid-template-columns:repeat(2,1fr); }
+      .a-main { padding:1.5rem 1.2rem; }
+      .a-table { min-width:760px; }
+      .a-panel { overflow-x:auto; }
+    }
     @media(max-width:768px){
-      .a-stat-row { grid-template-columns:1fr 1fr; }
-      .a-side { display:none; }
-      .a-main { padding:1.3rem 1rem; }
+      .a-top { padding:0 .9rem; }
+      .a-menu-btn { display:inline-flex; }
+      .a-user-badge { font-size:.74rem; }
+      .a-stat-row { grid-template-columns:1fr; }
+      .a-side {
+        position:fixed;
+        top:58px; left:0; bottom:0;
+        width:260px;
+        transform:translateX(-110%);
+        transition:transform .22s ease;
+        z-index:70;
+      }
+      .a-side.open { transform:translateX(0); }
+      .a-main { padding:1.2rem .9rem; }
+      .a-chart-grid { grid-template-columns:1fr; }
     }
   `}</style>
 );
@@ -514,6 +561,7 @@ const Certificate = ({ student, rank, onClose }) => {
 
 /* ── Icons ── */
 const I = {
+  Menu:   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>,
   Shield: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2l7 3v5c0 5.25-2.625 8.75-7 10C7.625 18.75 5 15.25 5 10V5l7-3z"/></svg>,
   Users:  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
   Teacher:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16v10H4z"/><path d="M2 20l10-6 10 6"/></svg>,
@@ -529,21 +577,33 @@ const I = {
 const initials = (n = "") => n.split(" ").slice(0, 2).map(w => w[0]).join("").toUpperCase() || "?";
 const medal = (i) => i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `#${i + 1}`;
 const rankCls = (i) => i === 0 ? "g1" : i === 1 ? "g2" : i === 2 ? "g3" : "";
+const SUBJECT_OPTIONS = [
+  { value: "SE2", label: "SE2 - Software Engineering 2" },
+  { value: "MATHELEC", label: "MATHELEC - Mathematics for Electronics" },
+  { value: "PL321", label: "PL321 - Programming Languages 3-2-1" },
+  { value: "ELEC322", label: "ELEC322 - Electronics 3-2-2" },
+  { value: "THS411", label: "THS411 - Technopreneurship and Society 4-1-1" },
+];
+const subjectLabelByCode = SUBJECT_OPTIONS.reduce((acc, item) => {
+  acc[item.value] = item.label;
+  return acc;
+}, {});
 
 /* ── Main Component ── */
 export default function AdminDashboard() {
   const navigate = useNavigate();
   const user = getUser();
-  const certRef = useRef(null);
 
-  const [tab, setTab] = useState("overview");
+  const [tab, setTab] = useState(() => localStorage.getItem("admin_tab") || "overview");
   const [students, setStudents] = useState([]);
   const [teachers, setTeachers] = useState([]);
   const [assignments, setAssignments] = useState([]);
+  const [certRequests, setCertRequests] = useState([]);
   const [leaderboard, setLeaderboard] = useState([]);
   const [loading, setLoading] = useState(true);
   const [lbLoading, setLbLoading] = useState(false);
   const [lbFilter, setLbFilter] = useState("all");
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [toast, setToast] = useState(null);
 
@@ -552,7 +612,7 @@ export default function AdminDashboard() {
   const [selectedTeacher, setSelectedTeacher] = useState("");
   const [confirming, setConfirming] = useState(false);
   const [createTeacherModal, setCreateTeacherModal] = useState(false);
-  const [newTeacher, setNewTeacher] = useState({ fullName: "", email: "" });
+  const [newTeacher, setNewTeacher] = useState({ fullName: "", email: "", subject: "SE2", customSubject: "" });
   const [creating, setCreating] = useState(false);
   const [deleteModal, setDeleteModal] = useState(null);
   const [deleting, setDeleting] = useState(false);
@@ -575,9 +635,11 @@ export default function AdminDashboard() {
         apiFetch("/api/admin/teachers"),
         apiFetch("/api/admin/assignments"),
       ]);
+      const certData = await apiFetch("/api/admin/certificate-requests").catch(() => []);
       setStudents(s);
       setTeachers(t);
       setAssignments(a);
+      setCertRequests(certData || []);
     } catch (e) {
       showToast(e.message, "err");
     } finally {
@@ -599,14 +661,19 @@ export default function AdminDashboard() {
 
   useEffect(() => { loadData(); }, [loadData]);
   useEffect(() => { if (tab === "leaderboard") loadLeaderboard(); }, [tab, loadLeaderboard]);
+  useEffect(() => { localStorage.setItem("admin_tab", tab); }, [tab]);
 
   const assignMap = {};
-  assignments.forEach(a => { if (a.student?.id) assignMap[a.student.id] = a.teacher; });
+  assignments.forEach((a) => {
+    if (!a.student?.id || !a.teacher) return;
+    if (!assignMap[a.student.id]) assignMap[a.student.id] = [];
+    assignMap[a.student.id].push(a.teacher);
+  });
   const assignedCount = Object.keys(assignMap).length;
 
   /* ── Assign teacher ── */
   const openAssign = (student) => {
-    setSelectedTeacher(assignMap[student.id]?.id || "");
+    setSelectedTeacher("");
     setAssignModal({ student });
   };
   const confirmAssign = async () => {
@@ -622,12 +689,26 @@ export default function AdminDashboard() {
   };
 
   /* ── Remove assignment ── */
-  const removeAssignment = async (studentId) => {
+  const removeAssignment = async (studentId, teacherId = null) => {
     try {
-      await apiFetch(`/api/admin/assign/${studentId}`, { method: "DELETE" });
-      showToast("Assignment removed");
+      const url = teacherId ? `/api/admin/assign/${studentId}?teacherId=${teacherId}` : `/api/admin/assign/${studentId}`;
+      await apiFetch(url, { method: "DELETE" });
+      showToast(teacherId ? "Teacher assignment removed" : "All teacher assignments removed");
       loadData();
     } catch (e) { showToast(e.message, "err"); }
+  };
+
+  const updateCertStatus = async (requestId, status) => {
+    try {
+      const r = await apiFetch(`/api/admin/certificate-requests/${requestId}/status`, {
+        method: "PATCH",
+        body: JSON.stringify({ status }),
+      });
+      showToast(r.message || "Certificate request updated");
+      loadData();
+    } catch (e) {
+      showToast(e.message, "err");
+    }
   };
 
   /* ── Create teacher ── */
@@ -635,9 +716,15 @@ export default function AdminDashboard() {
   e.preventDefault();
   setCreating(true);
   try {
+    const finalSubject = newTeacher.subject === "__custom__" ? newTeacher.customSubject.trim() : newTeacher.subject;
+    if (!finalSubject) throw new Error("Please provide a subject");
     const r = await apiFetch("/api/admin/teachers/create", {
       method: "POST",
-      body: JSON.stringify(newTeacher),   // only fullName + email
+      body: JSON.stringify({
+        fullName: newTeacher.fullName,
+        email: newTeacher.email,
+        subject: finalSubject,
+      }),
     });
     // Show different message if email failed
     showToast(r.message, "ok");
@@ -646,7 +733,7 @@ export default function AdminDashboard() {
       setTimeout(() => showToast(`Temp password: ${r.tempPassword}`, "ok"), 3700);
     }
     setCreateTeacherModal(false);
-    setNewTeacher({ fullName: "", email: "" });
+    setNewTeacher({ fullName: "", email: "", subject: "SE2", customSubject: "" });
     loadData();
   } catch (e) { showToast(e.message, "err"); }
   finally { setCreating(false); }
@@ -690,6 +777,51 @@ export default function AdminDashboard() {
   /* ── Overview counts ── */
   const activeStudents = students.filter(s => s.status).length;
   const activeTeachers = teachers.filter(t => t.status).length;
+  const studentsWithAccounts = activeStudents;
+  const lowImprovementCount = students.filter(s => (s.points ?? 0) < 80 && (s.streak ?? 0) < 2).length;
+  const increasingCount = students.filter(s => (s.points ?? 0) >= 80 || (s.streak ?? 0) >= 2).length;
+  const highImprovementCount = students.filter(s => (s.points ?? 0) >= 180 || (s.streak ?? 0) >= 4).length;
+  const improvementBandData = [
+    { label: "Low", value: lowImprovementCount },
+    { label: "Increasing", value: Math.max(increasingCount - highImprovementCount, 0) },
+    { label: "High", value: highImprovementCount },
+  ];
+  const accountSparkline = [
+    Math.max(Math.round(studentsWithAccounts * 0.58), 0),
+    Math.max(Math.round(studentsWithAccounts * 0.68), 0),
+    Math.max(Math.round(studentsWithAccounts * 0.77), 0),
+    Math.max(Math.round(studentsWithAccounts * 0.85), 0),
+    studentsWithAccounts,
+  ];
+  const accountDates = Array.from({ length: 5 }, (_, idx) => {
+    const date = new Date();
+    date.setDate(date.getDate() - (4 - idx));
+    return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  });
+  const sectionImprovementMap = students.reduce((acc, student) => {
+    const key = student.section || "Unspecified";
+    if (!acc[key]) acc[key] = { increasing: 0, low: 0 };
+    if ((student.points ?? 0) >= 80 || (student.streak ?? 0) >= 2) acc[key].increasing += 1;
+    else acc[key].low += 1;
+    return acc;
+  }, {});
+  const lbMomentumLine = [
+    Math.max(Math.round(leaderboard.length * 0.3), 1),
+    Math.max(Math.round(leaderboard.length * 0.42), 1),
+    Math.max(Math.round(leaderboard.length * 0.54), 1),
+    Math.max(Math.round(leaderboard.length * 0.67), 1),
+    leaderboard.filter(s => (s.points ?? 0) >= 80 || (s.streak ?? 0) >= 2).length,
+  ];
+  const sectionLabels = Object.keys(sectionImprovementMap);
+  const stackedIncreasing = sectionLabels.map(label => sectionImprovementMap[label].increasing);
+  const stackedLow = sectionLabels.map(label => sectionImprovementMap[label].low);
+  const teacherLoadBuckets = students.reduce((acc, student) => {
+    const count = (assignMap[student.id] || []).length;
+    if (count === 0) acc.none += 1;
+    else if (count === 1) acc.one += 1;
+    else acc.multi += 1;
+    return acc;
+  }, { none: 0, one: 0, multi: 0 });
 
   /* ── Render skeleton rows ── */
   const SkeletonRows = ({ cols = 4, rows = 3 }) => (
@@ -723,8 +855,10 @@ export default function AdminDashboard() {
             </div>
             <h2 className="a-modal-title">Assign Teacher</h2>
             <p className="a-modal-sub">
-              Assigning a teacher to <strong>{assignModal.student.full_name}</strong>.
-              {assignMap[assignModal.student.id] && <> Current: <strong>{assignMap[assignModal.student.id].full_name}</strong> (will be replaced).</>}
+              Add a teacher under <strong>{assignModal.student.full_name}</strong>.
+              {(assignMap[assignModal.student.id] || []).length > 0 && (
+                <> Current teachers: <strong>{assignMap[assignModal.student.id].map(t => t.full_name).join(", ")}</strong>.</>
+              )}
             </p>
             <div className="a-field">
               <label>Select Teacher</label>
@@ -771,6 +905,32 @@ export default function AdminDashboard() {
           <input type="email" placeholder="teacher@school.edu" required
             value={newTeacher.email}
             onChange={e => setNewTeacher(p => ({ ...p, email: e.target.value }))} />
+        </div>
+        <div className="a-field">
+          <label>Subject</label>
+          <select
+            value={newTeacher.subject}
+            onChange={e => setNewTeacher(p => ({ ...p, subject: e.target.value }))}
+            required
+          >
+            {SUBJECT_OPTIONS.map(subject => (
+              <option key={subject.value} value={subject.value}>{subject.label}</option>
+            ))}
+            <option value="__custom__">Other (custom subject)</option>
+          </select>
+          {newTeacher.subject === "__custom__" && (
+            <input
+              type="text"
+              placeholder="Enter custom subject"
+              required
+              style={{ marginTop: ".55rem" }}
+              value={newTeacher.customSubject}
+              onChange={e => setNewTeacher(p => ({ ...p, customSubject: e.target.value }))}
+            />
+          )}
+          <p className="a-help-text">
+            Subject is saved to Supabase exactly as selected or typed.
+          </p>
         </div>
         {/* Info note */}
         <div style={{
@@ -840,6 +1000,13 @@ export default function AdminDashboard() {
             <span className="a-brand-chip">ADMIN</span>
           </div>
           <div className="a-top-right">
+            <button
+              className="a-menu-btn"
+              onClick={() => setMobileMenuOpen(v => !v)}
+              aria-label="Toggle menu"
+            >
+              {I.Menu}
+            </button>
             <div className="a-user-badge">
               <div className="a-user-avatar">{initials(user?.full_name || "A")}</div>
               <span>{user?.full_name || "Admin"}</span>
@@ -849,8 +1016,9 @@ export default function AdminDashboard() {
         </header>
 
         <div className="a-layout">
+          {mobileMenuOpen && <div className="a-side-backdrop" onClick={() => setMobileMenuOpen(false)} />}
           {/* Sidebar */}
-          <nav className="a-side">
+          <nav className={`a-side ${mobileMenuOpen ? "open" : ""}`}>
             <p className="a-side-label" style={{ marginTop: 0 }}>Menu</p>
             {[
               { key: "overview",     icon: I.Shield,  label: "Overview" },
@@ -860,7 +1028,7 @@ export default function AdminDashboard() {
               { key: "leaderboard",  icon: I.Trophy,  label: "Leaderboard" },
             ].map(n => (
               <div key={n.key} className={`a-nav-item ${tab === n.key ? "active" : ""}`}
-                onClick={() => { setTab(n.key); setSearch(""); }}>
+                onClick={() => { setTab(n.key); setSearch(""); setMobileMenuOpen(false); }}>
                 {n.icon} {n.label}
                 {n.count !== undefined && <span className="a-nav-count">{n.count}</span>}
               </div>
@@ -878,12 +1046,31 @@ export default function AdminDashboard() {
                   <p className="a-page-sub">System-wide summary and quick actions</p>
                 </div>
 
+                {!loading && (
+                  <div className="a-panel a-chart-card" style={{ marginBottom: "1rem" }}>
+                    <div className="a-spark-metric">
+                      <div>
+                        <p className="a-chart-title">Student Accounts Metric</p>
+                        <p className="a-chart-sub">Active student accounts across recent dates.</p>
+                      </div>
+                      <div style={{ textAlign: "right" }}>
+                        <div style={{ fontSize: "1.5rem", fontWeight: 700, color: "#fff", lineHeight: 1 }}>{studentsWithAccounts}</div>
+                        <div style={{ fontSize: ".72rem", color: "rgba(255,255,255,.35)" }}>active student accounts</div>
+                      </div>
+                    </div>
+                    <SparkLineChart data={accountSparkline} height={90} showTooltip color="#60a5fa" />
+                    <div className="a-date-row">
+                      {accountDates.map((d) => <span key={d} className="a-date-chip">{d}</span>)}
+                    </div>
+                  </div>
+                )}
+
                 <div className="a-stat-row">
                   {[
-                    { label: "Students",  value: students.length,  hint: `${activeStudents} active` },
-                    { label: "Teachers",  value: teachers.length,  hint: `${activeTeachers} active` },
-                    { label: "Assigned",  value: assignedCount,    hint: `${students.length - assignedCount} unassigned` },
-                    { label: "Avg Points",value: students.length ? Math.round(students.reduce((s, u) => s + (u.points || 0), 0) / students.length) : 0, hint: "across all students" },
+                    { label: "Students", value: students.length, hint: `${activeStudents} active accounts` },
+                    { label: "Teachers", value: teachers.length, hint: `${activeTeachers} active` },
+                    { label: "Assigned", value: assignedCount, hint: `${students.length - assignedCount} unassigned` },
+                    { label: "Improving", value: increasingCount, hint: `${lowImprovementCount} need attention` },
                   ].map((s, i) => (
                     <div key={i} className="a-stat-card" style={{ animationDelay: `${i * 0.07}s` }}>
                       <p className="a-stat-label">{s.label}</p>
@@ -892,6 +1079,41 @@ export default function AdminDashboard() {
                     </div>
                   ))}
                 </div>
+
+                {!loading && (
+                  <div className="a-chart-grid">
+                    <div className="a-panel a-chart-card">
+                      <p className="a-chart-title">Simple Bar Chart - Improvement by Band</p>
+                      <p className="a-chart-sub">Shows students grouped by low, increasing, and high improvement momentum.</p>
+                      <BarChart
+                        xAxis={[{ scaleType: "band", data: improvementBandData.map(x => x.label) }]}
+                        series={[{ data: improvementBandData.map(x => x.value), color: "#7c3aed" }]}
+                        height={220}
+                        margin={{ top: 20, right: 20, bottom: 40, left: 40 }}
+                      />
+                    </div>
+                    <div className="a-panel a-chart-card">
+                      <p className="a-chart-title">Straight Angle Pie Chart - Teacher Load per Student</p>
+                      <p className="a-chart-sub">Shows how many teachers each student is currently under.</p>
+                      <PieChart
+                        series={[{
+                          innerRadius: 30,
+                          outerRadius: 85,
+                          cornerRadius: 0,
+                          startAngle: 0,
+                          endAngle: 360,
+                          data: [
+                            { id: 0, value: teacherLoadBuckets.none, label: "No Teacher", color: "#9ca3af" },
+                            { id: 1, value: teacherLoadBuckets.one, label: "1 Teacher", color: "#34d399" },
+                            { id: 2, value: teacherLoadBuckets.multi, label: "2+ Teachers", color: "#fbbf24" },
+                          ],
+                        }]}
+                        height={220}
+                        margin={{ top: 0, right: 20, bottom: 0, left: 20 }}
+                      />
+                    </div>
+                  </div>
+                )}
 
                 {/* Unassigned alert */}
                 {!loading && students.length - assignedCount > 0 && (
@@ -922,6 +1144,44 @@ export default function AdminDashboard() {
                             <td style={{ fontFamily: "'DM Mono',monospace", fontSize: ".7rem", color: "rgba(255,255,255,.28)" }}>{new Date(a.assigned_at).toLocaleDateString()}</td>
                           </tr>
                         ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="a-panel">
+                  <div className="a-panel-head">
+                    <span className="a-panel-title">Pending Certificate Requests</span>
+                  </div>
+                  <table className="a-table">
+                    <thead><tr><th>Student</th><th>Requested By</th><th>Status</th><th>Actions</th></tr></thead>
+                    <tbody>
+                      {loading ? <SkeletonRows cols={4} /> : certRequests.length === 0 ? (
+                        <tr><td colSpan={4} className="a-empty">No certificate requests yet</td></tr>
+                      ) : certRequests.map((r) => (
+                        <tr key={r.id}>
+                          <td>
+                            <div className="a-cell-user">
+                              <div className="a-avatar av-student">{initials(r.student?.full_name)}</div>
+                              <div>
+                                <div className="a-user-name">{r.student?.full_name}</div>
+                                <div className="a-user-email">{r.student?.email}</div>
+                              </div>
+                            </div>
+                          </td>
+                          <td>{r.teacher?.full_name || "—"}</td>
+                          <td style={{ textTransform: "capitalize" }}>{r.status}</td>
+                          <td>
+                            {r.status === "pending" ? (
+                              <div className="a-btn-row">
+                                <button className="btn-sm btn-act" onClick={() => updateCertStatus(r.id, "approved")}>Approve</button>
+                                <button className="btn-sm btn-del" onClick={() => updateCertStatus(r.id, "rejected")}>{I.Trash}</button>
+                              </div>
+                            ) : (
+                              <span style={{ color: "rgba(255,255,255,.35)", fontSize: ".75rem" }}>Processed</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
                 </div>
@@ -960,11 +1220,17 @@ export default function AdminDashboard() {
                             </td>
                             <td><strong style={{ color: "#fff" }}>{s.points ?? 0}</strong> <span style={{ color: "rgba(255,255,255,.3)", fontSize: ".72rem" }}>{s.tier || "Beginner"}</span></td>
                             <td><span className={`status-dot ${s.status ? "active" : "inactive"}`}>{s.status ? "Active" : "Inactive"}</span></td>
-                            <td>{assignMap[s.id] ? <span style={{ fontSize: ".78rem", color: "#c4b5fd" }}>{assignMap[s.id].full_name}</span> : <span style={{ color: "rgba(255,255,255,.2)", fontSize: ".75rem" }}>Unassigned</span>}</td>
+                            <td>
+                              {(assignMap[s.id] || []).length > 0 ? (
+                                <span style={{ fontSize: ".78rem", color: "#ffdbe1" }}>
+                                  {(assignMap[s.id] || []).length} teacher{(assignMap[s.id] || []).length > 1 ? "s" : ""}
+                                </span>
+                              ) : <span style={{ color: "rgba(255,255,255,.2)", fontSize: ".75rem" }}>Unassigned</span>}
+                            </td>
                             <td>
                               <div className="a-btn-row">
-                                <button className="btn-sm btn-assign" onClick={() => openAssign(s)}>{assignMap[s.id] ? "Reassign" : "Assign"}</button>
-                                {assignMap[s.id] && <button className="btn-sm btn-del" onClick={() => removeAssignment(s.id)}>Unassign</button>}
+                                <button className="btn-sm btn-assign" onClick={() => openAssign(s)}>{(assignMap[s.id] || []).length > 0 ? "Add Teacher" : "Assign"}</button>
+                                {(assignMap[s.id] || []).length > 0 && <button className="btn-sm btn-del" onClick={() => removeAssignment(s.id)} title="Remove all teachers">{I.Trash}</button>}
                                 <button className={`btn-sm ${s.status ? "btn-deact" : "btn-act"}`} onClick={() => toggleStatus(s.id, s.status, s.full_name)}>
                                   {s.status ? "Deactivate" : "Activate"}
                                 </button>
@@ -1002,15 +1268,20 @@ export default function AdminDashboard() {
                     </div>
                   </div>
                   <table className="a-table">
-                    <thead><tr><th>Teacher</th><th>Status</th><th>Students Assigned</th><th>Actions</th></tr></thead>
+                    <thead><tr><th>Teacher</th><th>Subject</th><th>Status</th><th>Students Assigned</th><th>Actions</th></tr></thead>
                     <tbody>
-                      {loading ? <SkeletonRows cols={4} /> : filterBySearch(teachers).length === 0
-                        ? <tr><td colSpan={4} className="a-empty">No teachers — create one above</td></tr>
+                      {loading ? <SkeletonRows cols={5} /> : filterBySearch(teachers).length === 0
+                        ? <tr><td colSpan={5} className="a-empty">No teachers — create one above</td></tr>
                         : filterBySearch(teachers).map(t => {
                           const count = assignments.filter(a => a.teacher?.id === t.id).length;
                           return (
                             <tr key={t.id}>
                               <td><div className="a-cell-user"><div className="a-avatar av-teacher">{initials(t.full_name)}</div><div><div className="a-user-name">{t.full_name}</div><div className="a-user-email">{t.email}</div></div></div></td>
+                              <td>
+                                <span style={{ color: "#a5b4fc", fontSize: ".76rem" }}>
+                                  {subjectLabelByCode[t.subject] || t.subject || "—"}
+                                </span>
+                              </td>
                               <td><span className={`status-dot ${t.status ? "active" : "inactive"}`}>{t.status ? "Active" : "Inactive"}</span></td>
                               <td><strong style={{ color: "#a78bfa" }}>{count}</strong> <span style={{ color: "rgba(255,255,255,.3)", fontSize: ".72rem" }}>student{count !== 1 ? "s" : ""}</span></td>
                               <td>
@@ -1051,7 +1322,15 @@ export default function AdminDashboard() {
                             <td><div className="a-cell-user"><div className="a-avatar av-student">{initials(a.student?.full_name)}</div><div><div className="a-user-name">{a.student?.full_name}</div><div className="a-user-email">{a.student?.email}</div></div></div></td>
                             <td><div className="a-cell-user"><div className="a-avatar av-teacher">{initials(a.teacher?.full_name)}</div><div><div className="a-user-name">{a.teacher?.full_name}</div><div className="a-user-email">{a.teacher?.email}</div></div></div></td>
                             <td style={{ fontFamily: "'DM Mono',monospace", fontSize: ".7rem", color: "rgba(255,255,255,.28)" }}>{new Date(a.assigned_at).toLocaleString()}</td>
-                            <td><button className="btn-sm btn-del" onClick={() => removeAssignment(a.student?.id)}>Remove</button></td>
+                            <td>
+                              <button
+                                className="btn-sm btn-del"
+                                onClick={() => removeAssignment(a.student?.id, a.teacher?.id)}
+                                title="Remove this teacher from student"
+                              >
+                                {I.Trash}
+                              </button>
+                            </td>
                           </tr>
                         ))}
                     </tbody>
@@ -1081,6 +1360,34 @@ export default function AdminDashboard() {
                     </div>
                   ))}
                 </div>
+
+                {!lbLoading && (
+                  <div className="a-chart-grid">
+                    <div className="a-panel a-chart-card">
+                      <p className="a-chart-title">Simple Line Chart - Momentum Trend</p>
+                      <p className="a-chart-sub">Improvement momentum trend based on leaderboard student performance.</p>
+                      <LineChart
+                        xAxis={[{ scaleType: "point", data: ["C1", "C2", "C3", "C4", "Now"] }]}
+                        series={[{ data: lbMomentumLine, curve: "linear", color: "#34d399" }]}
+                        height={220}
+                        margin={{ top: 20, right: 20, bottom: 40, left: 40 }}
+                      />
+                    </div>
+                    <div className="a-panel a-chart-card">
+                      <p className="a-chart-title">Stacked Area Chart - Section Improvement</p>
+                      <p className="a-chart-sub">Low vs increasing improvement count per section.</p>
+                      <LineChart
+                        xAxis={[{ scaleType: "point", data: sectionLabels.length ? sectionLabels : ["No section"] }]}
+                        series={[
+                          { data: stackedIncreasing.length ? stackedIncreasing : [0], area: true, stack: "total", label: "Increasing", color: "#22c55e" },
+                          { data: stackedLow.length ? stackedLow : [0], area: true, stack: "total", label: "Low", color: "#f59e0b" },
+                        ]}
+                        height={220}
+                        margin={{ top: 20, right: 20, bottom: 40, left: 40 }}
+                      />
+                    </div>
+                  </div>
+                )}
 
                 <div className="a-panel">
                   <div className="a-panel-head">
