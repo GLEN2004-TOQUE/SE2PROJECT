@@ -6,6 +6,13 @@ const {
   removeAssignment, getMyStudents, getMyTeacher,
   createTeacher, toggleUserStatus, deleteUser,
   getAdminLeaderboard, changePassword,
+  assignSubjectToMyStudent,
+  resetMyStudentsPoints,
+  resetSingleMyStudentPoints,
+  getMyCertificateRequests,
+  createCertificateRequest,
+  getAllCertificateRequests,
+  updateCertificateRequestStatus,
 } = require("../controllers/adminController");
 const { verifyToken, authorizeRole } = require("../middleware/authMiddleware");
 const { supabaseAdmin } = require("../supabaseClient");
