@@ -1,6 +1,8 @@
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import MainPage from "./pages/MainPage";
 import Register from "./pages/Register";
 import Login from "./pages/Login";
+
 import TeacherDashboard from "./pages/TeacherDashboard";
 import StudentDashboard from "./pages/StudentDashboard";
 import AdminDashboard from "./pages/AdminDashboard";
@@ -15,9 +17,11 @@ function App() {
       <Routes>
         {/* Public */}
         <Route path="/register" element={<Register />} />
-        <Route path="/" element={<Login />} />
+        <Route path="/" element={<MainPage />} />
+        <Route path="/login" element={<Login />} />
 
         {/* Admin */}
+
         <Route
           path="/admin"
           element={

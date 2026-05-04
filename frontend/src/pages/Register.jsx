@@ -664,7 +664,7 @@ export default function Register() {
 
                 <div className="divider"><span>Have an account?</span></div>
                 <p className="login-line">
-                  Already registered? <Link to="/">Sign in here</Link>
+                Already registered? <Link to="/login">Sign in here</Link>
                 </p>
               </>
             )}
