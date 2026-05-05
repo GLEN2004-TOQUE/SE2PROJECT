@@ -1,10 +1,9 @@
 require('dotenv').config();
-const Brevo = require('@getbrevo/brevo');
+const { BrevoClient } = require('@getbrevo/brevo');
 
-const client = Brevo.ApiClient.instance;
-client.authentications['api-key'].apiKey = process.env.BREVO_API_KEY;
-
-const transactionalApi = new Brevo.TransactionalEmailsApi();
+const transactionalApi = new BrevoClient({
+  apiKey: process.env.BREVO_API_KEY || '',
+}).transactionalEmails;
 
 const otpStore = new Map();
 
@@ -19,13 +18,16 @@ const sender = {
 // ─── Helper ───────────────────────────────────────────────────────────────────
 
 const sendEmail = async ({ to, subject, html }) => {
-  const email = new Brevo.SendSmtpEmail();
-  email.sender  = sender;
-  email.to      = [{ email: to }];
-  email.subject = subject;
-  email.htmlContent = html;
+  if (!process.env.BREVO_API_KEY) {
+    throw new Error('BREVO_API_KEY is not set');
+  }
 
-  const result = await transactionalApi.sendTransacEmail(email);
+  const result = await transactionalApi.sendTransacEmail({
+    sender,
+    to: [{ email: to }],
+    subject,
+    htmlContent: html,
+  });
   console.log(`✅ Email sent to ${to} | messageId: ${result?.messageId || 'ok'}`);
   return result;
 };
