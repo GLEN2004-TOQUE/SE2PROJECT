@@ -38,6 +38,11 @@ router.post('/send', async (req, res) => {
     if (err.message.includes('Invalid login') || err.message.includes('535')) {
       return res.status(500).json({ message: 'Email config error. Check EMAIL_USER and EMAIL_PASS in .env' });
     }
+    if (/timeout|timed out|ETIMEDOUT|ECONNRESET/i.test(err.message || '')) {
+      return res.status(503).json({
+        message: 'Email service is busy right now. Please try again in a few seconds.',
+      });
+    }
     res.status(500).json({ message: 'Failed to send OTP: ' + err.message });
   }
 });

@@ -4,7 +4,7 @@ const nodemailer = require('nodemailer');
 // OTP store: { email → { otp, expiresAt } }
 const otpStore = new Map();
 
-// Create transporter fresh per send (avoids connection timeout issues)
+// Create transporter fresh per send, with explicit timeouts for hosted envs.
 const createTransporter = () =>
   nodemailer.createTransport({
     host: 'smtp.gmail.com',
@@ -17,7 +17,35 @@ const createTransporter = () =>
     tls: {
       rejectUnauthorized: false,
     },
+    family: 4,
+    connectionTimeout: 20000,
+    greetingTimeout: 20000,
+    socketTimeout: 30000,
   });
+
+const isTransientEmailError = (err) => {
+  const msg = String(err?.message || '').toLowerCase();
+  return (
+    msg.includes('connection timeout') ||
+    msg.includes('timed out') ||
+    msg.includes('econnreset') ||
+    msg.includes('etimedout') ||
+    msg.includes('ehostunreach')
+  );
+};
+
+const sendMailWithRetry = async (mailOptions) => {
+  const transporter = createTransporter();
+  try {
+    return await transporter.sendMail(mailOptions);
+  } catch (err) {
+    if (!isTransientEmailError(err)) throw err;
+    // Retry once for transient network faults (common on cold starts).
+    return await transporter.sendMail(mailOptions);
+  } finally {
+    transporter.close();
+  }
+};
 
 const generateOTP = () =>
   Math.floor(100000 + Math.random() * 900000).toString();
@@ -42,12 +70,9 @@ exports.generateTempPassword = () => {
 exports.sendTeacherCredentials = async (email, fullName, tempPassword) => {
   console.log(`📧 Sending teacher credentials to: ${email}`);
 
-  const transporter = createTransporter();
-  await transporter.verify();
-
   const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
 
-  await transporter.sendMail({
+  await sendMailWithRetry({
     from: `"QuizSystem Admin" <${process.env.EMAIL_USER}>`,
     to: email,
     subject: '🎓 Your Teacher Account Has Been Created — QuizSystem',
@@ -95,7 +120,6 @@ exports.sendTeacherCredentials = async (email, fullName, tempPassword) => {
     `,
   });
 
-  transporter.close();
   return true;
 };
 
@@ -103,15 +127,12 @@ exports.sendTeacherCredentials = async (email, fullName, tempPassword) => {
 exports.sendPasswordChangedEmail = async (email, fullName) => {
   console.log(`📧 Sending password-changed notification to: ${email}`);
 
-  const transporter = createTransporter();
-  await transporter.verify();
-
   const now = new Date().toLocaleString('en-US', {
     year: 'numeric', month: 'long', day: 'numeric',
     hour: '2-digit', minute: '2-digit', timeZoneName: 'short',
   });
 
-  await transporter.sendMail({
+  await sendMailWithRetry({
     from: `"QuizSystem Security" <${process.env.EMAIL_USER}>`,
     to: email,
     subject: '🔒 Your Password Has Been Changed — QuizSystem',
@@ -188,7 +209,6 @@ exports.sendPasswordChangedEmail = async (email, fullName) => {
     `,
   });
 
-  transporter.close();
   return true;
 };
 
@@ -201,10 +221,7 @@ exports.sendOTP = async (email) => {
 
   console.log(`📧 Sending OTP to: ${email} | OTP: ${otp}`);
 
-  const transporter = createTransporter();
-  await transporter.verify();
-
-  await transporter.sendMail({
+  await sendMailWithRetry({
     from: `"QuizSystem OTP" <${process.env.EMAIL_USER}>`,
     to: email,
     subject: '🔐 Your OTP Verification Code — QuizSystem',
@@ -247,7 +264,6 @@ exports.sendOTP = async (email) => {
     `,
   });
 
-  transporter.close();
   return true;
 };
 

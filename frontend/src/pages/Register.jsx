@@ -4,6 +4,14 @@ import { canAttemptAuth, isStrongPassword, isValidEmail, sanitizeEmail, sanitize
 
 const BASE = process.env.REACT_APP_API_URL || "https://backend-7lik.onrender.com";
 
+const readResponseJson = async (res) => {
+  try {
+    return await res.json();
+  } catch {
+    return {};
+  }
+};
+
 const COURSES = {
   college:    ["BSCS", "BSOA", "BTVTED"],
   seniorhigh: ["HE", "HUMSS", "GAS", "ICT", "ABM"],
@@ -425,8 +433,8 @@ export default function Register() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: cleanEmail }),
       });
-      const data = await res.json();
-      if (!res.ok) { setError(data.message); return; }
+      const data = await readResponseJson(res);
+      if (!res.ok) { setError(data.message || "Failed to send OTP. Please try again."); return; }
       setSuccess("OTP sent! Check your Gmail inbox (and spam folder).");
       setStep(2);
       startCountdown();
@@ -447,8 +455,8 @@ export default function Register() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: sanitizeEmail(email) }),
       });
-      const data = await res.json();
-      if (!res.ok) { setError(data.message); return; }
+      const data = await readResponseJson(res);
+      if (!res.ok) { setError(data.message || "Failed to resend OTP. Please try again."); return; }
       setSuccess("New OTP sent!");
       setOtpDigits(["","","","","",""]);
       startCountdown();
@@ -500,9 +508,9 @@ export default function Register() {
           role: "student", course, section, otp
         }),
       });
-      const data = await res.json();
+      const data = await readResponseJson(res);
       if (!res.ok) {
-        setError(data.message);
+        setError(data.message || "Verification failed. Please try again.");
         setOtpShake(true); setTimeout(() => setOtpShake(false), 500);
         return;
       }
