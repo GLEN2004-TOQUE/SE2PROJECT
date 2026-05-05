@@ -25,6 +25,7 @@
   },
   "homepage": "https://github.com/GLEN2004-TOQUE/SE2PROJECT#readme",
   "dependencies": {
+    "@getbrevo/brevo": "^5.0.4",
     "@google/generative-ai": "^0.24.1",
     "@supabase/supabase-js": "^2.97.0",
     "bcryptjs": "^2.4.3",

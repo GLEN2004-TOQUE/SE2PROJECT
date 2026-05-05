@@ -1,19 +1,43 @@
 require('dotenv').config();
-const { Resend } = require('resend');
+const Brevo = require('@getbrevo/brevo');
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const client = Brevo.ApiClient.instance;
+client.authentications['api-key'].apiKey = process.env.BREVO_API_KEY;
+
+const transactionalApi = new Brevo.TransactionalEmailsApi();
 
 const otpStore = new Map();
 
 const generateOTP = () =>
   Math.floor(100000 + Math.random() * 900000).toString();
 
+const sender = {
+  email: process.env.BREVO_SENDER_EMAIL || 'tchristopherglen@gmail.com',
+  name:  process.env.BREVO_SENDER_NAME  || 'Quizdev',
+};
+
+// ─── Helper ───────────────────────────────────────────────────────────────────
+
+const sendEmail = async ({ to, subject, html }) => {
+  const email = new Brevo.SendSmtpEmail();
+  email.sender  = sender;
+  email.to      = [{ email: to }];
+  email.subject = subject;
+  email.htmlContent = html;
+
+  const result = await transactionalApi.sendTransacEmail(email);
+  console.log(`✅ Email sent to ${to} | messageId: ${result?.messageId || 'ok'}`);
+  return result;
+};
+
+// ─── Generate temp password ───────────────────────────────────────────────────
+
 exports.generateTempPassword = () => {
   const lower   = 'abcdefghijkmnpqrstuvwxyz';
   const upper   = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
   const digits  = '23456789';
   const special = '@#$!';
-  const rand = (str) => str[Math.floor(Math.random() * str.length)];
+  const rand = (s) => s[Math.floor(Math.random() * s.length)];
   let pwd = rand(upper) + rand(digits) + rand(special);
   for (let i = 0; i < 7; i++) pwd += rand(lower + upper + digits);
   return pwd.split('').sort(() => Math.random() - 0.5).join('');
@@ -28,8 +52,7 @@ exports.sendOTP = async (email) => {
 
   console.log(`📧 Sending OTP to: ${email} | OTP: ${otp}`);
 
-  const { error } = await resend.emails.send({
-    from: 'QuizSystem OTP <onboarding@resend.dev>',   // use this until you verify a domain
+  await sendEmail({
     to: email,
     subject: '🔐 Your OTP Verification Code — QuizSystem',
     html: `
@@ -71,24 +94,16 @@ exports.sendOTP = async (email) => {
     `,
   });
 
-  if (error) {
-    console.error('❌ Resend error:', error);
-    throw new Error(error.message || 'Failed to send OTP email');
-  }
-
-  console.log(`✅ OTP sent successfully to ${email}`);
   return true;
 };
 
 // ─── Send teacher credentials ─────────────────────────────────────────────────
 
 exports.sendTeacherCredentials = async (email, fullName, tempPassword) => {
-  console.log(`📧 Sending teacher credentials to: ${email}`);
-
+  console.log(`📧 Sending credentials to: ${email}`);
   const frontendUrl = process.env.FRONTEND_URL || 'https://se2project.onrender.com';
 
-  const { error } = await resend.emails.send({
-    from: 'QuizSystem Admin <onboarding@resend.dev>',
+  await sendEmail({
     to: email,
     subject: '🎓 Your Teacher Account Has Been Created — QuizSystem',
     html: `
@@ -105,7 +120,7 @@ exports.sendTeacherCredentials = async (email, fullName, tempPassword) => {
             <table style="width:100%;border-collapse:collapse;">
               <tr>
                 <td style="padding:10px 0;border-bottom:1px solid #e0e7ff;">
-                  <span style="color:#6b7280;font-size:12px;">Email Address</span>
+                  <span style="color:#6b7280;font-size:12px;">Email</span>
                 </td>
                 <td style="padding:10px 0;border-bottom:1px solid #e0e7ff;text-align:right;">
                   <span style="color:#1e3a8a;font-size:14px;font-weight:600;font-family:monospace;">${email}</span>
@@ -122,7 +137,9 @@ exports.sendTeacherCredentials = async (email, fullName, tempPassword) => {
             </table>
           </div>
           <div style="text-align:center;">
-            <a href="${frontendUrl}" style="display:inline-block;padding:13px 32px;background:linear-gradient(135deg,#1e40af,#1e3a8a);color:#fff;text-decoration:none;border-radius:10px;font-weight:700;font-size:14px;">
+            <a href="${frontendUrl}" style="display:inline-block;padding:13px 32px;
+              background:linear-gradient(135deg,#1e40af,#1e3a8a);color:#fff;
+              text-decoration:none;border-radius:10px;font-weight:700;font-size:14px;">
               Log In to QuizSystem →
             </a>
           </div>
@@ -131,7 +148,6 @@ exports.sendTeacherCredentials = async (email, fullName, tempPassword) => {
     `,
   });
 
-  if (error) throw new Error(error.message || 'Failed to send credentials email');
   return true;
 };
 
@@ -140,24 +156,19 @@ exports.sendTeacherCredentials = async (email, fullName, tempPassword) => {
 exports.verifyOTP = (email, otp) => {
   const key = email.toLowerCase().trim();
   const record = otpStore.get(key);
-
-  if (!record) return { valid: false, message: 'No OTP found for this email. Please request a new one.' };
+  if (!record)              return { valid: false, message: 'No OTP found. Please request a new one.' };
   if (Date.now() > record.expiresAt) {
-    otpStore.delete(key);
-    return { valid: false, message: 'OTP has expired. Please request a new one.' };
+    otpStore.delete(key);   return { valid: false, message: 'OTP has expired. Please request a new one.' };
   }
-  if (record.otp !== String(otp).trim()) {
-    return { valid: false, message: 'Incorrect OTP code. Please try again.' };
-  }
-
+  if (record.otp !== String(otp).trim()) return { valid: false, message: 'Incorrect OTP. Please try again.' };
   otpStore.delete(key);
   return { valid: true };
 };
 
 exports.debugStore = () => {
-  console.log('📦 Current OTP store:');
+  console.log('📦 OTP store:');
   otpStore.forEach((val, key) => {
     const remaining = Math.max(0, Math.round((val.expiresAt - Date.now()) / 1000));
-    console.log(`   ${key} → ${val.otp} (expires in ${remaining}s)`);
+    console.log(`   ${key} → ${val.otp} (${remaining}s left)`);
   });
 };
