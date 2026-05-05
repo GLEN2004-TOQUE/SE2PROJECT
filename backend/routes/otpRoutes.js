@@ -29,21 +29,33 @@ router.post('/send', async (req, res) => {
       return res.status(409).json({ message: 'This email is already registered. Please log in instead.' });
     }
 
+    // Fail fast if env vars are missing
+    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+      console.error('❌ EMAIL_USER or EMAIL_PASS not set in environment');
+      return res.status(500).json({ message: 'Email service not configured. Contact support.' });
+    }
+
     await sendOTP(email);
     debugStore();
 
     res.json({ message: `OTP sent to ${email}. Please check your inbox and spam folder.` });
   } catch (err) {
-    console.error('❌ Send OTP error:', err.message);
+    // Log the FULL error so you can see it in Render logs
+    console.error('❌ Send OTP error:', err.message, err.code || '', err.response || '');
 
-    // Always return JSON — never let Express default to HTML error pages
-    if (err.message.includes('Invalid login') || err.message.includes('535')) {
-      return res.status(500).json({ message: 'Email configuration error. Contact support.' });
+    if (err.message.includes('Invalid login') || err.message.includes('535') || err.message.includes('534')) {
+      return res.status(500).json({
+        message: 'Gmail authentication failed. The server needs an App Password configured.'
+      });
     }
     if (err.message.includes('ECONNREFUSED') || err.message.includes('ETIMEDOUT')) {
-      return res.status(503).json({ message: 'Email service temporarily unavailable. Try again in a moment.' });
+      return res.status(503).json({ message: 'Email service temporarily unavailable. Try again shortly.' });
     }
-    res.status(500).json({ message: 'Failed to send OTP. Please try again.' });
+    if (err.message.includes('self signed') || err.message.includes('certificate')) {
+      return res.status(500).json({ message: 'Email TLS error. Contact support.' });
+    }
+
+    res.status(500).json({ message: err.message || 'Failed to send OTP. Please try again.' });
   }
 });
 
