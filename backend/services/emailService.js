@@ -1,13 +1,14 @@
 require('dotenv').config();
 const nodemailer = require('nodemailer');
+const dns = require('dns').promises;
 
 // OTP store: { email → { otp, expiresAt } }
 const otpStore = new Map();
 
 // Create transporter fresh per send, with explicit timeouts for hosted envs.
-const createTransporter = () =>
+const createTransporter = (host = 'smtp.gmail.com') =>
   nodemailer.createTransport({
-    host: 'smtp.gmail.com',
+    host,
     port: 587,
     secure: false,
     auth: {
@@ -16,6 +17,7 @@ const createTransporter = () =>
     },
     tls: {
       rejectUnauthorized: false,
+      servername: 'smtp.gmail.com',
     },
     family: 4,
     connectionTimeout: 20000,
@@ -30,18 +32,34 @@ const isTransientEmailError = (err) => {
     msg.includes('timed out') ||
     msg.includes('econnreset') ||
     msg.includes('etimedout') ||
-    msg.includes('ehostunreach')
+    msg.includes('ehostunreach') ||
+    msg.includes('enetunreach')
   );
 };
 
+const resolveSmtpIPv4 = async () => {
+  try {
+    const ips = await dns.resolve4('smtp.gmail.com');
+    return ips?.[0] || 'smtp.gmail.com';
+  } catch {
+    return 'smtp.gmail.com';
+  }
+};
+
 const sendMailWithRetry = async (mailOptions) => {
-  const transporter = createTransporter();
+  const smtpHost = await resolveSmtpIPv4();
+  const transporter = createTransporter(smtpHost);
   try {
     return await transporter.sendMail(mailOptions);
   } catch (err) {
     if (!isTransientEmailError(err)) throw err;
-    // Retry once for transient network faults (common on cold starts).
-    return await transporter.sendMail(mailOptions);
+    // Retry once with hostname fallback (may use a different route).
+    const retryTransporter = createTransporter('smtp.gmail.com');
+    try {
+      return await retryTransporter.sendMail(mailOptions);
+    } finally {
+      retryTransporter.close();
+    }
   } finally {
     transporter.close();
   }
