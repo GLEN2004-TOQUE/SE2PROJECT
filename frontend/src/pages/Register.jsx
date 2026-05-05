@@ -410,40 +410,53 @@ export default function Register() {
 
   // Step 1 → Send OTP
   const handleSendOTP = async (e) => {
-    e.preventDefault();
-    setError(""); setSuccess("");
-    const cleanName = sanitizeText(fullName);
-    const cleanEmail = sanitizeEmail(email);
-    if (!cleanName || !cleanEmail || !password || !level || !course || !section) {
-      setError("Please fill in all fields including Section."); return;
+  e.preventDefault();
+  setError(""); setSuccess("");
+  const cleanName = sanitizeText(fullName);
+  const cleanEmail = sanitizeEmail(email);
+  if (!cleanName || !cleanEmail || !password || !level || !course || !section) {
+    setError("Please fill in all fields including Section."); return;
+  }
+  if (!isValidEmail(cleanEmail)) { setError("Please use a valid email address."); return; }
+  if (!isStrongPassword(password)) { setError("Password must be at least 6 characters."); return; }
+  if (!canAttemptAuth()) { setError("Too many attempts. Please wait a few minutes."); return; }
+
+  setLoading(true);
+  try {
+    const res = await fetch(`${BASE}/otp/send`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: cleanEmail }),
+    });
+
+    // Handle Render's cold-start 503 (returns HTML, not JSON)
+    if (res.status === 503 || res.status === 502) {
+      setError("The server is starting up — please wait 30 seconds and try again.");
+      return;
     }
-    if (!isValidEmail(cleanEmail)) {
-      setError("Please use a valid email address."); return;
-    }
-    if (!isStrongPassword(password)) {
-      setError("Password must be at least 6 characters."); return;
-    }
-    if (!canAttemptAuth()) {
-      setError("Too many attempts. Please wait a few minutes."); return;
-    }
-    setLoading(true);
+
+    let data;
     try {
-      const res = await fetch(`${BASE}/otp/send`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: cleanEmail }),
-      });
-      const data = await readResponseJson(res);
-      if (!res.ok) { setError(data.message || "Failed to send OTP. Please try again."); return; }
-      setSuccess("OTP sent! Check your Gmail inbox (and spam folder).");
-      setStep(2);
-      startCountdown();
+      data = await res.json();
     } catch {
-      setError("Cannot reach the server. Make sure the backend is running.");
-    } finally {
-      setLoading(false);
+      setError("Server returned an unexpected response. Please try again shortly.");
+      return;
     }
-  };
+
+    if (!res.ok) { setError(data.message); return; }
+    setSuccess("OTP sent! Check your Gmail inbox (and spam folder).");
+    setStep(2);
+    startCountdown();
+  } catch (err) {
+    if (err.name === "AbortError" || err.message.includes("fetch")) {
+      setError("Cannot reach the server. Check your connection or try again in a moment.");
+    } else {
+      setError("Something went wrong. Please try again.");
+    }
+  } finally {
+    setLoading(false);
+  }
+};
 
   // Resend OTP
   const handleResend = async () => {

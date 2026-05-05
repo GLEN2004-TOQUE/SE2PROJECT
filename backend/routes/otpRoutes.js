@@ -35,15 +35,15 @@ router.post('/send', async (req, res) => {
     res.json({ message: `OTP sent to ${email}. Please check your inbox and spam folder.` });
   } catch (err) {
     console.error('❌ Send OTP error:', err.message);
+
+    // Always return JSON — never let Express default to HTML error pages
     if (err.message.includes('Invalid login') || err.message.includes('535')) {
-      return res.status(500).json({ message: 'Email config error. Check EMAIL_USER and EMAIL_PASS in .env' });
+      return res.status(500).json({ message: 'Email configuration error. Contact support.' });
     }
-    if (/timeout|timed out|ETIMEDOUT|ECONNRESET|ENETUNREACH|EHOSTUNREACH/i.test(err.message || '')) {
-      return res.status(503).json({
-        message: 'Email service is busy right now. Please try again in a few seconds.',
-      });
+    if (err.message.includes('ECONNREFUSED') || err.message.includes('ETIMEDOUT')) {
+      return res.status(503).json({ message: 'Email service temporarily unavailable. Try again in a moment.' });
     }
-    res.status(500).json({ message: 'Failed to send OTP: ' + err.message });
+    res.status(500).json({ message: 'Failed to send OTP. Please try again.' });
   }
 });
 
