@@ -22,6 +22,12 @@ router.post('/send', async (req, res) => {
       return res.status(400).json({ message: 'Please enter a valid email address' });
     }
 
+    // Check Brevo key (not EMAIL_USER/PASS anymore)
+    if (!process.env.BREVO_API_KEY) {
+      console.error('❌ BREVO_API_KEY not set in environment');
+      return res.status(500).json({ message: 'Email service not configured. Contact support.' });
+    }
+
     const existing = await pool.query(
       'SELECT id FROM users WHERE LOWER(email) = $1', [email]
     );
@@ -29,36 +35,23 @@ router.post('/send', async (req, res) => {
       return res.status(409).json({ message: 'This email is already registered. Please log in instead.' });
     }
 
-    // Fail fast if env vars are missing
-    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-      console.error('❌ EMAIL_USER or EMAIL_PASS not set in environment');
-      return res.status(500).json({ message: 'Email service not configured. Contact support.' });
-    }
-
     await sendOTP(email);
     debugStore();
 
     res.json({ message: `OTP sent to ${email}. Please check your inbox and spam folder.` });
   } catch (err) {
-    // Log the FULL error so you can see it in Render logs
-    console.error('❌ Send OTP error:', err.message, err.code || '', err.response || '');
+    console.error('❌ Send OTP error:', err.message, err.code || '');
 
-    if (err.message.includes('Invalid login') || err.message.includes('535') || err.message.includes('534')) {
-      return res.status(500).json({
-        message: 'Gmail authentication failed. The server needs an App Password configured.'
-      });
+    if (err.message.includes('Invalid login') || err.message.includes('535')) {
+      return res.status(500).json({ message: 'Gmail authentication failed.' });
     }
-    if (err.message.includes('ECONNREFUSED') || err.message.includes('ETIMEDOUT')) {
+    if (err.message.includes('ETIMEDOUT') || err.message.includes('ECONNREFUSED')) {
       return res.status(503).json({ message: 'Email service temporarily unavailable. Try again shortly.' });
-    }
-    if (err.message.includes('self signed') || err.message.includes('certificate')) {
-      return res.status(500).json({ message: 'Email TLS error. Contact support.' });
     }
 
     res.status(500).json({ message: err.message || 'Failed to send OTP. Please try again.' });
   }
 });
-
 router.post('/verify-and-register', async (req, res) => {
   try {
     const { fullName, email: rawEmail, password, role, course, section, otp } = req.body;
