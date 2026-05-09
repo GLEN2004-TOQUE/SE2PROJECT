@@ -152,8 +152,10 @@ const Styles = () => (
     .gq-slider-label { font-size:.66rem; letter-spacing:.12em; text-transform:uppercase; color:rgba(200,160,60,.65); font-weight:500; white-space:nowrap; }
     .gq-slider-track {
       flex:1; height:6px; border-radius:3px;
-      background:rgba(255,255,255,.08); position:relative; cursor:pointer;
+      background:rgba(255,255,255,.08); position:relative;
+      cursor:grab; touch-action:none; user-select:none;
     }
+    .gq-slider-track:active { cursor:grabbing; }
     .gq-slider-fill {
       position:absolute; left:0; top:0; bottom:0; border-radius:3px;
       background:linear-gradient(90deg,#8b1a1a,#c8a040); transition:width .2s;
@@ -163,12 +165,17 @@ const Styles = () => (
       width:16px; height:16px; border-radius:50%;
       background:#f5e6c8; border:2px solid #c8a040;
       box-shadow:0 2px 8px rgba(200,160,40,.4);
-      cursor:pointer; transition:left .2s;
+      cursor:grab; transition:left .08s ease-out; pointer-events:none;
     }
     .gq-slider-val {
       font-family:'DM Mono',monospace; font-size:.88rem;
       color:#e8c878; min-width:28px; text-align:center; font-weight:500;
     }
+    .gq-slider-hint {
+      font-size:.72rem; color:rgba(200,170,100,.38); margin:.35rem 0 0;
+      font-weight:300;
+    }
+    .gq-slider-block { margin-bottom:1.4rem; }
 
     /* ── Generate button ── */
     .gq-btn-generate-wrap { display:flex; justify-content:center; margin-top:.5rem; }
@@ -407,6 +414,9 @@ const STEPS = [
   { id: 3, label: "Validating & formatting…" },
 ];
 
+const MIN_QUESTIONS = 1;
+const MAX_QUESTIONS = 10;
+
 export default function GenerateQuiz() {
   const navigate = useNavigate();
   const [lectures, setLectures] = useState([]);
@@ -421,6 +431,7 @@ export default function GenerateQuiz() {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
   const stepTimers = useRef([]);
+  const sliderTrackRef = useRef(null);
 
   useEffect(() => {
     getLectures()
@@ -483,7 +494,17 @@ export default function GenerateQuiz() {
   };
 
   const lectureTitle = lectures.find(l => String(l.id) === String(selectedLecture))?.title || "";
-  const sliderPct = ((questionCount - 1) / 19) * 100;
+  const sliderRange = MAX_QUESTIONS - MIN_QUESTIONS;
+  const sliderPct = sliderRange <= 0 ? 0 : ((questionCount - MIN_QUESTIONS) / sliderRange) * 100;
+
+  const updateQuestionCountFromClientX = (clientX) => {
+    const el = sliderTrackRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    const next = Math.round(MIN_QUESTIONS + pct * sliderRange);
+    setQuestionCount(next);
+  };
 
   return (
     <>
@@ -596,20 +617,45 @@ export default function GenerateQuiz() {
                 onChange={e => setQuizTitle(e.target.value)}
               />
 
-              <div className="gq-slider-row">
-                <span className="gq-slider-label">Questions</span>
-                <div
-                  className="gq-slider-track"
-                  onClick={e => {
-                    const rect = e.currentTarget.getBoundingClientRect();
-                    const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-                    setQuestionCount(Math.round(1 + pct * 19));
-                  }}
-                >
-                  <div className="gq-slider-fill" style={{ width: `${sliderPct}%` }} />
-                  <div className="gq-slider-thumb" style={{ left: `${sliderPct}%` }} />
+              <div className="gq-slider-block">
+                <div className="gq-slider-row" style={{ marginBottom: 0 }}>
+                  <span className="gq-slider-label">Questions</span>
+                  <div
+                    ref={sliderTrackRef}
+                    className="gq-slider-track"
+                    role="slider"
+                    aria-valuemin={MIN_QUESTIONS}
+                    aria-valuemax={MAX_QUESTIONS}
+                    aria-valuenow={questionCount}
+                    aria-label="Number of AI questions to generate"
+                    onPointerDown={(e) => {
+                      e.currentTarget.setPointerCapture(e.pointerId);
+                      updateQuestionCountFromClientX(e.clientX);
+                    }}
+                    onPointerMove={(e) => {
+                      if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+                        updateQuestionCountFromClientX(e.clientX);
+                      }
+                    }}
+                    onPointerUp={(e) => {
+                      if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+                        e.currentTarget.releasePointerCapture(e.pointerId);
+                      }
+                    }}
+                    onPointerCancel={(e) => {
+                      if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+                        e.currentTarget.releasePointerCapture(e.pointerId);
+                      }
+                    }}
+                  >
+                    <div className="gq-slider-fill" style={{ width: `${sliderPct}%` }} />
+                    <div className="gq-slider-thumb" style={{ left: `${sliderPct}%` }} />
+                  </div>
+                  <span className="gq-slider-val">{questionCount}</span>
                 </div>
-                <span className="gq-slider-val">{questionCount}</span>
+                <p className="gq-slider-hint">
+                  Drag along the track to choose {MIN_QUESTIONS}–{MAX_QUESTIONS} questions (maximum {MAX_QUESTIONS}).
+                </p>
               </div>
 
               <div className="gq-btn-generate-wrap">

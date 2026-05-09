@@ -55,8 +55,8 @@ router.post("/generate-from-text", verifyToken, authorizeRole("teacher"), async 
     if (!text || text.trim().length === 0) {
       return res.status(400).json({ success: false, error: "Lecture text is required" });
     }
-    if (count < 1 || count > 20) {
-      return res.status(400).json({ success: false, error: "Count must be between 1 and 20" });
+    if (count < 1 || count > 10) {
+      return res.status(400).json({ success: false, error: "Count must be between 1 and 10" });
     }
     const questions = await aiService.generateQuestions(text, type, count);
     res.json({

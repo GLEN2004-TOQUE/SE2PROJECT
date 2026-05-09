@@ -13,10 +13,11 @@ const otpRoutes = require('./routes/otpRoutes');
 
 const app = express();
 
-// Anti-clickjacking: block embedding this origin in iframes on third-party sites
+// Anti-clickjacking: browsers refuse to render API responses inside cross-origin iframes (native error / blank frame).
 app.use((req, res, next) => {
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('Content-Security-Policy', "frame-ancestors 'none'");
+  res.setHeader('X-Content-Type-Options', 'nosniff');
   next();
 });
 
