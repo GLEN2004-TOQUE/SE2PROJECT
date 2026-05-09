@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 import { canAttemptAuth, isValidEmail, sanitizeEmail } from "../utils/security";
-import { getFriendlyApiErrorMessage } from "../services/api";
+import { getFriendlyApiErrorMessage, setAuthToken } from "../services/api";
 
 /* ─── Inline styles & keyframes injected once ─── */
 const GlobalStyles = () => (
@@ -345,6 +346,14 @@ function Login() {
   const [isLoading,   setIsLoading]   = useState(false);
   const [errorMsg,    setErrorMsg]    = useState("");
   const navigate = useNavigate();
+  const { user } = useAuth();
+
+  // If another tab signs in (localStorage sync) or user already has a session, leave login.
+  useEffect(() => {
+    if (!user?.role) return;
+    const dest = ROLE_HOME[user.role];
+    if (dest) navigate(dest, { replace: true });
+  }, [user, navigate]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -376,7 +385,7 @@ function Login() {
       }
 
       if (data.token) {
-        localStorage.setItem("token", data.token);
+        setAuthToken(data.token);
         const payload = JSON.parse(atob(data.token.split(".")[1]));
         const dest = ROLE_HOME[payload.role];
         if (dest) navigate(dest);

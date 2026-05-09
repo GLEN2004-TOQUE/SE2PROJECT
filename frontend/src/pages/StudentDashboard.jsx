@@ -433,6 +433,13 @@ const initials = (name = "") =>
   name.split(" ").slice(0, 2).map(n => n[0]).join("").toUpperCase() || "?";
 const rankClass = (i) => i === 0 ? "top1" : i === 1 ? "top2" : i === 2 ? "top3" : "";
 const rankEmoji = (i) => i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `#${i + 1}`;
+const STUDENT_VIEW_STORAGE_KEY = "student_dashboard_view";
+
+const readStoredStudentView = () => {
+  const v = localStorage.getItem(STUDENT_VIEW_STORAGE_KEY);
+  return v === "settings" || v === "overview" ? v : "overview";
+};
+
 const PH_TIMEZONE = "Asia/Manila";
 const formatTime = (iso) => {
   if (!iso) return "";
@@ -467,7 +474,7 @@ const IconUser = () => (
 
 export default function StudentDashboard() {
   const navigate = useNavigate();
-  const [activeView, setActiveView] = useState("overview");
+  const [activeView, setActiveView] = useState(readStoredStudentView);
   const [profile, setProfile]           = useState(null);
   const [myTeacher, setMyTeacher]       = useState(undefined);
   const [leaderboard, setLeaderboard]   = useState([]);
@@ -529,6 +536,10 @@ export default function StudentDashboard() {
       setAttendanceMap(map);
     } catch { setAttendanceMap({}); }
   }, []);
+
+  useEffect(() => {
+    localStorage.setItem(STUDENT_VIEW_STORAGE_KEY, activeView);
+  }, [activeView]);
 
   useEffect(() => {
     if (!tokenUser) { navigate("/"); return; }

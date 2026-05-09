@@ -966,9 +966,16 @@ function SendQuizModal({
 /* ════════════════════════════════════════════════════════════
    Main Dashboard
    ════════════════════════════════════════════════════════════ */
+const TEACHER_VIEW_STORAGE_KEY = "teacher_dashboard_view";
+
+const readStoredTeacherView = () => {
+  const v = localStorage.getItem(TEACHER_VIEW_STORAGE_KEY);
+  return v === "settings" || v === "overview" ? v : "overview";
+};
+
 export default function TeacherDashboard() {
   const navigate = useNavigate();
-  const [activeView, setActiveView] = useState("overview");
+  const [activeView, setActiveView] = useState(readStoredTeacherView);
   const [teacherName, setTeacherName] = useState("");
   const [teacherProfile, setTeacherProfile] = useState(null);
   const [profileForm, setProfileForm] = useState({ fullName: "", subject: "" });
@@ -1255,6 +1262,10 @@ export default function TeacherDashboard() {
     } catch (err) { setPwError(err.message); }
     finally { setPwLoading(false); }
   };
+
+  useEffect(() => {
+    localStorage.setItem(TEACHER_VIEW_STORAGE_KEY, activeView);
+  }, [activeView]);
 
   useEffect(() => {
     const user = getUser();

@@ -40,7 +40,25 @@ export function getFriendlyApiErrorMessage(status, serverMessage) {
   return HTTP_FRIENDLY[status] || "Something went wrong. Please try again.";
 }
 
-export const getToken = () => localStorage.getItem('token');
+export const AUTH_TOKEN_STORAGE_KEY = 'token';
+
+const AUTH_CHANGED_EVENT = 'auth-token-changed';
+
+export const notifyAuthChanged = () => {
+  window.dispatchEvent(new Event(AUTH_CHANGED_EVENT));
+};
+
+/** Persist JWT and notify all tabs + React auth state (same tab via custom event). */
+export const setAuthToken = (token) => {
+  if (token) {
+    localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, token);
+  } else {
+    localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
+  }
+  notifyAuthChanged();
+};
+
+export const getToken = () => localStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
 export const getMyTeacherQuizzes = () => api('/api/quiz/my-quizzes');
 
 export const getUser = () => {
@@ -56,7 +74,8 @@ export const getUser = () => {
 export const getMyProfile = () => api('/api/admin/me');
 export const getAdminStats = () => api('/api/admin/stats');
 export const logout = () => {
-  localStorage.removeItem('token');
+  localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
+  notifyAuthChanged();
 };
 
 const authHeaders = (extra = {}) => {
