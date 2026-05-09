@@ -1,5 +1,45 @@
 const BASE_URL = process.env.REACT_APP_API_URL ||  "https://backend-7lik.onrender.com";
 
+/** User-facing messages — never surface raw status codes like "404" or "405". */
+const HTTP_FRIENDLY = {
+  400: "The request could not be completed. Please check your input and try again.",
+  401: "Your session has expired or you are not signed in. Please log in again.",
+  403: "You do not have permission to do that.",
+  404: "That service or endpoint is not available. It may be missing or the link may be wrong.",
+  405: "That action is not allowed for this address. Please try again or contact support if it continues.",
+  408: "The request took too long. Please try again.",
+  409: "This conflicts with existing data. Refresh the page and try again.",
+  413: "The file or data is too large.",
+  415: "The server cannot accept this type of data.",
+  422: "Some of the information provided is not valid. Please check and try again.",
+  429: "Too many requests. Please wait a moment and try again.",
+  500: "Something went wrong on the server. Please try again later.",
+  502: "The server is temporarily unreachable. Please try again shortly.",
+  503: "The service is temporarily unavailable. Please try again shortly.",
+  504: "The server did not respond in time. Please try again.",
+};
+
+function normalizeServerMessage(msg) {
+  if (msg == null) return "";
+  const s = String(msg).trim();
+  if (!s) return "";
+  if (/^\d{3}$/.test(s)) return "";
+  if (s.length > 400) return "";
+  if (/<\s*html[\s>]/i.test(s)) return "";
+  if (/Server returned\s+\d{3}/i.test(s)) return "";
+  return s;
+}
+
+/**
+ * @param {number} status HTTP status
+ * @param {string} [serverMessage] optional message from JSON body
+ */
+export function getFriendlyApiErrorMessage(status, serverMessage) {
+  const fromServer = normalizeServerMessage(serverMessage);
+  if (fromServer) return fromServer;
+  return HTTP_FRIENDLY[status] || "Something went wrong. Please try again.";
+}
+
 export const getToken = () => localStorage.getItem('token');
 export const getMyTeacherQuizzes = () => api('/api/quiz/my-quizzes');
 
@@ -52,8 +92,10 @@ export const api = async (endpoint, options = {}) => {
     },
   });
   let data = null;
-  try { data = await res.json(); } catch { data = { error: "Invalid server response" }; }
-  if (!res.ok) throw new Error(data.message || data.error || 'Request failed');
+  try { data = await res.json(); } catch { data = {}; }
+  if (!res.ok) {
+    throw new Error(getFriendlyApiErrorMessage(res.status, data.message || data.error));
+  }
   return data;
 };
 
@@ -63,8 +105,11 @@ export const apiUpload = async (endpoint, formData) => {
     headers: authHeaders(),
     body: formData,
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.message || data.error || 'Upload failed');
+  let data = {};
+  try { data = await res.json(); } catch { /* non-JSON error body */ }
+  if (!res.ok) {
+    throw new Error(getFriendlyApiErrorMessage(res.status, data.message || data.error));
+  }
   return data;
 };
 

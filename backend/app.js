@@ -13,6 +13,13 @@ const otpRoutes = require('./routes/otpRoutes');
 
 const app = express();
 
+// Anti-clickjacking: block embedding this origin in iframes on third-party sites
+app.use((req, res, next) => {
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Content-Security-Policy', "frame-ancestors 'none'");
+  next();
+});
+
 // Middleware — MUST be before routes
 app.use(cors({
   origin: [
@@ -68,10 +75,19 @@ app.get('/admin/dashboard', verifyToken, authorizeRole('admin'), (req, res) => {
   res.json({ message: "Welcome Admin" });
 });
 
+// Unknown route — JSON only (no HTML error pages with status codes as the only hint)
+app.use((req, res) => {
+  res.status(404).json({
+    message: 'That service or endpoint is not available. It may be missing or the address may be wrong.',
+  });
+});
+
 // Global error handler
 app.use((err, req, res, next) => {
   console.error('Server Error:', err.stack);
-  res.status(500).json({ message: 'Something went wrong!' });
+  res.status(500).json({
+    message: 'Something went wrong on the server. Please try again later.',
+  });
 });
 
 const PORT = process.env.PORT || 5000;

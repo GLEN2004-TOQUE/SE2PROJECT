@@ -1,4 +1,6 @@
-const BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000' || "https://backend-7lik.onrender.com";
+import { getFriendlyApiErrorMessage } from "./api";
+
+const BASE_URL = process.env.REACT_APP_API_URL || "https://backend-7lik.onrender.com";
 
 const authHeaders = () => {
   const token = localStorage.getItem('token');
@@ -26,8 +28,16 @@ const quizService = {
     const res = await fetch(`${BASE_URL}/api/quiz/${quizId}`, {
       headers: authHeaders(),
     });
-    if (!res.ok) throw new Error('Quiz not found');
-    return res.json();
+    let data = {};
+    try {
+      data = await res.json();
+    } catch {
+      data = {};
+    }
+    if (!res.ok) {
+      throw new Error(getFriendlyApiErrorMessage(res.status, data.message || data.error));
+    }
+    return data;
   },
 };
 

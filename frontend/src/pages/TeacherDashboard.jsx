@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { getUser, logout } from "../services/api";
+import { getUser, logout, getFriendlyApiErrorMessage } from "../services/api";
 import { BarChart } from "@mui/x-charts/BarChart";
 import { LineChart } from "@mui/x-charts/LineChart";
 import { SparkLineChart } from "@mui/x-charts/SparkLineChart";
@@ -18,16 +18,21 @@ const apiFetch = async (path, opts = {}) => {
     },
   });
 
-  let data;
+  let data = {};
   const contentType = res.headers.get("content-type");
   if (contentType && contentType.includes("application/json")) {
-    data = await res.json();
+    try {
+      data = await res.json();
+    } catch {
+      data = {};
+    }
   } else {
-    const text = await res.text();
-    throw new Error(`Server returned ${res.status}: ${text.substring(0, 100)}`);
+    await res.text().catch(() => {});
   }
 
-  if (!res.ok) throw new Error(data.error || data.message || "Request failed");
+  if (!res.ok) {
+    throw new Error(getFriendlyApiErrorMessage(res.status, data.error || data.message));
+  }
   return data;
 };
 
@@ -586,6 +591,37 @@ const Styles = () => (
 /* ── Helpers ── */
 const initials = (name = "") =>
   name.split(" ").slice(0, 2).map(n => n[0]).join("").toUpperCase() || "?";
+const PH_TIMEZONE = "Asia/Manila";
+const formatDateTimePH = (value) => {
+  if (!value) return "";
+  return new Date(value).toLocaleString("en-PH", {
+    timeZone: PH_TIMEZONE,
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
+const formatDateTimeLocalForPH = (date) => {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: PH_TIMEZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(date);
+  const pick = (type) => parts.find(p => p.type === type)?.value || "";
+  return `${pick("year")}-${pick("month")}-${pick("day")}T${pick("hour")}:${pick("minute")}`;
+};
+const parsePHDateTimeLocal = (datetimeLocal) => {
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(datetimeLocal || "");
+  if (!match) return null;
+  const [, y, m, d, h, min] = match.map(Number);
+  return new Date(Date.UTC(y, m - 1, d, h - 8, min));
+};
 
 const fileTypeEmoji = (fileType) => {
   if (!fileType) return "📄";
@@ -715,9 +751,8 @@ function SendQuizModal({
   const [selectedStudentIds, setSelectedStudentIds] = useState([]);
 
   const now = new Date();
-  const fmt = (d) => d.toISOString().slice(0, 16);
-  const [startTime, setStartTime] = useState(fmt(new Date(now.getTime() + 5 * 60000)));
-  const [endTime, setEndTime]     = useState(fmt(new Date(now.getTime() + 65 * 60000)));
+  const [startTime, setStartTime] = useState(formatDateTimeLocalForPH(new Date(now.getTime() + 5 * 60000)));
+  const [endTime, setEndTime]     = useState(formatDateTimeLocalForPH(new Date(now.getTime() + 65 * 60000)));
 
   /* ── Derive sections from students ──
      A student's section is stored in s.section.
@@ -981,13 +1016,21 @@ export default function TeacherDashboard() {
   /* ── Send handler (called from SendQuizModal) ── */
   const handleSend = async ({ startTime, endTime, studentIds }) => {
     if (!startTime || !endTime) { showToast("Please set both times", "error"); return; }
-    if (new Date(endTime) <= new Date(startTime)) { showToast("End time must be after start time", "error"); return; }
+    const parsedStartTime = parsePHDateTimeLocal(startTime);
+    const parsedEndTime = parsePHDateTimeLocal(endTime);
+    if (!parsedStartTime || !parsedEndTime) { showToast("Please enter valid quiz times", "error"); return; }
+    if (parsedEndTime <= parsedStartTime) { showToast("End time must be after start time", "error"); return; }
     if (studentIds.length === 0) { showToast("Please select at least one student", "error"); return; }
     setSending(true);
     try {
       const result = await apiFetch("/api/quiz/schedule", {
         method: "POST",
-        body: JSON.stringify({ quizId: sendModal.quiz.id, startTime, endTime, studentIds }),
+        body: JSON.stringify({
+          quizId: sendModal.quiz.id,
+          startTime: parsedStartTime.toISOString(),
+          endTime: parsedEndTime.toISOString(),
+          studentIds,
+        }),
       });
       setSendModal(null);
       setSendSuccess({ message: result.message || `Quiz sent to ${studentIds.length} student(s)!` });
@@ -1545,7 +1588,7 @@ export default function TeacherDashboard() {
                             {quiz.start_time && (
                               <div className="td-quiz-time">
                                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
-                                {new Date(quiz.start_time).toLocaleString()} → {new Date(quiz.end_time).toLocaleString()}
+                                {formatDateTimePH(quiz.start_time)} PH → {formatDateTimePH(quiz.end_time)} PH
                               </div>
                             )}
                           </div>

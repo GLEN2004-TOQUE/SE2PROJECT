@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { canAttemptAuth, isValidEmail, sanitizeEmail } from "../utils/security";
+import { getFriendlyApiErrorMessage } from "../services/api";
 
 /* ─── Inline styles & keyframes injected once ─── */
 const GlobalStyles = () => (
@@ -367,7 +368,12 @@ function Login() {
           body: JSON.stringify({ email: cleanEmail, password }),
         }
       );
-      const data = await response.json();
+      let data = {};
+      try {
+        data = await response.json();
+      } catch {
+        data = {};
+      }
 
       if (data.token) {
         localStorage.setItem("token", data.token);
@@ -376,7 +382,10 @@ function Login() {
         if (dest) navigate(dest);
         else setErrorMsg(`Unknown role: ${payload.role}`);
       } else {
-        setErrorMsg(data.message || "Login failed. Please check your credentials.");
+        setErrorMsg(
+          getFriendlyApiErrorMessage(response.status, data.message || data.error) ||
+            "Login failed. Please check your credentials."
+        );
       }
     } catch {
       setErrorMsg("Cannot reach the server. Is the backend running?");

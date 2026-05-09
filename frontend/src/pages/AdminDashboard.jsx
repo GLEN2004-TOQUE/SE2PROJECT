@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { getUser, logout } from "../services/api";
+import { getUser, logout, getFriendlyApiErrorMessage } from "../services/api";
 import { BarChart } from "@mui/x-charts/BarChart";
 import { LineChart } from "@mui/x-charts/LineChart";
 import { PieChart } from "@mui/x-charts/PieChart";
@@ -18,8 +18,15 @@ const apiFetch = async (path, opts = {}) => {
       ...(opts.headers || {}),
     },
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || data.message || "Request failed");
+  let data = {};
+  try {
+    data = await res.json();
+  } catch {
+    data = {};
+  }
+  if (!res.ok) {
+    throw new Error(getFriendlyApiErrorMessage(res.status, data.error || data.message));
+  }
   return data;
 };
 

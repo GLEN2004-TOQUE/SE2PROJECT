@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from "react-router-dom";
-import { getUser, logout, getMyProfile } from "../services/api";
+import { getUser, logout, getMyProfile, getFriendlyApiErrorMessage } from "../services/api";
 import { BarChart } from "@mui/x-charts/BarChart";
 import { LineChart } from "@mui/x-charts/LineChart";
 import { PieChart } from "@mui/x-charts/PieChart";
@@ -12,8 +12,15 @@ const apiFetch = async (path) => {
   const res = await fetch(`${BASE}${path}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.message || data.error || "Request failed");
+  let data = {};
+  try {
+    data = await res.json();
+  } catch {
+    data = {};
+  }
+  if (!res.ok) {
+    throw new Error(getFriendlyApiErrorMessage(res.status, data.message || data.error));
+  }
   return data;
 };
 
@@ -426,9 +433,17 @@ const initials = (name = "") =>
   name.split(" ").slice(0, 2).map(n => n[0]).join("").toUpperCase() || "?";
 const rankClass = (i) => i === 0 ? "top1" : i === 1 ? "top2" : i === 2 ? "top3" : "";
 const rankEmoji = (i) => i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `#${i + 1}`;
+const PH_TIMEZONE = "Asia/Manila";
 const formatTime = (iso) => {
   if (!iso) return "";
-  return new Date(iso).toLocaleString([], { month:"short", day:"numeric", hour:"2-digit", minute:"2-digit" });
+  return `${new Date(iso).toLocaleString("en-PH", {
+    timeZone: PH_TIMEZONE,
+    month:"short",
+    day:"numeric",
+    year:"numeric",
+    hour:"2-digit",
+    minute:"2-digit",
+  })} PH`;
 };
 
 /* ── Icons ── */
@@ -550,8 +565,15 @@ export default function StudentDashboard() {
         headers:{ "Content-Type":"application/json", Authorization:`Bearer ${localStorage.getItem("token")}` },
         body: JSON.stringify({ currentPassword:pwForm.current, newPassword:pwForm.next }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || data.message || "Password update failed");
+      let data = {};
+      try {
+        data = await res.json();
+      } catch {
+        data = {};
+      }
+      if (!res.ok) {
+        throw new Error(getFriendlyApiErrorMessage(res.status, data.error || data.message));
+      }
       setPwMsg("Password updated successfully."); setPwForm({ current:"", next:"", confirm:"" });
     } catch (err) { setPwMsg(err.message); }
     finally { setPwLoading(false); }

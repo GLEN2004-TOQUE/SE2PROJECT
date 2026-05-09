@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { canAttemptAuth, isStrongPassword, isValidEmail, sanitizeEmail, sanitizeText } from "../utils/security";
+import { getFriendlyApiErrorMessage } from "../services/api";
 
 const BASE = process.env.REACT_APP_API_URL || "https://backend-7lik.onrender.com";
 
@@ -443,7 +444,10 @@ export default function Register() {
       return;
     }
 
-    if (!res.ok) { setError(data.message); return; }
+    if (!res.ok) {
+      setError(getFriendlyApiErrorMessage(res.status, data.message || data.error));
+      return;
+    }
     setSuccess("OTP sent! Check your Gmail inbox (and spam folder).");
     setStep(2);
     startCountdown();
@@ -469,7 +473,10 @@ export default function Register() {
         body: JSON.stringify({ email: sanitizeEmail(email) }),
       });
       const data = await readResponseJson(res);
-      if (!res.ok) { setError(data.message || "Failed to resend OTP. Please try again."); return; }
+      if (!res.ok) {
+        setError(getFriendlyApiErrorMessage(res.status, data.message || data.error) || "Failed to resend OTP. Please try again.");
+        return;
+      }
       setSuccess("New OTP sent!");
       setOtpDigits(["","","","","",""]);
       startCountdown();
@@ -523,7 +530,7 @@ export default function Register() {
       });
       const data = await readResponseJson(res);
       if (!res.ok) {
-        setError(data.message || "Verification failed. Please try again.");
+        setError(getFriendlyApiErrorMessage(res.status, data.message || data.error) || "Verification failed. Please try again.");
         setOtpShake(true); setTimeout(() => setOtpShake(false), 500);
         return;
       }
