@@ -9,7 +9,8 @@
   "scripts": {
     "start": "node app.js",
     "dev": "nodemon app.js",
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "jest --runInBand",
+    "test:watch": "jest --watch",
     "start:js": "node app.js"
   },
   "repository": {
@@ -32,6 +33,8 @@
     "cors": "^2.8.6",
     "dotenv": "^17.3.1",
     "express": "^5.2.1",
+    "express-rate-limit": "^8.5.1",
+    "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.3",
     "mammoth": "^1.11.0",
     "multer": "^1.0.2",
@@ -39,7 +42,8 @@
     "openai": "^6.32.0",
     "pdf-parse": "^1.1.1",
     "pg": "^8.18.0",
-    "resend": "^6.12.2"
+    "resend": "^6.12.2",
+    "sanitize-html": "^2.17.3"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
@@ -50,7 +54,9 @@
     "@types/node": "^25.3.3",
     "@types/pdf-parse": "^1.1.5",
     "@types/pg": "^8.18.0",
+    "jest": "^29.7.0",
     "nodemon": "^3.1.7",
+    "supertest": "^7.1.1",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3"
   }

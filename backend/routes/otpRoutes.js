@@ -54,7 +54,7 @@ router.post('/send', async (req, res) => {
 });
 router.post('/verify-and-register', async (req, res) => {
   try {
-    const { fullName, email: rawEmail, password, role, course, section, otp } = req.body;
+    const { fullName, email: rawEmail, password, course, section, otp } = req.body;
     const email = (rawEmail || '').toLowerCase().trim();
 
     if (!fullName || !email || !password || !course || !section || !otp) {
@@ -80,7 +80,7 @@ router.post('/verify-and-register', async (req, res) => {
       `INSERT INTO users (full_name, email, password, role, course, section, status)
        VALUES ($1, $2, $3, $4, $5, $6, true)
        RETURNING id, full_name, email, role, course, section`,
-      [fullName.trim(), email, hashedPassword, role || 'student', course, section]
+      [fullName.trim(), email, hashedPassword, 'student', course, section] // force student role on self-registration
     );
 
     console.log(`✅ Registered: ${email} | Course: ${course} | Section: ${section}`);
