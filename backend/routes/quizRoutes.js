@@ -81,12 +81,17 @@ router.get("/ai/status", verifyToken, authorizeRole("teacher"), (req, res) => {
   res.json({ success: true, status: aiService.getStatus(), timestamp: new Date().toISOString() });
 });
 
-// ── Attendance ────────────────────────────────────────────────────────────────
-router.get("/attendance/:quizId",        verifyToken, getAttendanceReport);
-router.get("/attendance/stats/:quizId",  verifyToken, getAttendanceStats);
+// ── Attendance (specific paths before /attendance/:quizId) ─────────────────────
+router.get("/attendance/stats/:quizId", verifyToken, getAttendanceStats);
 router.get("/attendance/teacher/timeline", verifyToken, authorizeRole("teacher"), getTeacherAttendanceTimeline);
+router.get("/attendance/:quizId", verifyToken, getAttendanceReport);
 
-// ── Public quiz fetch by ID – MUST BE LAST to avoid shadowing other GET routes ──
+// ── Student quiz fetch by ID – MUST BE LAST among GET single-segment routes ───
 router.get("/:quizId", verifyToken, authorizeRole("student"), getQuiz);
+
+// Unmatched path or method under /api/quiz → 401 without token, 403 if authenticated
+router.use(verifyToken, (req, res) => {
+  res.status(403).json({ message: "Forbidden" });
+});
 
 module.exports = router;
