@@ -52,6 +52,8 @@ const Styles = () => (
     @keyframes toastSlide { 0%{opacity:0;transform:translateX(60px);}10%{opacity:1;transform:translateX(0);}85%{opacity:1;}100%{opacity:0;transform:translateX(60px);} }
     @keyframes confPop    { to{transform:translateY(50px) rotate(720deg);opacity:0;} }
     @keyframes float      { 0%,100%{transform:translateY(0);}50%{transform:translateY(-5px);} }
+    @keyframes dropIn     { from{opacity:0;transform:translateY(-8px) scale(.97);}to{opacity:1;transform:translateY(0) scale(1);} }
+    @keyframes slideInRight { from{opacity:0;transform:translateX(18px);}to{opacity:1;transform:translateX(0);} }
 
     /* ── Root ── */
     .td-root {
@@ -136,6 +138,56 @@ const Styles = () => (
     }
     .td-topbar-btn:hover { background:rgba(200,160,50,.14); color:#e8c878; }
 
+    /* ── Subject Dropdown ── */
+    .td-subject-dropdown-wrap { position: relative; }
+    .td-subject-dropdown-btn {
+      display: flex; align-items: center; gap: .45rem;
+      font-family: 'DM Mono', monospace; font-size: .65rem;
+      padding: .28rem .75rem .28rem .6rem; border-radius: 999px;
+      background: rgba(200,160,50,.1); border: 1px solid rgba(200,160,50,.22);
+      color: #e8c878; letter-spacing: .06em; cursor: pointer; transition: all .18s; outline: none;
+    }
+    .td-subject-dropdown-btn:hover { background: rgba(200,160,50,.2); border-color: rgba(200,160,50,.5); box-shadow: 0 0 0 3px rgba(200,160,40,.1); }
+    .td-subject-dropdown-btn.open { background: rgba(200,160,50,.18); border-color: rgba(200,160,50,.55); }
+    .td-subject-dropdown-btn .drop-icon { width: 11px; height: 11px; transition: transform .22s cubic-bezier(.34,1.56,.64,1); opacity: .7; flex-shrink: 0; }
+    .td-subject-dropdown-btn.open .drop-icon { transform: rotate(180deg); }
+    .td-subject-dropdown-btn .subj-book { font-size: .78rem; line-height: 1; }
+    .td-subject-dropdown-menu {
+      position: absolute; top: calc(100% + 10px); right: 0; min-width: 230px; z-index: 50;
+      background: linear-gradient(160deg, #1e0c0c 0%, #160808 100%);
+      border: 1px solid rgba(200,160,50,.25); border-radius: 14px; padding: .5rem;
+      box-shadow: 0 20px 60px rgba(0,0,0,.75), 0 1px 0 rgba(255,200,80,.07) inset, 0 -1px 0 rgba(0,0,0,.3) inset;
+      animation: dropIn .2s cubic-bezier(.34,1.56,.64,1) both;
+    }
+    .td-subject-dropdown-arrow {
+      position: absolute; top: -5px; right: 18px; width: 10px; height: 10px;
+      background: #1e0c0c; border-left: 1px solid rgba(200,160,50,.25); border-top: 1px solid rgba(200,160,50,.25);
+      transform: rotate(45deg); border-radius: 2px 0 0 0;
+    }
+    .td-subject-dropdown-header {
+      display: flex; align-items: center; gap: .4rem; font-size: .58rem; letter-spacing: .15em;
+      text-transform: uppercase; color: rgba(200,160,60,.4); padding: .4rem .7rem .55rem; font-weight: 500;
+    }
+    .td-subject-dropdown-header-line { flex: 1; height: 1px; background: rgba(200,160,50,.1); }
+    .td-subject-dropdown-item {
+      display: flex; align-items: center; gap: .65rem; padding: .6rem .8rem; border-radius: 9px;
+      font-size: .8rem; color: rgba(232,200,120,.85); font-family: 'DM Sans', sans-serif; font-weight: 400;
+      transition: background .12s, color .12s; cursor: default; position: relative;
+    }
+    .td-subject-dropdown-item:hover { background: rgba(200,160,50,.1); color: #f5e6c8; }
+    .td-subject-dropdown-item:hover .subj-dot { box-shadow: 0 0 0 4px rgba(200,160,40,.25); }
+    .subj-dot { width: 8px; height: 8px; border-radius: 50%; background: #c8a040; flex-shrink: 0; box-shadow: 0 0 0 3px rgba(200,160,40,.15); transition: box-shadow .15s; }
+    .subj-dot-inactive { background: rgba(200,160,50,.25); box-shadow: none; }
+    .subj-index { font-family: 'DM Mono', monospace; font-size: .6rem; color: rgba(200,160,60,.35); margin-left: auto; flex-shrink: 0; }
+    .td-subject-dropdown-divider { height: 1px; background: rgba(200,160,50,.1); margin: .35rem .3rem; }
+    .td-subject-dropdown-footer {
+      display: flex; align-items: center; justify-content: center; gap: .4rem;
+      padding: .45rem .7rem .3rem; font-size: .63rem; color: rgba(200,160,60,.3);
+      font-family: 'DM Mono', monospace; letter-spacing: .04em;
+    }
+    .td-subject-dropdown-footer svg { width: 11px; height: 11px; opacity: .4; }
+    .td-subject-dropdown-empty { padding: .7rem .8rem; font-size: .76rem; color: rgba(200,170,100,.3); font-style: italic; text-align: center; }
+
     /* ── Layout ── */
     .td-layout {
       position:relative; z-index:1;
@@ -145,31 +197,18 @@ const Styles = () => (
 
     /* ── Sidebar ── */
     .td-side {
-      background: rgba(255,255,255,.04);
-      backdrop-filter: blur(18px) saturate(1.4);
-      border: 1px solid rgba(200,160,50,.12);
-      border-radius: 16px;
-      padding: 1rem .75rem;
-      height: fit-content;
-      position: sticky; top:76px;
-      box-shadow: 0 8px 32px rgba(0,0,0,.3);
+      background: rgba(255,255,255,.04); backdrop-filter: blur(18px) saturate(1.4);
+      border: 1px solid rgba(200,160,50,.12); border-radius: 16px; padding: 1rem .75rem;
+      height: fit-content; position: sticky; top:76px; box-shadow: 0 8px 32px rgba(0,0,0,.3);
     }
-    .td-side-label {
-      font-size:.62rem; letter-spacing:.14em; text-transform:uppercase;
-      color:rgba(200,160,60,.35); padding:.3rem .6rem .8rem; font-weight:500;
-    }
+    .td-side-label { font-size:.62rem; letter-spacing:.14em; text-transform:uppercase; color:rgba(200,160,60,.35); padding:.3rem .6rem .8rem; font-weight:500; }
     .td-side-item {
-      display:flex; align-items:center; gap:.55rem;
-      padding:.6rem .75rem; border-radius:9px;
+      display:flex; align-items:center; gap:.55rem; padding:.6rem .75rem; border-radius:9px;
       color:rgba(200,170,100,.55); font-size:.83rem; font-weight:400;
       cursor:pointer; border:1px solid transparent; transition:all .15s;
     }
     .td-side-item:hover { color:rgba(232,200,120,.8); background:rgba(200,160,50,.06); }
-    .td-side-item.active {
-      background: rgba(200,160,50,.12);
-      border-color: rgba(200,160,50,.25);
-      color: #e8c878; font-weight:500;
-    }
+    .td-side-item.active { background: rgba(200,160,50,.12); border-color: rgba(200,160,50,.25); color: #e8c878; font-weight:500; }
     .td-side-item svg { width:15px; height:15px; opacity:.7; }
 
     /* ── Body ── */
@@ -177,10 +216,8 @@ const Styles = () => (
 
     /* ── Glass card ── */
     .glass-card {
-      background: rgba(255,255,255,.045);
-      backdrop-filter: blur(18px) saturate(1.4);
-      border: 1px solid rgba(200,160,50,.13);
-      border-radius: 16px;
+      background: rgba(255,255,255,.045); backdrop-filter: blur(18px) saturate(1.4);
+      border: 1px solid rgba(200,160,50,.13); border-radius: 16px;
       box-shadow: 0 2px 0 rgba(255,220,100,.04) inset, 0 16px 48px rgba(0,0,0,.35);
     }
 
@@ -191,46 +228,25 @@ const Styles = () => (
       font-size:.68rem; letter-spacing:.14em; text-transform:uppercase;
       color:rgba(200,160,60,.6); margin-bottom:.6rem; font-weight:500;
     }
-    .td-welcome-tag-dot {
-      width:6px; height:6px; border-radius:50%;
-      background:#c8a040; animation:glow-dot 2.5s infinite;
-    }
-    .td-name {
-      font-family:'Playfair Display',serif;
-      font-size:2.1rem; font-weight:700; color:#f5e6c8;
-      letter-spacing:-.01em; line-height:1.2;
-    }
+    .td-welcome-tag-dot { width:6px; height:6px; border-radius:50%; background:#c8a040; animation:glow-dot 2.5s infinite; }
+    .td-name { font-family:'Playfair Display',serif; font-size:2.1rem; font-weight:700; color:#f5e6c8; letter-spacing:-.01em; line-height:1.2; }
     .td-sub { font-size:.86rem; color:rgba(200,170,100,.45); margin-top:.35rem; font-weight:300; }
     .td-badge-row { display:flex; gap:.55rem; margin-top:.75rem; flex-wrap:wrap; }
-    .td-badge {
-      display:inline-flex; align-items:center; gap:.3rem;
-      padding:.22rem .75rem; border-radius:7px; font-size:.7rem; font-weight:500;
-    }
+    .td-badge { display:inline-flex; align-items:center; gap:.3rem; padding:.22rem .75rem; border-radius:7px; font-size:.7rem; font-weight:500; }
     .td-badge-subject { background:rgba(147,130,200,.1); color:#c4b5fd; border:1px solid rgba(147,130,200,.2); }
 
     /* ── Stats ── */
     .td-stats { display:grid; grid-template-columns:repeat(3,1fr); gap:1rem; margin-bottom:1.5rem; animation:floatUp .5s .1s ease both; }
     .td-stat { padding:1.25rem 1.4rem; }
-    .td-stat-label {
-      font-size:.64rem; letter-spacing:.12em; text-transform:uppercase;
-      color:rgba(200,160,60,.5); margin-bottom:.45rem; font-weight:500;
-    }
-    .td-stat-value {
-      font-family:'Playfair Display',serif;
-      font-size:1.9rem; font-weight:700; color:#f5e6c8;
-    }
+    .td-stat-label { font-size:.64rem; letter-spacing:.12em; text-transform:uppercase; color:rgba(200,160,60,.5); margin-bottom:.45rem; font-weight:500; }
+    .td-stat-value { font-family:'Playfair Display',serif; font-size:1.9rem; font-weight:700; color:#f5e6c8; }
     .td-stat-hint { font-size:.71rem; color:rgba(200,170,100,.35); margin-top:.3rem; font-weight:300; }
 
     /* ── Quick actions grid ── */
     .td-actions { display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-bottom:1.75rem; animation:floatUp .5s .15s ease both; }
-    .td-action-card {
-      padding:1.5rem; cursor:pointer; transition:all .2s;
-    }
+    .td-action-card { padding:1.5rem; cursor:pointer; transition:all .2s; }
     .td-action-card:hover { background:rgba(200,160,50,.06) !important; transform:translateY(-2px); }
-    .td-action-icon {
-      width:42px; height:42px; border-radius:11px;
-      display:flex; align-items:center; justify-content:center; margin-bottom:1rem;
-    }
+    .td-action-icon { width:42px; height:42px; border-radius:11px; display:flex; align-items:center; justify-content:center; margin-bottom:1rem; }
     .td-action-icon svg { width:20px; height:20px; }
     .td-action-title { font-family:'Playfair Display',serif; font-size:.95rem; font-weight:600; color:#f5e6c8; margin-bottom:.35rem; }
     .td-action-desc  { font-size:.78rem; color:rgba(200,170,100,.4); font-weight:300; }
@@ -239,12 +255,7 @@ const Styles = () => (
     .td-section { margin-bottom:2rem; animation:floatUp .5s .2s ease both; }
     .td-section-heading { display:flex; align-items:center; justify-content:space-between; margin-bottom:1rem; }
     .td-section-title { font-family:'Playfair Display',serif; font-size:1.05rem; font-weight:600; color:#f5e6c8; }
-    .td-count-chip {
-      font-family:'DM Mono',monospace; font-size:.7rem;
-      color:rgba(200,160,60,.5); padding:.18rem .55rem;
-      background:rgba(200,160,50,.07); border-radius:6px;
-      border:1px solid rgba(200,160,50,.12);
-    }
+    .td-count-chip { font-family:'DM Mono',monospace; font-size:.7rem; color:rgba(200,160,60,.5); padding:.18rem .55rem; background:rgba(200,160,50,.07); border-radius:6px; border:1px solid rgba(200,160,50,.12); }
 
     /* ── Divider ── */
     .td-divider { height:1px; background:rgba(200,160,50,.1); margin:1.75rem 0; border:none; }
@@ -252,20 +263,14 @@ const Styles = () => (
     /* ── Quiz list ── */
     .td-quiz-list { display:flex; flex-direction:column; gap:.75rem; }
     .td-quiz-card {
-      padding:1.1rem 1.4rem;
-      display:flex; align-items:center; gap:1rem;
+      padding:1.1rem 1.4rem; display:flex; align-items:center; gap:1rem;
       position:relative; overflow:hidden; transition:all .15s;
     }
     .td-quiz-card.status-active::before  { content:''; position:absolute; left:0; top:0; bottom:0; width:3px; background:#c8a040; border-radius:2px; }
     .td-quiz-card.status-scheduled::before { content:''; position:absolute; left:0; top:0; bottom:0; width:3px; background:#a06020; border-radius:2px; }
     .td-quiz-card.status-ended { opacity:.5; }
     .td-quiz-card:hover:not(.status-ended) { background:rgba(200,160,50,.04) !important; }
-
-    .td-quiz-file-icon {
-      width:44px; height:44px; border-radius:12px;
-      display:flex; align-items:center; justify-content:center;
-      font-size:1.2rem; flex-shrink:0;
-    }
+    .td-quiz-file-icon { width:44px; height:44px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:1.2rem; flex-shrink:0; }
     .td-quiz-info { flex:1; min-width:0; }
     .td-quiz-title { font-weight:500; color:#f5e6c8; font-size:.87rem; margin-bottom:.2rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .td-quiz-source { font-size:.72rem; color:rgba(200,170,100,.4); display:flex; align-items:center; gap:.4rem; font-weight:300; }
@@ -273,19 +278,16 @@ const Styles = () => (
     .td-quiz-time { font-size:.69rem; color:rgba(200,170,100,.3); font-family:'DM Mono',monospace; margin-top:.2rem; display:flex; align-items:center; gap:.3rem; }
     .td-quiz-meta { display:flex; align-items:center; gap:.6rem; flex-shrink:0; }
     .td-quiz-q-count { font-family:'DM Mono',monospace; font-size:.72rem; color:rgba(200,170,100,.3); }
-
     .td-status-badge { padding:.16rem .55rem; border-radius:6px; font-size:.66rem; font-weight:500; letter-spacing:.04em; }
     .td-status-badge.draft     { background:rgba(255,255,255,.05); color:rgba(200,170,100,.28); border:1px solid rgba(255,255,255,.07); }
     .td-status-badge.scheduled { background:rgba(180,100,20,.1); color:#d4a060; border:1px solid rgba(180,100,20,.2); }
     .td-status-badge.active    { background:rgba(200,160,40,.12); color:#e8c878; border:1px solid rgba(200,160,40,.22); }
     .td-status-badge.ended     { background:rgba(255,255,255,.04); color:rgba(200,170,100,.25); border:1px solid rgba(255,255,255,.06); }
-
     .td-quiz-actions { display:flex; align-items:center; gap:.5rem; flex-shrink:0; }
     .td-quiz-send-btn {
       padding:.44rem 1rem; border-radius:9px; border:none;
       font-family:'DM Sans',sans-serif; font-size:.78rem; font-weight:500;
-      cursor:pointer; transition:all .15s; white-space:nowrap;
-      color:#fff8e8;
+      cursor:pointer; transition:all .15s; white-space:nowrap; color:#fff8e8;
       background: linear-gradient(135deg,#8b1a1a 0%,#6b1010 50%,#8b1a1a 100%);
       background-size:200% auto;
       box-shadow: 0 4px 16px rgba(120,20,20,.45), 0 1px 0 rgba(255,200,80,.12) inset;
@@ -293,14 +295,11 @@ const Styles = () => (
     }
     .td-quiz-send-btn:hover { animation:shimmer .9s linear infinite; transform:translateY(-1px); }
     .td-quiz-send-btn:disabled { opacity:.4; cursor:not-allowed; animation:none; transform:none; }
-
     .td-quiz-delete-btn {
-      padding:.44rem .8rem; border-radius:9px;
-      border:1px solid rgba(239,68,68,.25);
-      background:rgba(239,68,68,.07);
-      color:rgba(252,165,165,.7); font-family:'DM Sans',sans-serif;
-      font-size:.78rem; font-weight:500; cursor:pointer;
-      transition:all .15s; white-space:nowrap;
+      padding:.44rem .8rem; border-radius:9px; border:1px solid rgba(239,68,68,.25);
+      background:rgba(239,68,68,.07); color:rgba(252,165,165,.7);
+      font-family:'DM Sans',sans-serif; font-size:.78rem; font-weight:500;
+      cursor:pointer; transition:all .15s; white-space:nowrap;
       display:inline-flex; align-items:center; gap:4px;
     }
     .td-quiz-delete-btn:hover { background:rgba(239,68,68,.14); border-color:rgba(239,68,68,.45); color:#fca5a5; }
@@ -311,12 +310,7 @@ const Styles = () => (
     .td-student-card { padding:1.25rem; transition:all .15s; }
     .td-student-card:hover { background:rgba(200,160,50,.04) !important; }
     .td-student-top { display:flex; align-items:center; gap:.75rem; margin-bottom:.85rem; }
-    .td-avatar {
-      width:40px; height:40px; border-radius:11px;
-      background:rgba(120,20,20,.25); border:1px solid rgba(200,160,50,.15);
-      display:flex; align-items:center; justify-content:center;
-      font-size:.8rem; font-weight:700; color:#e8c878; flex-shrink:0;
-    }
+    .td-avatar { width:40px; height:40px; border-radius:11px; background:rgba(120,20,20,.25); border:1px solid rgba(200,160,50,.15); display:flex; align-items:center; justify-content:center; font-size:.8rem; font-weight:700; color:#e8c878; flex-shrink:0; }
     .td-student-name  { font-weight:500; color:#f5e6c8; font-size:.87rem; }
     .td-student-email { font-size:.7rem; color:rgba(200,170,100,.35); font-family:'DM Mono',monospace; margin-top:.1rem; }
     .td-student-stats { display:flex; gap:.55rem; flex-wrap:wrap; margin-bottom:.75rem; }
@@ -328,8 +322,7 @@ const Styles = () => (
     /* ── Leaderboard ── */
     .td-lb-row {
       display:flex; align-items:center; gap:.85rem;
-      padding:.85rem 1.25rem; border-bottom:1px solid rgba(200,160,50,.06);
-      transition:background .12s;
+      padding:.85rem 1.25rem; border-bottom:1px solid rgba(200,160,50,.06); transition:background .12s;
     }
     .td-lb-row:last-child { border-bottom:none; }
     .td-lb-row:hover { background:rgba(200,160,50,.03); }
@@ -342,11 +335,7 @@ const Styles = () => (
     .td-lb-pts { font-family:'DM Mono',monospace; font-size:.8rem; font-weight:700; color:#f5e6c8; }
 
     /* ── Empty state ── */
-    .td-empty {
-      padding:2.2rem 1.5rem; text-align:center;
-      border:1px dashed rgba(200,160,50,.12); border-radius:14px;
-      color:rgba(200,170,100,.3); font-size:.83rem; font-weight:300;
-    }
+    .td-empty { padding:2.2rem 1.5rem; text-align:center; border:1px dashed rgba(200,160,50,.12); border-radius:14px; color:rgba(200,170,100,.3); font-size:.83rem; font-weight:300; }
     .td-empty svg { width:34px; height:34px; margin:0 auto .8rem; opacity:.25; display:block; }
 
     /* ── Skeleton ── */
@@ -357,18 +346,11 @@ const Styles = () => (
     }
 
     /* ── Spinner ── */
-    .td-spinner {
-      display:inline-block; width:14px; height:14px;
-      border:2px solid rgba(200,160,50,.2); border-top-color:#c8a040;
-      border-radius:50%; animation:spin .7s linear infinite;
-    }
+    .td-spinner { display:inline-block; width:14px; height:14px; border:2px solid rgba(200,160,50,.2); border-top-color:#c8a040; border-radius:50%; animation:spin .7s linear infinite; }
 
     /* ── Settings ── */
     .td-settings-grid { display:grid; grid-template-columns:1fr 1fr; gap:1.5rem; padding:1.5rem; }
-    .td-field-label {
-      display:block; font-size:.66rem; letter-spacing:.12em; text-transform:uppercase;
-      color:rgba(200,160,60,.65); margin-bottom:.5rem; font-weight:500;
-    }
+    .td-field-label { display:block; font-size:.66rem; letter-spacing:.12em; text-transform:uppercase; color:rgba(200,160,60,.65); margin-bottom:.5rem; font-weight:500; }
     .td-input {
       width:100%; padding:.7rem .95rem; border-radius:9px;
       background:rgba(255,255,255,.055); border:1px solid rgba(200,160,50,.2);
@@ -377,6 +359,17 @@ const Styles = () => (
     }
     .td-input::placeholder { color:rgba(200,170,100,.25); }
     .td-input:focus { border-color:rgba(200,160,50,.5); background:rgba(255,255,255,.08); box-shadow:0 0 0 3px rgba(190,140,30,.12); }
+    select.td-input {
+      background: rgba(30,12,12,.95);
+      color: #f5e6c8;
+    }
+    select.td-input option {
+      background: #1e0c0c;
+      color: #f5e6c8;
+    }
+    select.td-input option[value=""] {
+      color: #d9b86e;
+    }
     .td-submit-btn {
       width:100%; padding:.75rem 1rem; border:none; border-radius:9px;
       cursor:pointer; font-family:'DM Sans',sans-serif; font-size:.87rem; font-weight:500;
@@ -391,16 +384,11 @@ const Styles = () => (
     .td-outline-btn {
       width:100%; padding:.65rem 1rem; border-radius:9px; cursor:pointer;
       font-family:'DM Sans',sans-serif; font-size:.82rem; font-weight:500;
-      border: 1px solid rgba(200,160,50,.22);
-      background: rgba(200,160,50,.06); color:rgba(200,160,80,.7);
-      transition:all .15s; margin-bottom:.5rem;
+      border: 1px solid rgba(200,160,50,.22); background: rgba(200,160,50,.06);
+      color:rgba(200,160,80,.7); transition:all .15s; margin-bottom:.5rem;
     }
     .td-outline-btn:hover { background:rgba(200,160,50,.14); color:#e8c878; }
-    .td-error-box {
-      display:flex; align-items:center; gap:.55rem; padding:.65rem .9rem;
-      background:rgba(239,68,68,.07); border:1px solid rgba(239,68,68,.2);
-      border-radius:9px; font-size:.79rem; color:#fca5a5; margin-bottom:.65rem;
-    }
+    .td-error-box { display:flex; align-items:center; gap:.55rem; padding:.65rem .9rem; background:rgba(239,68,68,.07); border:1px solid rgba(239,68,68,.2); border-radius:9px; font-size:.79rem; color:#fca5a5; margin-bottom:.65rem; }
     .td-success-hint { margin-top:.4rem; font-size:.78rem; color:#c8a040; font-weight:300; }
 
     /* ── Modal overlay ── */
@@ -411,43 +399,70 @@ const Styles = () => (
       animation:fadeIn .2s ease both;
     }
     .td-modal {
-      background:#160808;
-      border:1px solid rgba(200,160,50,.15);
-      border-radius:20px; padding:2rem 2.2rem;
-      width:100%; max-width:520px;
+      background:#160808; border:1px solid rgba(200,160,50,.15); border-radius:20px;
+      padding:2rem 2.2rem; width:100%; max-width:560px;
       animation:modalIn .28s cubic-bezier(.34,1.56,.64,1) both;
       box-shadow:0 40px 80px rgba(0,0,0,.8);
+      max-height: 90vh; overflow-y: auto;
     }
-    .td-modal-icon {
-      width:50px; height:50px; border-radius:14px;
-      background:rgba(120,20,20,.25); border:1px solid rgba(200,160,50,.2);
-      display:flex; align-items:center; justify-content:center; margin-bottom:1.2rem;
-    }
+    .td-modal-icon { width:50px; height:50px; border-radius:14px; background:rgba(120,20,20,.25); border:1px solid rgba(200,160,50,.2); display:flex; align-items:center; justify-content:center; margin-bottom:1.2rem; }
     .td-modal-icon svg { width:22px; height:22px; color:#e8c878; }
     .td-modal-title { font-family:'Playfair Display',serif; font-size:1.15rem; font-weight:700; color:#f5e6c8; margin-bottom:.4rem; }
     .td-modal-sub   { font-size:.82rem; color:rgba(200,170,100,.4); line-height:1.6; margin-bottom:1.5rem; font-weight:300; }
     .td-modal-sub strong { color:rgba(245,230,200,.8); font-weight:500; }
-    .td-modal-label {
-      font-size:.65rem; letter-spacing:.12em; text-transform:uppercase;
-      color:rgba(200,160,60,.6); margin-bottom:.45rem; font-weight:500; display:block;
-    }
+    .td-modal-label { font-size:.65rem; letter-spacing:.12em; text-transform:uppercase; color:rgba(200,160,60,.6); margin-bottom:.45rem; font-weight:500; display:block; }
     .td-modal-input {
-      width:100%; padding:.65rem .9rem;
-      background:rgba(255,255,255,.055); border:1px solid rgba(200,160,50,.18);
-      border-radius:9px; color:#f5e6c8;
+      width:100%; padding:.65rem .9rem; background:rgba(255,255,255,.055);
+      border:1px solid rgba(200,160,50,.18); border-radius:9px; color:#f5e6c8;
       font-family:'DM Sans',sans-serif; font-size:.85rem; font-weight:300;
       outline:none; margin-bottom:1rem; transition:border-color .2s;
     }
     .td-modal-input:focus { border-color:rgba(200,160,50,.5); }
 
+    /* ── Section selector grid ── */
+    .td-section-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: .6rem; margin-bottom: 1.1rem;
+    }
+    .td-section-card {
+      padding: .85rem 1rem; border-radius: 11px; cursor: pointer;
+      border: 1px solid rgba(200,160,50,.15); background: rgba(200,160,50,.04);
+      transition: all .18s; position: relative; overflow: hidden;
+      display: flex; flex-direction: column; gap: .3rem;
+    }
+    .td-section-card:hover {
+      background: rgba(200,160,50,.1); border-color: rgba(200,160,50,.35);
+      transform: translateY(-1px); box-shadow: 0 4px 16px rgba(0,0,0,.3);
+    }
+    .td-section-card.selected {
+      background: rgba(200,160,40,.14); border-color: rgba(200,160,40,.5);
+      box-shadow: 0 0 0 2px rgba(200,160,40,.2), 0 4px 16px rgba(0,0,0,.3);
+    }
+    .td-section-card-name {
+      font-weight: 600; font-size: .85rem; color: #f5e6c8;
+      font-family: 'Playfair Display', serif;
+    }
+    .td-section-card-count {
+      font-size: .68rem; color: rgba(200,170,100,.45);
+      font-family: 'DM Mono', monospace;
+    }
+    .td-section-card-check {
+      position: absolute; top: 7px; right: 8px;
+      width: 18px; height: 18px; border-radius: 50%;
+      background: #c8a040; display: flex; align-items: center; justify-content: center;
+      animation: checkPop .25s ease both;
+    }
+    .td-section-card-check svg { width: 10px; height: 10px; color: #1a0a0a; stroke-width: 3; }
+
+    /* ── Student list (inside modal, after section pick) ── */
     .td-student-select-list {
       max-height:220px; overflow-y:auto;
       border:1px solid rgba(200,160,50,.12); border-radius:10px;
       margin-bottom:1.1rem; padding:.4rem;
     }
     .td-student-checkbox-item {
-      display:flex; align-items:center; gap:.75rem;
-      padding:.55rem .5rem; border-radius:8px; cursor:pointer; transition:background .1s;
+      display:flex; align-items:center; gap:.75rem; padding:.55rem .5rem;
+      border-radius:8px; cursor:pointer; transition:background .1s;
     }
     .td-student-checkbox-item:hover { background:rgba(200,160,50,.05); }
     .td-student-checkbox-item input { width:16px; height:16px; cursor:pointer; accent-color:#c8a040; }
@@ -473,11 +488,41 @@ const Styles = () => (
       color:#fff8e8; font-family:'DM Sans',sans-serif; font-size:.88rem; font-weight:500;
       cursor:pointer; transition:all .15s; letter-spacing:.03em;
       background:linear-gradient(135deg,#8b1a1a 0%,#6b1010 50%,#8b1a1a 100%);
-      background-size:200% auto;
-      box-shadow:0 4px 16px rgba(120,20,20,.45);
+      background-size:200% auto; box-shadow:0 4px 16px rgba(120,20,20,.45);
     }
     .td-btn-send:hover { animation:shimmer .9s linear infinite; }
     .td-btn-send:disabled { opacity:.4; cursor:not-allowed; animation:none; }
+
+    /* ── Back button in modal ── */
+    .td-modal-back-btn {
+      display: inline-flex; align-items: center; gap: .4rem;
+      background: none; border: none; cursor: pointer;
+      font-family: 'DM Sans', sans-serif; font-size: .78rem;
+      color: rgba(200,170,100,.5); padding: 0; margin-bottom: 1rem;
+      transition: color .15s;
+    }
+    .td-modal-back-btn:hover { color: #e8c878; }
+    .td-modal-back-btn svg { width: 14px; height: 14px; }
+
+    /* ── Modal step header ── */
+    .td-modal-step-label {
+      display: inline-flex; align-items: center; gap: .4rem;
+      font-size: .62rem; letter-spacing: .14em; text-transform: uppercase;
+      color: rgba(200,160,60,.5); margin-bottom: .5rem;
+      font-family: 'DM Mono', monospace;
+    }
+    .td-modal-step-dot {
+      width: 5px; height: 5px; border-radius: 50%; background: #c8a040;
+    }
+
+    /* ── Breadcrumb ── */
+    .td-modal-breadcrumb {
+      display: flex; align-items: center; gap: .4rem;
+      margin-bottom: 1.2rem; font-size: .72rem;
+      color: rgba(200,170,100,.35); font-family: 'DM Mono', monospace;
+    }
+    .td-modal-breadcrumb-sep { opacity: .3; }
+    .td-modal-breadcrumb-active { color: #e8c878; }
 
     /* ── Confirm modal danger button ── */
     .td-btn-danger {
@@ -485,8 +530,7 @@ const Styles = () => (
       color:#fff8e8; font-family:'DM Sans',sans-serif; font-size:.88rem; font-weight:500;
       cursor:pointer; transition:all .15s; letter-spacing:.03em;
       background:linear-gradient(135deg,#7a1010 0%,#5a0808 50%,#7a1010 100%);
-      background-size:200% auto;
-      box-shadow:0 4px 16px rgba(100,10,10,.55);
+      background-size:200% auto; box-shadow:0 4px 16px rgba(100,10,10,.55);
     }
     .td-btn-danger:hover { animation:shimmer .9s linear infinite; }
 
@@ -494,8 +538,7 @@ const Styles = () => (
     .td-send-success {
       position:fixed; inset:0; z-index:70;
       display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1.4rem;
-      background:rgba(22,8,8,.96); backdrop-filter:blur(20px);
-      animation:fadeIn .3s ease both;
+      background:rgba(22,8,8,.96); backdrop-filter:blur(20px); animation:fadeIn .3s ease both;
     }
     .td-send-success-ring {
       width:90px; height:90px; border-radius:50%;
@@ -511,12 +554,9 @@ const Styles = () => (
     /* ── Toast ── */
     .td-toast {
       position:fixed; bottom:2rem; right:2rem; z-index:80;
-      display:flex; align-items:center; gap:.75rem;
-      padding:.85rem 1.2rem; border-radius:12px;
-      background:#160808; border:1px solid rgba(200,160,50,.15);
-      box-shadow:0 20px 40px rgba(0,0,0,.6);
-      font-size:.84rem; font-weight:500;
-      animation:toastSlide 3.5s ease forwards;
+      display:flex; align-items:center; gap:.75rem; padding:.85rem 1.2rem; border-radius:12px;
+      background:#160808; border:1px solid rgba(200,160,50,.15); box-shadow:0 20px 40px rgba(0,0,0,.6);
+      font-size:.84rem; font-weight:500; animation:toastSlide 3.5s ease forwards;
     }
     .td-toast.success { border-color:rgba(200,160,40,.3); color:#e8c878; }
     .td-toast.error   { border-color:rgba(239,68,68,.3);  color:#fca5a5; }
@@ -538,6 +578,7 @@ const Styles = () => (
       .td-topbar { padding:0 1rem; }
       .td-name { font-size:1.65rem; }
       .td-actions { grid-template-columns:1fr; }
+      .td-section-grid { grid-template-columns: 1fr 1fr; }
     }
   `}</style>
 );
@@ -635,6 +676,18 @@ const Ico = {
       <line x1="12" y1="17" x2="12.01" y2="17"/>
     </svg>
   ),
+  Back: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M19 12H5M12 5l-7 7 7 7"/>
+    </svg>
+  ),
+  Group: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/>
+      <circle cx="9" cy="7" r="4"/>
+      <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/>
+    </svg>
+  ),
 };
 
 const chartAxisStyle = {
@@ -646,6 +699,238 @@ const chartSx = {
   "& .MuiChartsLegend-label": { fill: "#c8a040 !important", fontSize: "11px !important" },
 };
 
+/* ════════════════════════════════════════════════════════════
+   Send Quiz Modal — Section → Students flow
+   ════════════════════════════════════════════════════════════ */
+function SendQuizModal({
+  quiz,
+  myStudents,
+  onClose,
+  onSend,
+  sending,
+}) {
+  // step: "section" | "students"
+  const [step, setStep] = useState("section");
+  const [selectedSection, setSelectedSection] = useState(null);
+  const [selectedStudentIds, setSelectedStudentIds] = useState([]);
+
+  const now = new Date();
+  const fmt = (d) => d.toISOString().slice(0, 16);
+  const [startTime, setStartTime] = useState(fmt(new Date(now.getTime() + 5 * 60000)));
+  const [endTime, setEndTime]     = useState(fmt(new Date(now.getTime() + 65 * 60000)));
+
+  /* ── Derive sections from students ──
+     A student's section is stored in s.section.
+     We group all students by their section field.
+     Then filter: only show sections where at least one student
+     has a `course` matching the quiz subject (if quiz has a subject).
+  ── */
+  const quizSubject = quiz?.lecture?.title || quiz?.subject || null;
+
+  // Build section map: { sectionName: [students] }
+  const sectionMap = myStudents.reduce((acc, s) => {
+    const sec = (s.section || "Unspecified").trim();
+    if (!acc[sec]) acc[sec] = [];
+    acc[sec].push(s);
+    return acc;
+  }, {});
+
+  const sections = Object.entries(sectionMap).map(([name, students]) => ({
+    name,
+    students,
+    count: students.length,
+  }));
+
+  // Students in the selected section
+  const studentsInSection = selectedSection
+    ? (sectionMap[selectedSection] || [])
+    : [];
+
+  const allSelected = studentsInSection.length > 0 &&
+    selectedStudentIds.length === studentsInSection.length;
+
+  const handleSelectSection = (sectionName) => {
+    setSelectedSection(sectionName);
+    // Pre-select all students in the section
+    setSelectedStudentIds((sectionMap[sectionName] || []).map(s => s.id));
+    setStep("students");
+  };
+
+  const handleSelectAll = (e) => {
+    setSelectedStudentIds(e.target.checked ? studentsInSection.map(s => s.id) : []);
+  };
+
+  const handleToggleStudent = (id) => {
+    setSelectedStudentIds(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    );
+  };
+
+  const handleBack = () => {
+    setStep("section");
+    setSelectedSection(null);
+    setSelectedStudentIds([]);
+  };
+
+  const handleSend = () => {
+    onSend({ startTime, endTime, studentIds: selectedStudentIds });
+  };
+
+  return (
+    <div className="td-modal-overlay" onClick={() => !sending && onClose()}>
+      <div className="td-modal" onClick={e => e.stopPropagation()}>
+
+        {/* Icon + Title */}
+        <div className="td-modal-icon">{Ico.Send}</div>
+        <h2 className="td-modal-title">Send Quiz to Students</h2>
+        <p className="td-modal-sub">
+          Scheduling <strong>"{quiz.title}"</strong> —{" "}
+          {step === "section"
+            ? "choose a section to send this quiz to."
+            : <>students in <strong style={{color:"rgba(245,230,200,.9)"}}>{selectedSection}</strong>.</>}
+        </p>
+
+        {/* Lecture source card */}
+        {quiz.lecture && (
+          <div style={{ display:"flex", alignItems:"center", gap:".65rem", padding:".65rem .9rem", borderRadius:10, background:"rgba(200,160,50,.05)", border:"1px solid rgba(200,160,50,.1)", marginBottom:"1.1rem" }}>
+            <span style={{ fontSize:"1.1rem" }}>{fileTypeEmoji(quiz.lecture.file_type)}</span>
+            <div>
+              <div style={{ fontSize:".8rem", fontWeight:500, color:"rgba(245,230,200,.8)" }}>{quiz.lecture.title}</div>
+              <div style={{ fontSize:".7rem", color:"rgba(200,170,100,.35)", fontWeight:300 }}>Source lecture</div>
+            </div>
+          </div>
+        )}
+
+        {/* Breadcrumb */}
+        <div className="td-modal-breadcrumb">
+          <span className={step === "section" ? "td-modal-breadcrumb-active" : ""}>
+            1 · Select Section
+          </span>
+          <span className="td-modal-breadcrumb-sep">›</span>
+          <span className={step === "students" ? "td-modal-breadcrumb-active" : ""}>
+            2 · Select Students
+          </span>
+          <span className="td-modal-breadcrumb-sep">›</span>
+          <span>3 · Schedule</span>
+        </div>
+
+        {/* ── STEP 1: Section picker ── */}
+        {step === "section" && (
+          <>
+            <div className="td-modal-step-label">
+              <span className="td-modal-step-dot" />
+              Available Sections ({sections.length})
+            </div>
+
+            {sections.length === 0 ? (
+              <div className="td-empty" style={{ marginBottom:"1rem" }}>
+                {Ico.Group}
+                No sections found. Make sure students have sections assigned.
+              </div>
+            ) : (
+              <div className="td-section-grid">
+                {sections.map(sec => (
+                  <div
+                    key={sec.name}
+                    className="td-section-card"
+                    onClick={() => handleSelectSection(sec.name)}
+                  >
+                    <div className="td-section-card-name">{sec.name}</div>
+                    <div className="td-section-card-count">
+                      {sec.count} student{sec.count !== 1 ? "s" : ""}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="td-modal-actions">
+              <button className="td-btn-cancel" onClick={onClose} disabled={sending}>
+                Cancel
+              </button>
+            </div>
+          </>
+        )}
+
+        {/* ── STEP 2 & 3: Students + Schedule ── */}
+        {step === "students" && (
+          <>
+            {/* Back button */}
+            <button className="td-modal-back-btn" onClick={handleBack} disabled={sending}>
+              {Ico.Back} Back to sections
+            </button>
+
+            <label className="td-modal-label">
+              Select Students — {studentsInSection.length} available in {selectedSection}
+            </label>
+            <div className="td-student-select-list">
+              <div className="td-select-all-row">
+                <input
+                  type="checkbox"
+                  checked={allSelected}
+                  onChange={handleSelectAll}
+                />
+                <span>Select All</span>
+              </div>
+              {studentsInSection.map(student => (
+                <label key={student.id} className="td-student-checkbox-item">
+                  <input
+                    type="checkbox"
+                    checked={selectedStudentIds.includes(student.id)}
+                    onChange={() => handleToggleStudent(student.id)}
+                  />
+                  <div>
+                    <div className="td-student-checkbox-name">{student.full_name}</div>
+                    <div className="td-student-checkbox-email">{student.email}</div>
+                  </div>
+                </label>
+              ))}
+              {studentsInSection.length === 0 && (
+                <div style={{ padding:"1rem", textAlign:"center", color:"rgba(200,170,100,.25)", fontSize:".8rem" }}>
+                  No students in this section.
+                </div>
+              )}
+            </div>
+
+            <label className="td-modal-label">Start Time</label>
+            <input
+              className="td-modal-input"
+              type="datetime-local"
+              value={startTime}
+              onChange={e => setStartTime(e.target.value)}
+            />
+            <label className="td-modal-label">End Time</label>
+            <input
+              className="td-modal-input"
+              type="datetime-local"
+              value={endTime}
+              onChange={e => setEndTime(e.target.value)}
+            />
+
+            <div className="td-modal-actions">
+              <button className="td-btn-cancel" onClick={onClose} disabled={sending}>
+                Cancel
+              </button>
+              <button
+                className="td-btn-send"
+                onClick={handleSend}
+                disabled={sending || selectedStudentIds.length === 0}
+              >
+                {sending
+                  ? <span className="td-spinner" />
+                  : `✦ Send to ${selectedStudentIds.length} student(s)`}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ════════════════════════════════════════════════════════════
+   Main Dashboard
+   ════════════════════════════════════════════════════════════ */
 export default function TeacherDashboard() {
   const navigate = useNavigate();
   const [activeView, setActiveView] = useState("overview");
@@ -666,10 +951,9 @@ export default function TeacherDashboard() {
   const [assigningSubjectStudentId, setAssigningSubjectStudentId] = useState(null);
   const [selectedStudentSubject, setSelectedStudentSubject] = useState({});
 
-  const [sendModal, setSendModal] = useState(null);
-  const [selectedStudentIds, setSelectedStudentIds] = useState([]);
-  const [startTime, setStartTime] = useState("");
-  const [endTime, setEndTime] = useState("");
+  const [subjectDropdownOpen, setSubjectDropdownOpen] = useState(false);
+
+  const [sendModal, setSendModal] = useState(null);   // { quiz }
   const [sending, setSending] = useState(false);
   const [sendSuccess, setSendSuccess] = useState(null);
   const [toast, setToast] = useState(null);
@@ -691,36 +975,22 @@ export default function TeacherDashboard() {
   };
 
   const openSendModal = (quiz) => {
-    const now = new Date();
-    const fmt = (d) => d.toISOString().slice(0, 16);
-    setStartTime(fmt(new Date(now.getTime() + 5 * 60000)));
-    setEndTime(fmt(new Date(now.getTime() + 65 * 60000)));
-    setSelectedStudentIds([]);
     setSendModal({ quiz });
   };
 
-  const handleSelectAllStudents = (e) => {
-    setSelectedStudentIds(e.target.checked ? myStudents.map(s => s.id) : []);
-  };
-
-  const handleToggleStudent = (id) => {
-    setSelectedStudentIds(prev =>
-      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
-    );
-  };
-
-  const handleSend = async () => {
+  /* ── Send handler (called from SendQuizModal) ── */
+  const handleSend = async ({ startTime, endTime, studentIds }) => {
     if (!startTime || !endTime) { showToast("Please set both times", "error"); return; }
     if (new Date(endTime) <= new Date(startTime)) { showToast("End time must be after start time", "error"); return; }
-    if (selectedStudentIds.length === 0) { showToast("Please select at least one student", "error"); return; }
+    if (studentIds.length === 0) { showToast("Please select at least one student", "error"); return; }
     setSending(true);
     try {
       const result = await apiFetch("/api/quiz/schedule", {
         method: "POST",
-        body: JSON.stringify({ quizId: sendModal.quiz.id, startTime, endTime, studentIds: selectedStudentIds }),
+        body: JSON.stringify({ quizId: sendModal.quiz.id, startTime, endTime, studentIds }),
       });
       setSendModal(null);
-      setSendSuccess({ message: result.message || `Quiz sent to ${selectedStudentIds.length} student(s)!` });
+      setSendSuccess({ message: result.message || `Quiz sent to ${studentIds.length} student(s)!` });
       loadQuizzes();
       setTimeout(() => setSendSuccess(null), 2800);
     } catch (err) {
@@ -997,29 +1267,16 @@ export default function TeacherDashboard() {
 
       {/* ── Custom Confirm Modal ── */}
       {confirmModal && (
-        <div
-          className="td-modal-overlay"
-          style={{ zIndex: 65 }}
-          onClick={() => setConfirmModal(null)}
-        >
-          <div
-            className="td-modal"
-            style={{ maxWidth: 420 }}
-            onClick={e => e.stopPropagation()}
-          >
+        <div className="td-modal-overlay" style={{ zIndex: 65 }} onClick={() => setConfirmModal(null)}>
+          <div className="td-modal" style={{ maxWidth: 420 }} onClick={e => e.stopPropagation()}>
             <div className="td-modal-icon" style={{ background: "rgba(139,26,26,.25)", borderColor: "rgba(239,68,68,.25)" }}>
               {Ico.Warning}
             </div>
             <h2 className="td-modal-title">{confirmModal.title}</h2>
             <p className="td-modal-sub">{confirmModal.message}</p>
             <div className="td-modal-actions">
-              <button className="td-btn-cancel" onClick={() => setConfirmModal(null)}>
-                Cancel
-              </button>
-              <button
-                className="td-btn-danger"
-                onClick={() => { confirmModal.onConfirm(); setConfirmModal(null); }}
-              >
+              <button className="td-btn-cancel" onClick={() => setConfirmModal(null)}>Cancel</button>
+              <button className="td-btn-danger" onClick={() => { confirmModal.onConfirm(); setConfirmModal(null); }}>
                 ✦ Confirm
               </button>
             </div>
@@ -1027,69 +1284,15 @@ export default function TeacherDashboard() {
         </div>
       )}
 
-      {/* Send modal */}
+      {/* ── Send Modal (new section-first flow) ── */}
       {sendModal && (
-        <div className="td-modal-overlay" onClick={() => !sending && setSendModal(null)}>
-          <div className="td-modal" onClick={e => e.stopPropagation()}>
-            <div className="td-modal-icon">{Ico.Send}</div>
-            <h2 className="td-modal-title">Send Quiz to Students</h2>
-            <p className="td-modal-sub">
-              Scheduling <strong>"{sendModal.quiz.title}"</strong> — choose recipients and schedule below.
-            </p>
-
-            {sendModal.quiz.lecture && (
-              <div style={{ display:"flex", alignItems:"center", gap:".65rem", padding:".65rem .9rem", borderRadius:10, background:"rgba(200,160,50,.05)", border:"1px solid rgba(200,160,50,.1)", marginBottom:"1.1rem" }}>
-                <span style={{ fontSize:"1.1rem" }}>{fileTypeEmoji(sendModal.quiz.lecture.file_type)}</span>
-                <div>
-                  <div style={{ fontSize:".8rem", fontWeight:500, color:"rgba(245,230,200,.8)" }}>{sendModal.quiz.lecture.title}</div>
-                  <div style={{ fontSize:".7rem", color:"rgba(200,170,100,.35)", fontWeight:300 }}>Source lecture</div>
-                </div>
-              </div>
-            )}
-
-            <label className="td-modal-label">Select Students ({myStudents.length} available)</label>
-            <div className="td-student-select-list">
-              <div className="td-select-all-row">
-                <input
-                  type="checkbox"
-                  checked={selectedStudentIds.length === myStudents.length && myStudents.length > 0}
-                  onChange={handleSelectAllStudents}
-                />
-                <span>Select All</span>
-              </div>
-              {myStudents.map(student => (
-                <label key={student.id} className="td-student-checkbox-item">
-                  <input
-                    type="checkbox"
-                    checked={selectedStudentIds.includes(student.id)}
-                    onChange={() => handleToggleStudent(student.id)}
-                  />
-                  <div>
-                    <div className="td-student-checkbox-name">{student.full_name}</div>
-                    <div className="td-student-checkbox-email">{student.email}</div>
-                  </div>
-                </label>
-              ))}
-              {myStudents.length === 0 && (
-                <div style={{ padding:"1rem", textAlign:"center", color:"rgba(200,170,100,.25)", fontSize:".8rem" }}>
-                  No students assigned yet.
-                </div>
-              )}
-            </div>
-
-            <label className="td-modal-label">Start Time</label>
-            <input className="td-modal-input" type="datetime-local" value={startTime} onChange={e => setStartTime(e.target.value)} />
-            <label className="td-modal-label">End Time</label>
-            <input className="td-modal-input" type="datetime-local" value={endTime} onChange={e => setEndTime(e.target.value)} />
-
-            <div className="td-modal-actions">
-              <button className="td-btn-cancel" onClick={() => setSendModal(null)} disabled={sending}>Cancel</button>
-              <button className="td-btn-send" onClick={handleSend} disabled={sending}>
-                {sending ? <span className="td-spinner" /> : `✦ Send to ${selectedStudentIds.length} student(s)`}
-              </button>
-            </div>
-          </div>
-        </div>
+        <SendQuizModal
+          quiz={sendModal.quiz}
+          myStudents={myStudents}
+          onClose={() => !sending && setSendModal(null)}
+          onSend={handleSend}
+          sending={sending}
+        />
       )}
 
       {/* Send success overlay */}
@@ -1107,18 +1310,73 @@ export default function TeacherDashboard() {
         <div className="deco-ring" />
         <div className="deco-ring deco-ring-2" />
 
-        {/* Topbar */}
+        {/* ════════════ Topbar ════════════ */}
         <header className="td-topbar">
           <div className="td-logo">
             <div className="td-logo-icon">{Ico.Star}</div>
             QuizSystem
           </div>
+
           <div className="td-topbar-right">
             <div className="td-user-chip">
               <div className="td-user-chip-avatar">{initials(teacherName)}</div>
               {teacherName}
             </div>
-            {teacherProfile?.subject && <span className="td-chip-small">{teacherProfile.subject}</span>}
+
+            {/* Subject Dropdown */}
+            {teacherProfile && (
+              <div className="td-subject-dropdown-wrap">
+                <button
+                  className={`td-subject-dropdown-btn ${subjectDropdownOpen ? "open" : ""}`}
+                  onClick={() => setSubjectDropdownOpen(v => !v)}
+                >
+                  <span className="subj-book">📚</span>
+                  {teacherSubjectOptions.length > 0
+                    ? `${teacherSubjectOptions.length} Subject${teacherSubjectOptions.length > 1 ? "s" : ""}`
+                    : "No Subject"}
+                  {teacherSubjectOptions.length > 0 && (
+                    <span style={{ display:"inline-flex", alignItems:"center", justifyContent:"center", width:16, height:16, borderRadius:"50%", background:"rgba(200,160,40,.2)", border:"1px solid rgba(200,160,40,.3)", fontSize:".58rem", fontWeight:700, color:"#e8c878", fontFamily:"'DM Sans',sans-serif", lineHeight:1 }}>
+                      {teacherSubjectOptions.length}
+                    </span>
+                  )}
+                  <svg className="drop-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <polyline points="6 9 12 15 18 9"/>
+                  </svg>
+                </button>
+
+                {subjectDropdownOpen && (
+                  <>
+                    <div style={{ position:"fixed", inset:0, zIndex:49 }} onClick={() => setSubjectDropdownOpen(false)} />
+                    <div className="td-subject-dropdown-menu">
+                      <div className="td-subject-dropdown-arrow" />
+                      <div className="td-subject-dropdown-header">
+                        Assigned Subjects
+                        <span className="td-subject-dropdown-header-line" />
+                      </div>
+                      {teacherSubjectOptions.length === 0 ? (
+                        <div className="td-subject-dropdown-empty">No subjects added yet</div>
+                      ) : (
+                        teacherSubjectOptions.map((subj, i) => (
+                          <div key={i} className="td-subject-dropdown-item">
+                            <span className="subj-dot" />
+                            {subj}
+                            <span className="subj-index">#{i + 1}</span>
+                          </div>
+                        ))
+                      )}
+                      <div className="td-subject-dropdown-divider" />
+                      <div className="td-subject-dropdown-footer">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/>
+                        </svg>
+                        Manage subjects in Settings
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
             <button className="td-topbar-btn" onClick={refreshDashboard}>↻ Refresh</button>
             <button className="td-topbar-btn" onClick={resetStudentPoints}>Reset Points</button>
             <button className="td-topbar-btn" onClick={() => { logout(); navigate("/"); }}>Sign out</button>
@@ -1151,8 +1409,7 @@ export default function TeacherDashboard() {
                     Welcome back{teacherName ? `, ${teacherName.split(" ")[0]}` : ""}! 👋
                   </h1>
                   <p className="td-sub">
-                    Manage your students, lectures, and quizzes from here
-                    {teacherProfile?.subject ? ` · ${teacherProfile.subject}` : ""}
+                    Manage your students, lectures, and quizzes from here.
                   </p>
                   {teacherProfile?.subject && (
                     <div className="td-badge-row">
@@ -1370,16 +1627,10 @@ export default function TeacherDashboard() {
                             {s.streak > 0 && <span className="td-pill td-pill-streak">🔥 {s.streak}</span>}
                           </div>
 
-                          {/* ── Reset Points — styled like Generate button ── */}
                           <button
                             type="button"
                             className="td-quiz-send-btn"
-                            style={{
-                              padding: ".4rem .85rem",
-                              fontSize: ".75rem",
-                              width: "auto",
-                              marginBottom: ".7rem",
-                            }}
+                            style={{ padding:".4rem .85rem", fontSize:".75rem", width:"auto", marginBottom:".7rem" }}
                             onClick={() => resetSingleStudentPoints(s)}
                           >
                             {Ico.Trash} Reset Points
