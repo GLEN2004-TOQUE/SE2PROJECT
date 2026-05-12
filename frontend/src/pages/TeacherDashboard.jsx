@@ -735,32 +735,40 @@ const chartSx = {
   "& .MuiChartsLegend-label": { fill: "#c8a040 !important", fontSize: "11px !important" },
 };
 
+function parseSubjectTokens(courseStr) {
+  return (courseStr || "")
+    .split("|")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+/** Student's profile `course` includes this subject (pipe-separated, case-insensitive). */
+function studentEnrolledInSubject(student, subject) {
+  if (!subject || !String(subject).trim()) return false;
+  const want = String(subject).trim().toLowerCase();
+  return parseSubjectTokens(student.course).some((t) => t.toLowerCase() === want);
+}
+
 /* ════════════════════════════════════════════════════════════
-   Send Quiz Modal — Section → Students flow
+   Send Quiz Modal — Section → Subject → Students flow
    ════════════════════════════════════════════════════════════ */
 function SendQuizModal({
   quiz,
   myStudents,
+  teacherSubjectOptions,
   onClose,
   onSend,
   sending,
 }) {
-  // step: "section" | "students"
+  // step: "section" | "subject" | "students"
   const [step, setStep] = useState("section");
   const [selectedSection, setSelectedSection] = useState(null);
+  const [selectedSubject, setSelectedSubject] = useState(null);
   const [selectedStudentIds, setSelectedStudentIds] = useState([]);
 
   const now = new Date();
   const [startTime, setStartTime] = useState(formatDateTimeLocalForPH(new Date(now.getTime() + 5 * 60000)));
   const [endTime, setEndTime]     = useState(formatDateTimeLocalForPH(new Date(now.getTime() + 65 * 60000)));
-
-  /* ── Derive sections from students ──
-     A student's section is stored in s.section.
-     We group all students by their section field.
-     Then filter: only show sections where at least one student
-     has a `course` matching the quiz subject (if quiz has a subject).
-  ── */
-  const quizSubject = quiz?.lecture?.title || quiz?.subject || null;
 
   // Build section map: { sectionName: [students] }
   const sectionMap = myStudents.reduce((acc, s) => {
@@ -781,18 +789,39 @@ function SendQuizModal({
     ? (sectionMap[selectedSection] || [])
     : [];
 
-  const allSelected = studentsInSection.length > 0 &&
-    selectedStudentIds.length === studentsInSection.length;
+  // Teacher subjects that have at least one student in this section enrolled in that subject
+  const subjectsInSection = selectedSection
+    ? (teacherSubjectOptions || []).filter((subj) =>
+        studentsInSection.some((s) => studentEnrolledInSubject(s, subj))
+      )
+    : [];
+
+  const studentsForSubject = selectedSection && selectedSubject
+    ? studentsInSection.filter((s) => studentEnrolledInSubject(s, selectedSubject))
+    : [];
+
+  const allSelected = studentsForSubject.length > 0 &&
+    selectedStudentIds.length === studentsForSubject.length &&
+    studentsForSubject.every((s) => selectedStudentIds.includes(s.id));
 
   const handleSelectSection = (sectionName) => {
     setSelectedSection(sectionName);
-    // Pre-select all students in the section
-    setSelectedStudentIds((sectionMap[sectionName] || []).map(s => s.id));
+    setSelectedSubject(null);
+    setSelectedStudentIds([]);
+    setStep("subject");
+  };
+
+  const handleSelectSubject = (subjectName) => {
+    setSelectedSubject(subjectName);
+    const ids = (sectionMap[selectedSection] || [])
+      .filter((s) => studentEnrolledInSubject(s, subjectName))
+      .map((s) => s.id);
+    setSelectedStudentIds(ids);
     setStep("students");
   };
 
   const handleSelectAll = (e) => {
-    setSelectedStudentIds(e.target.checked ? studentsInSection.map(s => s.id) : []);
+    setSelectedStudentIds(e.target.checked ? studentsForSubject.map(s => s.id) : []);
   };
 
   const handleToggleStudent = (id) => {
@@ -802,13 +831,31 @@ function SendQuizModal({
   };
 
   const handleBack = () => {
+    if (step === "students") {
+      setStep("subject");
+      setSelectedStudentIds([]);
+      return;
+    }
+    if (step === "subject") {
+      setStep("section");
+      setSelectedSection(null);
+      setSelectedSubject(null);
+      setSelectedStudentIds([]);
+      return;
+    }
     setStep("section");
     setSelectedSection(null);
+    setSelectedSubject(null);
     setSelectedStudentIds([]);
   };
 
   const handleSend = () => {
-    onSend({ startTime, endTime, studentIds: selectedStudentIds });
+    onSend({
+      startTime,
+      endTime,
+      studentIds: selectedStudentIds,
+      assignedSubject: selectedSubject,
+    });
   };
 
   return (
@@ -820,9 +867,17 @@ function SendQuizModal({
         <h2 className="td-modal-title">Send Quiz to Students</h2>
         <p className="td-modal-sub">
           Scheduling <strong>"{quiz.title}"</strong> —{" "}
-          {step === "section"
-            ? "choose a section to send this quiz to."
-            : <>students in <strong style={{color:"rgba(245,230,200,.9)"}}>{selectedSection}</strong>.</>}
+          {step === "section" && "choose a section, then a subject, then students."}
+          {step === "subject" && selectedSection && (
+            <>pick a subject for section <strong style={{ color: "rgba(245,230,200,.9)" }}>{selectedSection}</strong>.</>
+          )}
+          {step === "students" && selectedSection && selectedSubject && (
+            <>
+              <strong style={{ color: "rgba(245,230,200,.9)" }}>{selectedSubject}</strong>
+              {" · "}
+              <strong style={{ color: "rgba(245,230,200,.75)" }}>{selectedSection}</strong>
+            </>
+          )}
         </p>
 
         {/* Lecture source card */}
@@ -839,14 +894,16 @@ function SendQuizModal({
         {/* Breadcrumb */}
         <div className="td-modal-breadcrumb">
           <span className={step === "section" ? "td-modal-breadcrumb-active" : ""}>
-            1 · Select Section
+            1 · Section
+          </span>
+          <span className="td-modal-breadcrumb-sep">›</span>
+          <span className={step === "subject" ? "td-modal-breadcrumb-active" : ""}>
+            2 · Subject
           </span>
           <span className="td-modal-breadcrumb-sep">›</span>
           <span className={step === "students" ? "td-modal-breadcrumb-active" : ""}>
-            2 · Select Students
+            3 · Students &amp; schedule
           </span>
-          <span className="td-modal-breadcrumb-sep">›</span>
-          <span>3 · Schedule</span>
         </div>
 
         {/* ── STEP 1: Section picker ── */}
@@ -887,16 +944,65 @@ function SendQuizModal({
           </>
         )}
 
-        {/* ── STEP 2 & 3: Students + Schedule ── */}
-        {step === "students" && (
+        {/* ── STEP 2: Subject ── */}
+        {step === "subject" && (
           <>
-            {/* Back button */}
             <button className="td-modal-back-btn" onClick={handleBack} disabled={sending}>
               {Ico.Back} Back to sections
             </button>
 
+            <div className="td-modal-step-label">
+              <span className="td-modal-step-dot" />
+              Subject for {selectedSection} ({subjectsInSection.length})
+            </div>
+
+            {(teacherSubjectOptions || []).length === 0 ? (
+              <div className="td-empty" style={{ marginBottom: "1rem" }}>
+                {Ico.Warning}
+                Add subjects in Settings first, then assign each student to a subject under My Students.
+              </div>
+            ) : subjectsInSection.length === 0 ? (
+              <div className="td-empty" style={{ marginBottom: "1rem" }}>
+                {Ico.Warning}
+                No students in this section are enrolled in your subjects yet. Use My Students to assign subjects.
+              </div>
+            ) : (
+              <div className="td-section-grid">
+                {subjectsInSection.map((subj) => {
+                  const n = (sectionMap[selectedSection] || []).filter((s) => studentEnrolledInSubject(s, subj)).length;
+                  return (
+                    <div
+                      key={subj}
+                      className="td-section-card"
+                      onClick={() => handleSelectSubject(subj)}
+                    >
+                      <div className="td-section-card-name">{subj}</div>
+                      <div className="td-section-card-count">
+                        {n} student{n !== 1 ? "s" : ""}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            <div className="td-modal-actions">
+              <button className="td-btn-cancel" onClick={onClose} disabled={sending}>
+                Cancel
+              </button>
+            </div>
+          </>
+        )}
+
+        {/* ── STEP 3: Students + Schedule ── */}
+        {step === "students" && (
+          <>
+            <button className="td-modal-back-btn" onClick={handleBack} disabled={sending}>
+              {Ico.Back} Back to subjects
+            </button>
+
             <label className="td-modal-label">
-              Select Students — {studentsInSection.length} available in {selectedSection}
+              Select Students — {studentsForSubject.length} in {selectedSubject} ({selectedSection})
             </label>
             <div className="td-student-select-list">
               <div className="td-select-all-row">
@@ -907,7 +1013,7 @@ function SendQuizModal({
                 />
                 <span>Select All</span>
               </div>
-              {studentsInSection.map(student => (
+              {studentsForSubject.map(student => (
                 <label key={student.id} className="td-student-checkbox-item">
                   <input
                     type="checkbox"
@@ -920,9 +1026,9 @@ function SendQuizModal({
                   </div>
                 </label>
               ))}
-              {studentsInSection.length === 0 && (
+              {studentsForSubject.length === 0 && (
                 <div style={{ padding:"1rem", textAlign:"center", color:"rgba(200,170,100,.25)", fontSize:".8rem" }}>
-                  No students in this section.
+                  No students match this subject in this section.
                 </div>
               )}
             </div>
@@ -992,6 +1098,8 @@ export default function TeacherDashboard() {
   const [requestingCertId, setRequestingCertId] = useState(null);
   const [assigningSubjectStudentId, setAssigningSubjectStudentId] = useState(null);
   const [selectedStudentSubject, setSelectedStudentSubject] = useState({});
+  const [studentFilterSection, setStudentFilterSection] = useState("");
+  const [studentFilterSubject, setStudentFilterSubject] = useState("");
 
   const [subjectDropdownOpen, setSubjectDropdownOpen] = useState(false);
 
@@ -1021,7 +1129,7 @@ export default function TeacherDashboard() {
   };
 
   /* ── Send handler (called from SendQuizModal) ── */
-  const handleSend = async ({ startTime, endTime, studentIds }) => {
+  const handleSend = async ({ startTime, endTime, studentIds, assignedSubject }) => {
     if (!startTime || !endTime) { showToast("Please set both times", "error"); return; }
     const parsedStartTime = parsePHDateTimeLocal(startTime);
     const parsedEndTime = parsePHDateTimeLocal(endTime);
@@ -1037,6 +1145,9 @@ export default function TeacherDashboard() {
           startTime: parsedStartTime.toISOString(),
           endTime: parsedEndTime.toISOString(),
           studentIds,
+          ...(assignedSubject != null && String(assignedSubject).trim()
+            ? { assignedSubject: String(assignedSubject).trim() }
+            : {}),
         }),
       });
       setSendModal(null);
@@ -1305,6 +1416,13 @@ export default function TeacherDashboard() {
 
   const quizSpark = myQuizzes.slice(0, 7).reverse().map((_, i) => i + 1);
 
+  const studentSectionOptions = [...new Set(myStudents.map((s) => (s.section || "Unspecified").trim()))].sort();
+  const filteredStudentsGrid = myStudents.filter((s) => {
+    if (studentFilterSection && (s.section || "Unspecified").trim() !== studentFilterSection) return false;
+    if (studentFilterSubject && !studentEnrolledInSubject(s, studentFilterSubject)) return false;
+    return true;
+  });
+
   return (
     <>
       <Styles />
@@ -1343,6 +1461,7 @@ export default function TeacherDashboard() {
         <SendQuizModal
           quiz={sendModal.quiz}
           myStudents={myStudents}
+          teacherSubjectOptions={teacherSubjectOptions}
           onClose={() => !sending && setSendModal(null)}
           onSend={handleSend}
           sending={sending}
@@ -1637,8 +1756,45 @@ export default function TeacherDashboard() {
                 <div className="td-section">
                   <div className="td-section-heading">
                     <h2 className="td-section-title">My Students</h2>
-                    <span className="td-count-chip">{myStudents.length}</span>
+                    <span className="td-count-chip">
+                      {(studentFilterSection || studentFilterSubject) && myStudents.length
+                        ? `${filteredStudentsGrid.length}/${myStudents.length}`
+                        : myStudents.length}
+                    </span>
                   </div>
+
+                  {!loading && myStudents.length > 0 && (
+                    <div style={{ display:"flex", flexWrap:"wrap", gap:".85rem", marginBottom:"1rem", alignItems:"flex-end" }}>
+                      <div>
+                        <div style={{ fontSize:".62rem", letterSpacing:".12em", textTransform:"uppercase", color:"rgba(200,160,60,.45)", marginBottom:".35rem", fontWeight:500 }}>Section</div>
+                        <select
+                          className="td-input"
+                          value={studentFilterSection}
+                          onChange={(e) => setStudentFilterSection(e.target.value)}
+                          style={{ minWidth: 160, padding:".45rem .75rem", fontSize:".8rem" }}
+                        >
+                          <option value="">All sections</option>
+                          {studentSectionOptions.map((sec) => (
+                            <option key={sec} value={sec}>{sec}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <div style={{ fontSize:".62rem", letterSpacing:".12em", textTransform:"uppercase", color:"rgba(200,160,60,.45)", marginBottom:".35rem", fontWeight:500 }}>Subject</div>
+                        <select
+                          className="td-input"
+                          value={studentFilterSubject}
+                          onChange={(e) => setStudentFilterSubject(e.target.value)}
+                          style={{ minWidth: 180, padding:".45rem .75rem", fontSize:".8rem" }}
+                        >
+                          <option value="">All subjects</option>
+                          {teacherSubjectOptions.map((subj) => (
+                            <option key={subj} value={subj}>{subj}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  )}
 
                   {loading ? (
                     <div className="td-students-grid">
@@ -1664,9 +1820,14 @@ export default function TeacherDashboard() {
                       </svg>
                       No students assigned yet. Contact your admin.
                     </div>
+                  ) : filteredStudentsGrid.length === 0 ? (
+                    <div className="td-empty">
+                      {Ico.Warning}
+                      No students match this section and subject. Adjust filters or assign subjects.
+                    </div>
                   ) : (
                     <div className="td-students-grid">
-                      {myStudents.map(s => (
+                      {filteredStudentsGrid.map(s => (
                         <div key={s.id} className="glass-card td-student-card">
                           <div className="td-student-top">
                             <div className="td-avatar">{initials(s.full_name)}</div>
