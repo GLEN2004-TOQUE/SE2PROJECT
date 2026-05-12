@@ -4,10 +4,18 @@ const jwt = require('jsonwebtoken');
 
 exports.register = async (req, res) => {
   try {
-    const { fullName, email, password, role } = req.body;
+    const { fullName, email: rawEmail, password } = req.body;
+
+    const email = (rawEmail || '').toLowerCase().trim();
 
     if (!fullName || !email || !password) {
       return res.status(400).json({ message: 'All fields are required' });
+    }
+
+    // Basic email format validation (kept in sync with otpRoutes)
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ message: 'Please enter a valid email address' });
     }
 
     const existingUser = await pool.query(
@@ -20,9 +28,9 @@ exports.register = async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const result = await pool.query(
+    await pool.query(
       'INSERT INTO users (full_name, email, password, role) VALUES ($1, $2, $3, $4) RETURNING id',
-      [fullName, email, hashedPassword, role || 'student']
+      [fullName, email, hashedPassword, 'student'] // self-registration is always student
     );
 
     res.status(201).json({ message: 'User registered successfully' });

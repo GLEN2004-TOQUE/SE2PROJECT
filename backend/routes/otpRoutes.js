@@ -22,6 +22,12 @@ router.post('/send', async (req, res) => {
       return res.status(400).json({ message: 'Please enter a valid email address' });
     }
 
+    // Check Brevo key (not EMAIL_USER/PASS anymore)
+    if (!process.env.BREVO_API_KEY) {
+      console.error('❌ BREVO_API_KEY not set in environment');
+      return res.status(500).json({ message: 'Email service not configured. Contact support.' });
+    }
+
     const existing = await pool.query(
       'SELECT id FROM users WHERE LOWER(email) = $1', [email]
     );
@@ -34,17 +40,21 @@ router.post('/send', async (req, res) => {
 
     res.json({ message: `OTP sent to ${email}. Please check your inbox and spam folder.` });
   } catch (err) {
-    console.error('❌ Send OTP error:', err.message);
+    console.error('❌ Send OTP error:', err.message, err.code || '');
+
     if (err.message.includes('Invalid login') || err.message.includes('535')) {
-      return res.status(500).json({ message: 'Email config error. Check EMAIL_USER and EMAIL_PASS in .env' });
+      return res.status(500).json({ message: 'Gmail authentication failed.' });
     }
-    res.status(500).json({ message: 'Failed to send OTP: ' + err.message });
+    if (err.message.includes('ETIMEDOUT') || err.message.includes('ECONNREFUSED')) {
+      return res.status(503).json({ message: 'Email service temporarily unavailable. Try again shortly.' });
+    }
+
+    res.status(500).json({ message: err.message || 'Failed to send OTP. Please try again.' });
   }
 });
-
 router.post('/verify-and-register', async (req, res) => {
   try {
-    const { fullName, email: rawEmail, password, role, course, section, otp } = req.body;
+    const { fullName, email: rawEmail, password, course, section, otp } = req.body;
     const email = (rawEmail || '').toLowerCase().trim();
 
     if (!fullName || !email || !password || !course || !section || !otp) {
@@ -70,7 +80,7 @@ router.post('/verify-and-register', async (req, res) => {
       `INSERT INTO users (full_name, email, password, role, course, section, status)
        VALUES ($1, $2, $3, $4, $5, $6, true)
        RETURNING id, full_name, email, role, course, section`,
-      [fullName.trim(), email, hashedPassword, role || 'student', course, section]
+      [fullName.trim(), email, hashedPassword, 'student', course, section] // force student role on self-registration
     );
 
     console.log(`✅ Registered: ${email} | Course: ${course} | Section: ${section}`);

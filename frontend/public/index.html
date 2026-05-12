@@ -27,6 +27,25 @@
     <title>QuizSystem</title>
   </head>
   <body>
+    <!-- Clickjacking / iframe: HTTP headers (see Netlify _headers + API server) block loading in many browsers.
+         This runs when the document still loads inside a frame (fallback). -->
+    <script>
+      (function () {
+        if (window.top === window.self) return;
+        try {
+          window.top.location.replace(window.self.location.href);
+        } catch (err) {
+          document.documentElement.innerHTML =
+            '<head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Embedding blocked</title>' +
+            '<style>html,body{height:100%;margin:0;background:#160808;color:#e8c878;font-family:system-ui,-apple-system,sans-serif}' +
+            '.wrap{min-height:100%;display:flex;align-items:center;justify-content:center;padding:1.5rem;text-align:center}' +
+            'h1{font-size:1.05rem;font-weight:700;color:#f5e6c8;margin:0 0 .65rem}' +
+            'p{font-size:.875rem;line-height:1.55;color:rgba(232,200,120,.55);max-width:26rem;margin:0}' +
+            '</style></head><body><div class="wrap"><div><h1>This page cannot be displayed inside another website</h1>' +
+            '<p>Embedding was blocked for your security. Open this app directly in the browser address bar instead.</p></div></div></body>';
+        }
+      })();
+    </script>
     <noscript>You need to enable JavaScript to run this app.</noscript>
     <div id="root"></div>
     <!--

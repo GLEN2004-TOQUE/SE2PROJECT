@@ -9,6 +9,10 @@ const { updateGamification } = require("../services/scoringServices");
 exports.generateQuiz = async (req, res) => {
   try {
     const { lectureId, type, count } = req.body;
+    const raw = parseInt(count, 10);
+    const safeCount = Number.isFinite(raw)
+      ? Math.min(10, Math.max(1, raw))
+      : 5;
     if (!lectureId) {
       return res.status(400).json({ error: "Lecture ID is required" });
     }
@@ -25,11 +29,11 @@ exports.generateQuiz = async (req, res) => {
     }
     if (!lecture) return res.status(404).json({ message: "Lecture not found" });
 
-    console.log(`📝 Generating ${count || 5} questions for lecture: ${lecture.title}`);
+    console.log(`📝 Generating ${safeCount} questions for lecture: ${lecture.title}`);
     const questions = await aiService.generateQuestions(
       lecture.extracted_text,
       type || "multiple-choice",
-      count || 5
+      safeCount
     );
 
     res.json({
@@ -188,7 +192,7 @@ exports.deleteQuiz = async (req, res) => {
       .single();
 
     if (fetchErr || !quiz) {
-      return res.status(404).json({ error: "Quiz not found or unauthorized" });
+      return res.status(403).json({ message: "Forbidden" });
     }
 
     await supabaseAdmin.from("questions").delete().eq("quiz_id", quizId);
@@ -226,7 +230,7 @@ exports.scheduleQuiz = async (req, res) => {
       .single();
 
     if (fetchErr || !quiz) {
-      return res.status(404).json({ error: "Quiz not found or unauthorized" });
+      return res.status(403).json({ message: "Forbidden" });
     }
 
     const { error: updateErr } = await supabaseAdmin
@@ -334,12 +338,12 @@ exports.getQuiz = async (req, res) => {
 
     if (quizError) {
       console.error("❌ Quiz fetch error:", quizError);
-      return res.status(404).json({ message: "Quiz not found", error: quizError.message });
+      return res.status(403).json({ message: "Forbidden" });
     }
 
     if (!quiz) {
       console.warn(`⚠️ Quiz ${quizId} does not exist`);
-      return res.status(404).json({ message: "Quiz not found" });
+      return res.status(403).json({ message: "Forbidden" });
     }
 
     console.log(`📖 Quiz found: ${quiz.title} (start: ${quiz.start_time}, end: ${quiz.end_time})`);
@@ -379,7 +383,7 @@ exports.getQuiz = async (req, res) => {
 
     if (!questions || questions.length === 0) {
       console.warn(`⚠️ Quiz ${quizId} has no questions`);
-      return res.status(404).json({ message: "This quiz has no questions" });
+      return res.status(403).json({ message: "Forbidden" });
     }
 
     console.log(`✅ Returning ${questions.length} questions for quiz ${quizId}`);
@@ -450,7 +454,7 @@ exports.submitQuiz = async (req, res) => {
       .single();
 
     if (quizError || !quiz) {
-      return res.status(404).json({ message: "Quiz not found" });
+      return res.status(403).json({ message: "Forbidden" });
     }
 
     const now = new Date();
@@ -472,7 +476,7 @@ exports.submitQuiz = async (req, res) => {
     }
 
     if (!questions || questions.length === 0) {
-      return res.status(404).json({ message: "This quiz has no questions" });
+      return res.status(403).json({ message: "Forbidden" });
     }
 
     // Grade answers
@@ -640,10 +644,14 @@ exports.getTeacherAttendanceTimeline = async (req, res) => {
 exports.generateQuizFromText = async (req, res) => {
   try {
     const { text, type = "multiple-choice", count = 5 } = req.body;
+    const raw = parseInt(count, 10);
+    const safeCount = Number.isFinite(raw)
+      ? Math.min(10, Math.max(1, raw))
+      : 5;
     if (!text || text.trim().length === 0) {
       return res.status(400).json({ error: "Text content is required" });
     }
-    const questions = await aiService.generateQuestions(text, type, count);
+    const questions = await aiService.generateQuestions(text, type, safeCount);
     res.json({ success: true, questions, generatedAt: new Date().toISOString() });
   } catch (err) {
     const isRateLimit = err.message.includes('quota') || err.message.includes('429');

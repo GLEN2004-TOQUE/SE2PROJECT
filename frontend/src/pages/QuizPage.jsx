@@ -1,6 +1,8 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { getQuiz, submitQuiz, getUser } from "../services/api";
+
+const QUESTION_WINDOW_SEC = 5;
 
 function QuizPage() {
   const { quizId } = useParams();
@@ -9,12 +11,15 @@ function QuizPage() {
   const [quiz,       setQuiz]       = useState(null);
   const [questions,  setQuestions]  = useState([]);
   const [answers,    setAnswers]    = useState({});
-  const [timeLeft,   setTimeLeft]   = useState(null);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [secondsLeft, setSecondsLeft] = useState(QUESTION_WINDOW_SEC);
   const [loading,    setLoading]    = useState(true);
   const [error,      setError]      = useState("");
   const [submitted,  setSubmitted]  = useState(false);
   const [result,     setResult]     = useState(null);
   const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmitRef = useRef(() => {});
 
   // Load quiz
   useEffect(() => {
@@ -26,9 +31,8 @@ function QuizPage() {
       .then(data => {
         setQuiz(data.quiz);
         setQuestions(data.questions || []);
-        if (data.quiz?.duration) {
-          setTimeLeft(data.quiz.duration * 60);
-        }
+        setCurrentIndex(0);
+        setSecondsLeft(QUESTION_WINDOW_SEC);
       })
       .catch(err => {
         const msg = err.message || "Could not load quiz.";
@@ -46,12 +50,12 @@ function QuizPage() {
       .finally(() => setLoading(false));
   }, [quizId, navigate]);
 
-  // Auto-submit on timer expiry
-  const handleSubmit = useCallback(async () => {
+  const handleSubmit = useCallback(async (answerSnapshot) => {
     if (submitting || submitted) return;
+    const payload = answerSnapshot ?? answers;
     setSubmitting(true);
     try {
-      const data = await submitQuiz(quizId, answers);
+      const data = await submitQuiz(quizId, payload);
       setResult(data);
       setSubmitted(true);
     } catch (err) {
@@ -68,20 +72,52 @@ function QuizPage() {
   }, [quizId, answers, submitting, submitted]);
 
   useEffect(() => {
-    if (timeLeft === null || timeLeft <= 0 || submitted) return;
-    if (timeLeft === 0) { handleSubmit(); return; }
-    const t = setTimeout(() => setTimeLeft(p => p - 1), 1000);
+    handleSubmitRef.current = () => handleSubmit();
+  }, [handleSubmit]);
+
+  // Per-question countdown (flash card window)
+  useEffect(() => {
+    if (submitted || !questions.length || currentIndex >= questions.length) return;
+
+    if (secondsLeft <= 0) return;
+
+    const t = setTimeout(() => setSecondsLeft((s) => s - 1), 1000);
     return () => clearTimeout(t);
-  }, [timeLeft, submitted, handleSubmit]);
+  }, [secondsLeft, currentIndex, questions.length, submitted]);
 
-  const fmt = (s) => {
-    const m = Math.floor(s / 60);
-    const sec = s % 60;
-    return `${m}:${sec.toString().padStart(2, "0")}`;
-  };
+  // When window hits 0: advance or finish (skipped questions stay unanswered; prior cards are gone)
+  useEffect(() => {
+    if (submitted || !questions.length || secondsLeft > 0 || currentIndex >= questions.length) return;
 
-  const pct = questions.length
-    ? Math.round((Object.keys(answers).length / questions.length) * 100)
+    const isLast = currentIndex >= questions.length - 1;
+    if (isLast) {
+      handleSubmitRef.current();
+      return;
+    }
+    setCurrentIndex((i) => i + 1);
+    setSecondsLeft(QUESTION_WINDOW_SEC);
+  }, [secondsLeft, currentIndex, questions.length, submitted]);
+
+  const pickAnswer = useCallback((qId, letter) => {
+    if (submitting || submitted) return;
+    const next = { ...answers, [qId]: letter };
+    setAnswers(next);
+    const isLast = currentIndex >= questions.length - 1;
+    if (isLast) {
+      handleSubmit(next);
+      return;
+    }
+    setCurrentIndex((i) => i + 1);
+    setSecondsLeft(QUESTION_WINDOW_SEC);
+  }, [answers, currentIndex, questions.length, submitting, submitted, handleSubmit]);
+
+  const progressPct = questions.length
+    ? Math.min(
+        100,
+        Math.round(
+          ((currentIndex + (QUESTION_WINDOW_SEC - secondsLeft) / QUESTION_WINDOW_SEC) / questions.length) * 100,
+        ),
+      )
     : 0;
 
   const optLabels = ["A", "B", "C", "D"];
@@ -273,133 +309,137 @@ function QuizPage() {
     );
   }
 
-  // ── Quiz UI ──────────────────────────────────────────────
-  const timerDanger = timeLeft !== null && timeLeft < 60;
+  // ── Empty quiz ─────────────────────────────────────────────
+  if (!loading && quiz && questions.length === 0 && !error) {
+    return (
+      <div style={{ minHeight: "100vh", background: "#0f0a0a", display: "flex", alignItems: "center", justifyContent: "center", padding: "1.5rem" }}>
+        <div style={{ textAlign: "center", maxWidth: 400 }}>
+          <p style={{ color: "rgba(255,255,255,.55)", fontSize: ".95rem", marginBottom: "1.25rem" }}>This quiz has no questions.</p>
+          <button
+            type="button"
+            onClick={() => navigate("/student")}
+            style={{ padding: ".75rem 1.5rem", background: "#C9A227", color: "#1a0505", border: "none", borderRadius: 10, fontWeight: 700, cursor: "pointer" }}
+          >
+            Back to Dashboard
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Quiz UI (flash card: one question, 5s per card) ───────
+  const q = questions[currentIndex];
+  const timerDanger = secondsLeft <= 2;
+  const opts = q ? [q.option_a, q.option_b, q.option_c, q.option_d].filter(Boolean) : [];
 
   return (
     <div style={{ minHeight: "100vh", background: "#0f0a0a", color: "#fff", fontFamily: "system-ui, sans-serif" }}>
-      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+      <style>{`
+        @keyframes spin{to{transform:rotate(360deg)}}
+        @keyframes qpulse{0%,100%{opacity:1}50%{opacity:.72}}
+      `}</style>
 
       {/* Sticky header */}
       <header style={{ position: "sticky", top: 0, zIndex: 20, background: "rgba(15,10,10,.92)", backdropFilter: "blur(12px)", borderBottom: "1px solid rgba(255,255,255,.08)" }}>
-        <div style={{ maxWidth: 800, margin: "0 auto", padding: ".85rem 1.5rem", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div>
-            <p style={{ fontSize: ".65rem", color: "rgba(255,255,255,.3)", textTransform: "uppercase", letterSpacing: ".1em" }}>Quiz</p>
-            <p style={{ fontSize: ".9rem", fontWeight: 600, color: "#fff", maxWidth: 280, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        <div style={{ maxWidth: 640, margin: "0 auto", padding: ".85rem 1.5rem", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap" }}>
+          <div style={{ minWidth: 0 }}>
+            <p style={{ fontSize: ".65rem", color: "rgba(255,255,255,.3)", textTransform: "uppercase", letterSpacing: ".1em" }}>Flash quiz · {QUESTION_WINDOW_SEC}s per question</p>
+            <p style={{ fontSize: ".9rem", fontWeight: 600, color: "#fff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               {quiz?.title || `Quiz #${quizId}`}
             </p>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
-            <span style={{ fontSize: ".75rem", color: "rgba(255,255,255,.35)" }}>
-              {Object.keys(answers).length}/{questions.length} answered
+          <div style={{ display: "flex", alignItems: "center", gap: ".85rem", flexShrink: 0 }}>
+            <span style={{ fontSize: ".72rem", color: "rgba(255,255,255,.38)" }}>
+              {currentIndex + 1} / {questions.length}
             </span>
-            {timeLeft !== null && (
-              <div style={{
-                fontFamily: "monospace", fontSize: ".9rem", fontWeight: 700, padding: ".4rem .85rem",
-                borderRadius: 8, border: `1px solid ${timerDanger ? "rgba(239,68,68,.5)" : "rgba(255,255,255,.15)"}`,
-                background: timerDanger ? "rgba(239,68,68,.12)" : "rgba(255,255,255,.05)",
-                color: timerDanger ? "#f87171" : "#fff",
-                animation: timerDanger ? "pulse .8s ease infinite" : "none"
-              }}>
-                ⏱ {fmt(timeLeft)}
-              </div>
-            )}
+            <div style={{
+              fontFamily: "monospace", fontSize: ".95rem", fontWeight: 800, padding: ".45rem .95rem",
+              borderRadius: 10, border: `1px solid ${timerDanger ? "rgba(239,68,68,.55)" : "rgba(201,162,39,.35)"}`,
+              background: timerDanger ? "rgba(239,68,68,.14)" : "rgba(201,162,39,.1)",
+              color: timerDanger ? "#f87171" : "#C9A227",
+              animation: timerDanger ? "qpulse .85s ease infinite" : "none",
+              minWidth: 52,
+              textAlign: "center",
+            }}>
+              {secondsLeft}s
+            </div>
           </div>
         </div>
-        {/* Progress bar */}
         <div style={{ height: 3, background: "rgba(255,255,255,.05)" }}>
-          <div style={{ height: "100%", background: "#C9A227", transition: "width .3s", width: `${pct}%` }} />
+          <div style={{ height: "100%", background: "#C9A227", transition: "width .35s ease", width: `${progressPct}%` }} />
         </div>
       </header>
 
-      <main style={{ maxWidth: 800, margin: "0 auto", padding: "2rem 1.5rem" }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: "1.2rem" }}>
-          {questions.map((q, qi) => {
-            const opts = [q.option_a, q.option_b, q.option_c, q.option_d].filter(Boolean);
-            const selected = answers[q.id];
+      <main style={{ maxWidth: 640, margin: "0 auto", padding: "2rem 1.5rem 3rem" }}>
+        {q && (
+          <div style={{
+            background: "rgba(255,255,255,.04)",
+            border: `1px solid ${timerDanger ? "rgba(239,68,68,.22)" : "rgba(255,255,255,.1)"}`,
+            borderRadius: 20,
+            padding: "1.75rem 1.6rem",
+            boxShadow: "0 24px 48px rgba(0,0,0,.35)",
+          }}>
+            <div style={{ display: "flex", alignItems: "flex-start", gap: "1rem", marginBottom: "1.35rem" }}>
+              <span style={{
+                width: 36, height: 36, borderRadius: 10, background: "rgba(201,162,39,.15)", color: "#C9A227",
+                display: "flex", alignItems: "center", justifyContent: "center", fontSize: ".8rem", fontWeight: 800, flexShrink: 0,
+              }}>
+                {currentIndex + 1}
+              </span>
+              <p style={{ fontSize: "1rem", color: "rgba(255,255,255,.92)", lineHeight: 1.65, fontWeight: 500 }}>
+                {q.question_text}
+              </p>
+            </div>
 
-            return (
-              <div key={q.id} style={{ background: "rgba(255,255,255,.04)", border: "1px solid rgba(255,255,255,.08)", borderRadius: 16, padding: "1.4rem 1.5rem" }}>
-                <div style={{ display: "flex", alignItems: "flex-start", gap: "1rem", marginBottom: "1.2rem" }}>
-                  <span style={{ width: 28, height: 28, borderRadius: 8, background: "rgba(201,162,39,.12)", color: "#C9A227", display: "flex", alignItems: "center", justifyContent: "center", fontSize: ".75rem", fontWeight: 800, flexShrink: 0, marginTop: 1 }}>
-                    {qi + 1}
-                  </span>
-                  <p style={{ fontSize: ".9rem", color: "rgba(255,255,255,.9)", lineHeight: 1.6 }}>{q.question_text}</p>
-                </div>
-
-                <div style={{ display: "flex", flexDirection: "column", gap: ".6rem" }}>
-                  {opts.map((opt, oi) => {
-                    const letter = optLabels[oi];
-                    const isSelected = selected === letter;
-                    return (
-                      <button
-                        key={oi}
-                        onClick={() => setAnswers(prev => ({ ...prev, [q.id]: letter }))}
-                        style={{
-                          display: "flex", alignItems: "center", gap: ".85rem",
-                          padding: ".75rem 1rem", borderRadius: 10,
-                          border: `1px solid ${isSelected ? "rgba(201,162,39,.5)" : "rgba(255,255,255,.08)"}`,
-                          background: isSelected ? "rgba(201,162,39,.1)" : "rgba(255,255,255,.025)",
-                          color: isSelected ? "#fff" : "rgba(255,255,255,.55)",
-                          cursor: "pointer", textAlign: "left", transition: "all .15s",
-                          width: "100%"
-                        }}
-                      >
-                        <span style={{
-                          width: 28, height: 28, borderRadius: 7, flexShrink: 0,
-                          display: "flex", alignItems: "center", justifyContent: "center",
-                          fontSize: ".75rem", fontWeight: 800,
-                          background: isSelected ? "#C9A227" : "rgba(255,255,255,.08)",
-                          color: isSelected ? "#1a0505" : "rgba(255,255,255,.4)",
-                          transition: "all .15s"
-                        }}>
-                          {letter}
-                        </span>
-                        <span style={{ fontSize: ".88rem" }}>{opt}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Submit row */}
-        <div style={{
-          marginTop: "2rem", background: "rgba(255,255,255,.04)", border: "1px solid rgba(255,255,255,.08)",
-          borderRadius: 16, padding: "1.2rem 1.5rem",
-          display: "flex", alignItems: "center", justifyContent: "space-between", gap: "1rem",
-          flexWrap: "wrap"
-        }}>
-          <div>
-            <p style={{ fontSize: ".88rem", fontWeight: 600, color: Object.keys(answers).length === questions.length ? "#34d399" : "rgba(255,255,255,.6)" }}>
-              {Object.keys(answers).length === questions.length
-                ? "✓ All questions answered"
-                : `${questions.length - Object.keys(answers).length} question(s) remaining`}
+            <p style={{ fontSize: ".72rem", color: "rgba(255,255,255,.35)", marginBottom: ".9rem" }}>
+              Answer within {QUESTION_WINDOW_SEC} seconds. When time runs out, this question is skipped and you cannot go back.
             </p>
-            <p style={{ fontSize: ".72rem", color: "rgba(255,255,255,.3)", marginTop: ".2rem" }}>
-              Unanswered questions will be marked incorrect
-            </p>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: ".55rem" }}>
+              {opts.map((opt, oi) => {
+                const letter = optLabels[oi];
+                return (
+                  <button
+                    key={oi}
+                    type="button"
+                    disabled={submitting}
+                    onClick={() => pickAnswer(q.id, letter)}
+                    style={{
+                      display: "flex", alignItems: "center", gap: ".85rem",
+                      padding: ".85rem 1rem", borderRadius: 12,
+                      border: "1px solid rgba(255,255,255,.1)",
+                      background: "rgba(255,255,255,.03)",
+                      color: "rgba(255,255,255,.88)",
+                      cursor: submitting ? "not-allowed" : "pointer",
+                      opacity: submitting ? 0.55 : 1,
+                      textAlign: "left",
+                      transition: "border-color .15s, background .15s",
+                      width: "100%",
+                    }}
+                  >
+                    <span style={{
+                      width: 30, height: 30, borderRadius: 8, flexShrink: 0,
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      fontSize: ".78rem", fontWeight: 800,
+                      background: "rgba(201,162,39,.2)",
+                      color: "#C9A227",
+                    }}>
+                      {letter}
+                    </span>
+                    <span style={{ fontSize: ".9rem" }}>{opt}</span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
-          <button
-            onClick={handleSubmit}
-            disabled={submitting}
-            style={{
-              padding: ".8rem 2rem", borderRadius: 10, border: "none",
-              background: "#C9A227", color: "#1a0505", fontWeight: 800, fontSize: ".9rem",
-              cursor: submitting ? "not-allowed" : "pointer", opacity: submitting ? .6 : 1,
-              transition: "opacity .15s", minWidth: 140
-            }}
-          >
-            {submitting
-              ? <span style={{ display: "flex", alignItems: "center", gap: ".5rem", justifyContent: "center" }}>
-                  <span style={{ width: 14, height: 14, border: "2px solid rgba(26,5,5,.3)", borderTopColor: "#1a0505", borderRadius: "50%", animation: "spin .7s linear infinite", display: "inline-block" }} />
-                  Submitting…
-                </span>
-              : "Submit Quiz →"}
-          </button>
-        </div>
+        )}
+
+        {submitting && (
+          <p style={{ marginTop: "1.5rem", textAlign: "center", fontSize: ".85rem", color: "rgba(255,255,255,.45)", display: "flex", alignItems: "center", justifyContent: "center", gap: ".5rem" }}>
+            <span style={{ width: 14, height: 14, border: "2px solid rgba(201,162,39,.25)", borderTopColor: "#C9A227", borderRadius: "50%", animation: "spin .7s linear infinite", display: "inline-block" }} />
+            Submitting your quiz…
+          </p>
+        )}
       </main>
     </div>
   );

@@ -9,16 +9,12 @@ const {
   assignSubjectToMyStudent,
   resetMyStudentsPoints,
   resetSingleMyStudentPoints,
-  getMyCertificateRequests,
-  createCertificateRequest,
-  getAllCertificateRequests,
-  updateCertificateRequestStatus,
 } = require("../controllers/adminController");
-const { verifyToken, authorizeRole } = require("../middleware/authMiddleware");
+const { verifyToken, authorizeRole, requireActiveUser } = require("../middleware/roleMiddleware");
 const { supabaseAdmin } = require("../supabaseClient");
 
 // ─── /me — fetch full profile including section ───────────────────────────
-router.get("/me", verifyToken, async (req, res) => {
+router.get("/me", verifyToken, requireActiveUser, async (req, res) => {
   try {
     const { data, error } = await supabaseAdmin
       .from("users")
@@ -32,7 +28,7 @@ router.get("/me", verifyToken, async (req, res) => {
   }
 });
 
-router.patch("/me", verifyToken, async (req, res) => {
+router.patch("/me", verifyToken, requireActiveUser, async (req, res) => {
   try {
     const updates = {};
     const { fullName, subject } = req.body || {};
@@ -55,35 +51,29 @@ router.patch("/me", verifyToken, async (req, res) => {
 });
 
 // ─── Change password (any authenticated user — teacher, student, admin) ────
-router.patch("/change-password", verifyToken, changePassword);
+router.patch("/change-password", verifyToken, requireActiveUser, changePassword);
 
 // ─── Admin-only routes ────────────────────────────────────────────────────
-router.get("/users",        verifyToken, authorizeRole("admin"), getAllUsers);
-router.get("/students",     verifyToken, authorizeRole("admin"), getAllStudents);
-router.get("/teachers",     verifyToken, authorizeRole("admin"), getAllTeachers);
-router.get("/assignments",  verifyToken, authorizeRole("admin"), getAssignments);
-router.post("/assign",      verifyToken, authorizeRole("admin"), assignTeacherToStudent);
-router.delete("/assign/:studentId", verifyToken, authorizeRole("admin"), removeAssignment);
+router.get("/users",        verifyToken, requireActiveUser, authorizeRole("admin"), getAllUsers);
+router.get("/students",     verifyToken, requireActiveUser, authorizeRole("admin"), getAllStudents);
+router.get("/teachers",     verifyToken, requireActiveUser, authorizeRole("admin"), getAllTeachers);
+router.get("/assignments",  verifyToken, requireActiveUser, authorizeRole("admin"), getAssignments);
+router.post("/assign",      verifyToken, requireActiveUser, authorizeRole("admin"), assignTeacherToStudent);
+router.delete("/assign/:studentId", verifyToken, requireActiveUser, authorizeRole("admin"), removeAssignment);
 
 // ─── Teacher management ───────────────────────────────────────────────────
-router.post("/teachers/create",         verifyToken, authorizeRole("admin"), createTeacher);
-router.patch("/users/:userId/status",   verifyToken, authorizeRole("admin"), toggleUserStatus);
-router.delete("/users/:userId",         verifyToken, authorizeRole("admin"), deleteUser);
-router.get("/leaderboard",  verifyToken, authorizeRole("admin"), getAdminLeaderboard);
+router.post("/teachers/create",         verifyToken, requireActiveUser, authorizeRole("admin"), createTeacher);
+router.patch("/users/:userId/status",   verifyToken, requireActiveUser, authorizeRole("admin"), toggleUserStatus);
+router.delete("/users/:userId",         verifyToken, requireActiveUser, authorizeRole("admin"), deleteUser);
+router.get("/leaderboard",  verifyToken, requireActiveUser, authorizeRole("admin"), getAdminLeaderboard);
 
 // ─── Teacher: see assigned students ──────────────────────────────────────
-router.get("/my-students",  verifyToken, authorizeRole("teacher"), getMyStudents);
-router.patch("/my-students/:studentId/subject", verifyToken, authorizeRole("teacher"), assignSubjectToMyStudent);
-router.patch("/my-students/reset-points", verifyToken, authorizeRole("teacher"), resetMyStudentsPoints);
-router.patch("/my-students/:studentId/reset-points", verifyToken, authorizeRole("teacher"), resetSingleMyStudentPoints);
-router.get("/my-certificate-requests", verifyToken, authorizeRole("teacher"), getMyCertificateRequests);
-router.post("/certificate-requests", verifyToken, authorizeRole("teacher"), createCertificateRequest);
+router.get("/my-students",  verifyToken, requireActiveUser, authorizeRole("teacher"), getMyStudents);
+router.patch("/my-students/:studentId/subject", verifyToken, requireActiveUser, authorizeRole("teacher"), assignSubjectToMyStudent);
+router.patch("/my-students/reset-points", verifyToken, requireActiveUser, authorizeRole("teacher"), resetMyStudentsPoints);
+router.patch("/my-students/:studentId/reset-points", verifyToken, requireActiveUser, authorizeRole("teacher"), resetSingleMyStudentPoints);
 
 // ─── Student: see assigned teacher ───────────────────────────────────────
-router.get("/my-teacher",   verifyToken, authorizeRole("student"), getMyTeacher);
-
-// ─── Admin: certificate approvals ────────────────────────────────────────
-router.get("/certificate-requests", verifyToken, authorizeRole("admin"), getAllCertificateRequests);
-router.patch("/certificate-requests/:requestId/status", verifyToken, authorizeRole("admin"), updateCertificateRequestStatus);
+router.get("/my-teacher",   verifyToken, requireActiveUser, authorizeRole("student"), getMyTeacher);
 
 module.exports = router;

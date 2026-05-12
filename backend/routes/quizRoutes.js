@@ -14,17 +14,17 @@ const {
   scheduleQuiz,
   deleteQuiz,
 } = require("../controllers/quizController");
-const { verifyToken, authorizeRole } = require("../middleware/authMiddleware");
+const { verifyToken, authorizeRole, requireActiveUser } = require("../middleware/roleMiddleware");
 const { supabaseAdmin } = require("../supabaseClient");
 const aiService = require("../services/aiService");
 
 // ── Student routes ─────────────────────────────────────────────────────────────
-router.post("/submit",     verifyToken, authorizeRole("student"), submitQuiz);
-router.get("/my-quizzes",  verifyToken, authorizeRole("student"), getQuizzesForStudent);
-router.get("/my-attendance", verifyToken, authorizeRole("student"), getMyAttendance);
+router.post("/submit",     verifyToken, requireActiveUser, authorizeRole("student"), submitQuiz);
+router.get("/my-quizzes",  verifyToken, requireActiveUser, authorizeRole("student"), getQuizzesForStudent);
+router.get("/my-attendance", verifyToken, requireActiveUser, authorizeRole("student"), getMyAttendance);
 
 // Student: get their past results (maps quizId → result for dashboard display)
-router.get("/my-results", verifyToken, authorizeRole("student"), async (req, res) => {
+router.get("/my-results", verifyToken, requireActiveUser, authorizeRole("student"), async (req, res) => {
   try {
     const userId = req.user.id;
     const { data, error } = await supabaseAdmin
@@ -42,21 +42,21 @@ router.get("/my-results", verifyToken, authorizeRole("student"), async (req, res
 });
 
 // ── Teacher routes ────────────────────────────────────────────────────────────
-router.post("/generate",   verifyToken, authorizeRole("teacher"), generateQuiz);
-router.post("/save",       verifyToken, authorizeRole("teacher"), saveQuestions);
-router.post("/schedule",   verifyToken, authorizeRole("teacher"), scheduleQuiz);
-router.get("/my-quizzes-teacher", verifyToken, authorizeRole("teacher"), getTeacherQuizzes);
-router.delete("/:quizId",  verifyToken, authorizeRole("teacher"), deleteQuiz);
+router.post("/generate",   verifyToken, requireActiveUser, authorizeRole("teacher"), generateQuiz);
+router.post("/save",       verifyToken, requireActiveUser, authorizeRole("teacher"), saveQuestions);
+router.post("/schedule",   verifyToken, requireActiveUser, authorizeRole("teacher"), scheduleQuiz);
+router.get("/my-quizzes-teacher", verifyToken, requireActiveUser, authorizeRole("teacher"), getTeacherQuizzes);
+router.delete("/:quizId",  verifyToken, requireActiveUser, authorizeRole("teacher"), deleteQuiz);
 
 // ── Generate from text ────────────────────────────────────────────────────────
-router.post("/generate-from-text", verifyToken, authorizeRole("teacher"), async (req, res) => {
+router.post("/generate-from-text", verifyToken, requireActiveUser, authorizeRole("teacher"), async (req, res) => {
   try {
     const { text, type = "multiple-choice", count = 5 } = req.body;
     if (!text || text.trim().length === 0) {
       return res.status(400).json({ success: false, error: "Lecture text is required" });
     }
-    if (count < 1 || count > 20) {
-      return res.status(400).json({ success: false, error: "Count must be between 1 and 20" });
+    if (count < 1 || count > 10) {
+      return res.status(400).json({ success: false, error: "Count must be between 1 and 10" });
     }
     const questions = await aiService.generateQuestions(text, type, count);
     res.json({
@@ -77,16 +77,21 @@ router.post("/generate-from-text", verifyToken, authorizeRole("teacher"), async 
 });
 
 // ── AI status ─────────────────────────────────────────────────────────────────
-router.get("/ai/status", verifyToken, authorizeRole("teacher"), (req, res) => {
+router.get("/ai/status", verifyToken, requireActiveUser, authorizeRole("teacher"), (req, res) => {
   res.json({ success: true, status: aiService.getStatus(), timestamp: new Date().toISOString() });
 });
 
-// ── Attendance ────────────────────────────────────────────────────────────────
-router.get("/attendance/:quizId",        verifyToken, getAttendanceReport);
-router.get("/attendance/stats/:quizId",  verifyToken, getAttendanceStats);
-router.get("/attendance/teacher/timeline", verifyToken, authorizeRole("teacher"), getTeacherAttendanceTimeline);
+// ── Attendance (specific paths before /attendance/:quizId) ─────────────────────
+router.get("/attendance/stats/:quizId", verifyToken, requireActiveUser, getAttendanceStats);
+router.get("/attendance/teacher/timeline", verifyToken, requireActiveUser, authorizeRole("teacher"), getTeacherAttendanceTimeline);
+router.get("/attendance/:quizId", verifyToken, requireActiveUser, getAttendanceReport);
 
-// ── Public quiz fetch by ID – MUST BE LAST to avoid shadowing other GET routes ──
-router.get("/:quizId", verifyToken, authorizeRole("student"), getQuiz);
+// ── Student quiz fetch by ID – MUST BE LAST among GET single-segment routes ───
+router.get("/:quizId", verifyToken, requireActiveUser, authorizeRole("student"), getQuiz);
+
+// Unmatched path or method under /api/quiz → 401 without token, 403 if authenticated
+router.use(verifyToken, requireActiveUser, (req, res) => {
+  res.status(403).json({ message: "Forbidden" });
+});
 
 module.exports = router;

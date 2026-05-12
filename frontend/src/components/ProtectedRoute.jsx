@@ -1,5 +1,6 @@
 import { Navigate } from "react-router-dom";
-import { getUser } from "../services/api";
+import { logout } from "../services/api";
+import { useAuth } from "../context/AuthContext";
 
 const ROLE_HOME = {
   teacher: "/teacher",
@@ -8,13 +9,13 @@ const ROLE_HOME = {
 };
 
 function ProtectedRoute({ children, role }) {
-  const user = getUser();
+  const { user } = useAuth();
 
   if (!user) return <Navigate to="/" replace />;
 
   // Token expiry check
   if (user.exp && Date.now() / 1000 > user.exp) {
-    localStorage.removeItem("token");
+    logout();
     return <Navigate to="/" replace />;
   }
 

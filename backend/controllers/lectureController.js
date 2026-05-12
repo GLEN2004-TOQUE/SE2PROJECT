@@ -23,7 +23,9 @@ const uploadLecture = async (req, res) => {
       const result = await mammoth.extractRawText({ buffer: file.buffer });
       extractedText = result.value;
     } else if (ext === ".pptx") {
-      extractedText = "PPTX text extraction not implemented yet";
+      // PPTX uploads are currently not supported for text extraction.
+      // Reject the request instead of storing placeholder content that would break AI generation.
+      return res.status(400).json({ message: "PPTX text extraction not supported yet. Please upload a PDF or DOCX file instead." });
     } else {
       return res.status(400).json({ message: "Unsupported file type" });
     }

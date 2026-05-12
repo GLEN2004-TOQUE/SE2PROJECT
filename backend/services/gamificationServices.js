@@ -81,63 +81,7 @@ exports.awardBadge = async (userId, badgeId) => {
   return { awarded: true, badge: data };
 };
 
-exports.updateGamification = async (userId, score, total) => {
-  const pointsEarned = computePoints(score, total);
-
-  const { data: user, error: userError } = await supabaseAdmin
-    .from("users")
-    .select("points, streak, last_quiz_date")
-    .eq("id", userId)
-    .single();
-
-  if (userError || !user) throw new Error("User not found");
-
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  let newStreak = 1;
-  if (user.last_quiz_date) {
-    const last = new Date(user.last_quiz_date);
-    last.setHours(0, 0, 0, 0);
-    const diff = Math.round((today - last) / (1000 * 60 * 60 * 24));
-    if (diff === 0) newStreak = user.streak;
-    else if (diff === 1) newStreak = user.streak + 1;
-  }
-
-  const streakBonus = newStreak >= 5 ? 20 : 0;
-  const totalPoints = user.points + pointsEarned + streakBonus;
-  const tier = getTier(totalPoints);
-
-  await supabaseAdmin
-    .from("users")
-    .update({
-      points: totalPoints,
-      streak: newStreak,
-      last_quiz_date: new Date().toISOString(),
-      tier,
-    })
-    .eq("id", userId);
-
-  const { data: badges } = await supabaseAdmin
-    .from("badges")
-    .select("*")
-    .lte("min_points", totalPoints);
-
-  if (badges) {
-    for (const badge of badges) {
-      const { data: existing } = await supabaseAdmin
-        .from("user_badges")
-        .select("id")
-        .eq("user_id", userId)
-        .eq("badge_id", badge.id)
-        .maybeSingle();
-      if (!existing) {
-        await supabaseAdmin
-          .from("user_badges")
-          .insert([{ user_id: userId, badge_id: badge.id }]);
-      }
-    }
-  }
-
-  return { pointsEarned, streakBonus, totalPoints, streak: newStreak, tier };
-};
+// NOTE:
+// Gamification update logic has been consolidated into `scoringServices.updateGamification`
+// to avoid duplicate implementations. This file now focuses on read-only gamification
+// helpers such as leaderboards and badge queries.

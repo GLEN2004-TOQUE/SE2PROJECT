@@ -1,8 +1,17 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { canAttemptAuth, isStrongPassword, isValidEmail, sanitizeEmail, sanitizeText } from "../utils/security";
+import { getFriendlyApiErrorMessage } from "../services/api";
 
 const BASE = process.env.REACT_APP_API_URL || "https://backend-7lik.onrender.com";
+
+const readResponseJson = async (res) => {
+  try {
+    return await res.json();
+  } catch {
+    return {};
+  }
+};
 
 const COURSES = {
   college:    ["BSCS", "BSOA", "BTVTED"],
@@ -402,40 +411,56 @@ export default function Register() {
 
   // Step 1 → Send OTP
   const handleSendOTP = async (e) => {
-    e.preventDefault();
-    setError(""); setSuccess("");
-    const cleanName = sanitizeText(fullName);
-    const cleanEmail = sanitizeEmail(email);
-    if (!cleanName || !cleanEmail || !password || !level || !course || !section) {
-      setError("Please fill in all fields including Section."); return;
+  e.preventDefault();
+  setError(""); setSuccess("");
+  const cleanName = sanitizeText(fullName);
+  const cleanEmail = sanitizeEmail(email);
+  if (!cleanName || !cleanEmail || !password || !level || !course || !section) {
+    setError("Please fill in all fields including Section."); return;
+  }
+  if (!isValidEmail(cleanEmail)) { setError("Please use a valid email address."); return; }
+  if (!isStrongPassword(password)) { setError("Password must be at least 6 characters."); return; }
+  if (!canAttemptAuth()) { setError("Too many attempts. Please wait a few minutes."); return; }
+
+  setLoading(true);
+  try {
+    const res = await fetch(`${BASE}/otp/send`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: cleanEmail }),
+    });
+
+    // Handle Render's cold-start 503 (returns HTML, not JSON)
+    if (res.status === 503 || res.status === 502) {
+      setError("The server is starting up — please wait 30 seconds and try again.");
+      return;
     }
-    if (!isValidEmail(cleanEmail)) {
-      setError("Please use a valid email address."); return;
-    }
-    if (!isStrongPassword(password)) {
-      setError("Password must be at least 6 characters."); return;
-    }
-    if (!canAttemptAuth()) {
-      setError("Too many attempts. Please wait a few minutes."); return;
-    }
-    setLoading(true);
+
+    let data;
     try {
-      const res = await fetch(`${BASE}/otp/send`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: cleanEmail }),
-      });
-      const data = await res.json();
-      if (!res.ok) { setError(data.message); return; }
-      setSuccess("OTP sent! Check your Gmail inbox (and spam folder).");
-      setStep(2);
-      startCountdown();
+      data = await res.json();
     } catch {
-      setError("Cannot reach the server. Make sure the backend is running.");
-    } finally {
-      setLoading(false);
+      setError("Server returned an unexpected response. Please try again shortly.");
+      return;
     }
-  };
+
+    if (!res.ok) {
+      setError(getFriendlyApiErrorMessage(res.status, data.message || data.error));
+      return;
+    }
+    setSuccess("OTP sent! Check your Gmail inbox (and spam folder).");
+    setStep(2);
+    startCountdown();
+  } catch (err) {
+    if (err.name === "AbortError" || err.message.includes("fetch")) {
+      setError("Cannot reach the server. Check your connection or try again in a moment.");
+    } else {
+      setError("Something went wrong. Please try again.");
+    }
+  } finally {
+    setLoading(false);
+  }
+};
 
   // Resend OTP
   const handleResend = async () => {
@@ -447,8 +472,11 @@ export default function Register() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: sanitizeEmail(email) }),
       });
-      const data = await res.json();
-      if (!res.ok) { setError(data.message); return; }
+      const data = await readResponseJson(res);
+      if (!res.ok) {
+        setError(getFriendlyApiErrorMessage(res.status, data.message || data.error) || "Failed to resend OTP. Please try again.");
+        return;
+      }
       setSuccess("New OTP sent!");
       setOtpDigits(["","","","","",""]);
       startCountdown();
@@ -500,9 +528,9 @@ export default function Register() {
           role: "student", course, section, otp
         }),
       });
-      const data = await res.json();
+      const data = await readResponseJson(res);
       if (!res.ok) {
-        setError(data.message);
+        setError(getFriendlyApiErrorMessage(res.status, data.message || data.error) || "Verification failed. Please try again.");
         setOtpShake(true); setTimeout(() => setOtpShake(false), 500);
         return;
       }
@@ -664,7 +692,7 @@ export default function Register() {
 
                 <div className="divider"><span>Have an account?</span></div>
                 <p className="login-line">
-                  Already registered? <Link to="/">Sign in here</Link>
+                Already registered? <Link to="/login">Sign in here</Link>
                 </p>
               </>
             )}
