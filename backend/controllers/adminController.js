@@ -247,6 +247,102 @@ exports.getAssignments = async (req, res) => {
   }
 };
 
+// ─── Improving students timeline (admin dashboard momentum chart) ────────────
+
+function dayKeyUTC(isoOrDate) {
+  const x = isoOrDate instanceof Date ? isoOrDate : new Date(isoOrDate);
+  return x.toISOString().slice(0, 10);
+}
+
+function cumulativeQuizPoints(results, endDate) {
+  const end = new Date(endDate).getTime();
+  let sum = 0;
+  for (const r of results) {
+    if (!r.total) continue;
+    const t = new Date(r.submitted_at).getTime();
+    if (t <= end) sum += Math.round((r.score / r.total) * 100);
+  }
+  return sum;
+}
+
+/** Consecutive calendar days with at least one quiz, ending on the latest quiz day on or before endDate */
+function quizStreakAsOf(userResults, endDate) {
+  const end = new Date(endDate).getTime();
+  const days = new Set();
+  for (const r of userResults) {
+    if (new Date(r.submitted_at).getTime() <= end) days.add(dayKeyUTC(r.submitted_at));
+  }
+  const sorted = [...days].sort();
+  if (sorted.length === 0) return 0;
+  let last = sorted[sorted.length - 1];
+  let streak = 1;
+  for (let i = sorted.length - 2; i >= 0; i -= 1) {
+    const cur = sorted[i];
+    const diffDays = Math.round(
+      (new Date(`${last}T12:00:00.000Z`) - new Date(`${cur}T12:00:00.000Z`)) / 86400000
+    );
+    if (diffDays === 1) {
+      streak += 1;
+      last = cur;
+    } else break;
+  }
+  return streak;
+}
+
+exports.getImprovingStudentsTimeline = async (req, res) => {
+  try {
+    const { data: students, error: stErr } = await supabaseAdmin
+      .from("users")
+      .select("id, points, streak")
+      .eq("role", "student");
+    if (stErr) return res.status(400).json({ error: stErr.message });
+    const studentList = students || [];
+
+    const liveImprovingCount = () =>
+      studentList.filter((s) => (s.points ?? 0) >= 80 || (s.streak ?? 0) >= 2).length;
+
+    const { data: results, error: rErr } = await supabaseAdmin
+      .from("results")
+      .select("user_id, score, total, submitted_at")
+      .order("submitted_at", { ascending: true });
+    if (rErr) return res.status(400).json({ error: rErr.message });
+    const rows = results || [];
+
+    if (rows.length === 0) {
+      const n = liveImprovingCount();
+      return res.json({ checkpoints: [n, n, n, n, n], labels: ["C1", "C2", "C3", "C4", "Now"] });
+    }
+
+    const first = new Date(rows[0].submitted_at);
+    const last = new Date();
+    const span = Math.max(last.getTime() - first.getTime(), 1);
+
+    const byUser = {};
+    for (const r of rows) {
+      if (!byUser[r.user_id]) byUser[r.user_id] = [];
+      byUser[r.user_id].push(r);
+    }
+
+    const checkpoints = [0, 0.25, 0.5, 0.75, 1].map((p) => {
+      const d = new Date(first.getTime() + p * span);
+      let count = 0;
+      for (const s of studentList) {
+        const userResults = byUser[s.id] || [];
+        const pts = cumulativeQuizPoints(userResults, d);
+        const str = quizStreakAsOf(userResults, d);
+        if (pts >= 80 || str >= 2) count += 1;
+      }
+      return count;
+    });
+
+    checkpoints[4] = liveImprovingCount();
+
+    res.json({ checkpoints, labels: ["C1", "C2", "C3", "C4", "Now"] });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
 exports.assignTeacherToStudent = async (req, res) => {
   try {
     const { teacherId, studentId } = req.body;

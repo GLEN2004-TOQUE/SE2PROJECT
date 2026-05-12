@@ -2,7 +2,7 @@ const express = require("express");
 const router = express.Router();
 const {
   getAllStudents, getAllTeachers, getAllUsers,
-  getAssignments, assignTeacherToStudent,
+  getAssignments, getImprovingStudentsTimeline, assignTeacherToStudent,
   removeAssignment, getMyStudents, getMyTeacher,
   createTeacher, toggleUserStatus, deleteUser,
   getAdminLeaderboard, changePassword,
@@ -66,6 +66,7 @@ router.post("/teachers/create",         verifyToken, requireActiveUser, authoriz
 router.patch("/users/:userId/status",   verifyToken, requireActiveUser, authorizeRole("admin"), toggleUserStatus);
 router.delete("/users/:userId",         verifyToken, requireActiveUser, authorizeRole("admin"), deleteUser);
 router.get("/leaderboard",  verifyToken, requireActiveUser, authorizeRole("admin"), getAdminLeaderboard);
+router.get("/improving-students-timeline", verifyToken, requireActiveUser, authorizeRole("admin"), getImprovingStudentsTimeline);
 
 // ─── Teacher: see assigned students ──────────────────────────────────────
 router.get("/my-students",  verifyToken, requireActiveUser, authorizeRole("teacher"), getMyStudents);

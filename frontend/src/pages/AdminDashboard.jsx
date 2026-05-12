@@ -802,6 +802,7 @@ export default function AdminDashboard() {
   const [assignments, setAssignments] = useState([]);
   const [certRequests, setCertRequests] = useState([]);
   const [leaderboard, setLeaderboard] = useState([]);
+  const [momentumCheckpoints, setMomentumCheckpoints] = useState([0, 0, 0, 0, 0]);
   const [loading, setLoading]       = useState(true);
   const [lbLoading, setLbLoading]   = useState(false);
   const [lbFilter, setLbFilter]     = useState("all");
@@ -829,14 +830,24 @@ export default function AdminDashboard() {
   const loadData = useCallback(async()=>{
     setLoading(true);
     try {
-      const [s,t,a] = await Promise.all([
+      const [s,t,a,timeline] = await Promise.all([
         apiFetch("/api/admin/students"),
         apiFetch("/api/admin/teachers"),
         apiFetch("/api/admin/assignments"),
+        apiFetch("/api/admin/improving-students-timeline").catch(()=>({ checkpoints: null })),
       ]);
       const certData = await apiFetch("/api/admin/certificate-requests").catch(()=>[]);
       setStudents(s); setTeachers(t); setAssignments(a);
       setCertRequests(certData||[]);
+      const cp = timeline?.checkpoints;
+      const liveMomentum = (s || []).filter(
+        (st) => (st.points ?? 0) >= 80 || (st.streak ?? 0) >= 2
+      ).length;
+      setMomentumCheckpoints(
+        Array.isArray(cp) && cp.length === 5
+          ? cp.map((n) => Math.max(0, Number(n) || 0))
+          : [liveMomentum, liveMomentum, liveMomentum, liveMomentum, liveMomentum]
+      );
     } catch(e){ showToast(e.message,"err"); }
     finally { setLoading(false); }
   },[]);
@@ -854,11 +865,14 @@ export default function AdminDashboard() {
   useEffect(()=>{ if(tab==="leaderboard") loadLeaderboard(); },[tab,loadLeaderboard]);
   useEffect(()=>{ localStorage.setItem("admin_tab",tab); },[tab]);
 
+  const sidKey = (id) => String(id);
   const assignMap = {};
   assignments.forEach(a=>{
-    if(!a.student?.id||!a.teacher) return;
-    if(!assignMap[a.student.id]) assignMap[a.student.id]=[];
-    assignMap[a.student.id].push(a.teacher);
+    if(a.student?.id==null || !a.teacher) return;
+    const k = sidKey(a.student.id);
+    if(!assignMap[k]) assignMap[k]=[];
+    const tid = a.teacher.id;
+    if(tid!=null && !assignMap[k].some((t)=>String(t.id)===String(tid))) assignMap[k].push(a.teacher);
   });
   const assignedCount = Object.keys(assignMap).length;
 
@@ -961,20 +975,12 @@ export default function AdminDashboard() {
     return acc;
   },{});
 
-  const lbMomentumLine = [
-    Math.max(Math.round(leaderboard.length*.3),1),
-    Math.max(Math.round(leaderboard.length*.42),1),
-    Math.max(Math.round(leaderboard.length*.54),1),
-    Math.max(Math.round(leaderboard.length*.67),1),
-    leaderboard.filter(s=>(s.points??0)>=80||(s.streak??0)>=2).length,
-  ];
-
   const sectionLabels    = Object.keys(sectionImprovementMap);
   const stackedIncreasing = sectionLabels.map(l=>sectionImprovementMap[l].increasing);
   const stackedLow        = sectionLabels.map(l=>sectionImprovementMap[l].low);
 
   const teacherLoadBuckets = students.reduce((acc,s)=>{
-    const c=(assignMap[s.id]||[]).length;
+    const c=(assignMap[sidKey(s.id)]||[]).length;
     if(c===0) acc.none+=1; else if(c===1) acc.one+=1; else acc.multi+=1;
     return acc;
   },{none:0,one:0,multi:0});
@@ -1022,8 +1028,8 @@ export default function AdminDashboard() {
             <h2 className="ad-modal-title">Assign Teacher</h2>
             <p className="ad-modal-sub">
               Add a teacher under <strong>{assignModal.student.full_name}</strong>.
-              {(assignMap[assignModal.student.id]||[]).length>0 && (
-                <> Current: <strong>{assignMap[assignModal.student.id].map(t=>t.full_name).join(", ")}</strong>.</>
+              {(assignMap[sidKey(assignModal.student.id)]||[]).length>0 && (
+                <> Current: <strong>{assignMap[sidKey(assignModal.student.id)].map(t=>t.full_name).join(", ")}</strong>.</>
               )}
             </p>
             <div className="ad-field">
@@ -1224,10 +1230,10 @@ export default function AdminDashboard() {
                     <div className="ad-chart-card">
                       <div className="ad-chart-eyebrow">Momentum Trend</div>
   <div className="ad-chart-title">Improving Students Over Time</div>
-  <div className="ad-chart-sub">Students with ≥80 pts or ≥2-day streak, tracked across checkpoints</div>
+  <div className="ad-chart-sub">Students with ≥80 pts or ≥2-day streak. C1–C4 from quiz history; Now uses live totals.</div>
   <LineChart
     xAxis={[{scaleType:"point",data:["C1","C2","C3","C4","Now"],tickLabelStyle:{fill:"#b87a80",fontSize:11}}]}
-    series={[{data:lbMomentumLine,curve:"natural",color:"#d4a017",label:"Students",area:true,showMark:true}]}
+    series={[{data:momentumCheckpoints,curve:"natural",color:"#d4a017",label:"Students",area:true,showMark:true}]}
     height={230}
     margin={{top:16,right:16,bottom:44,left:36}}
     sx={chartSx}
@@ -1347,11 +1353,11 @@ export default function AdminDashboard() {
                             <td><div style={{fontSize:".78rem"}}>{s.course&&<span style={{color:"#60a5fa",marginRight:4}}>{s.course}</span>}{s.section&&<span style={{color:"var(--green)"}}>{s.section}</span>}{!s.course&&!s.section&&<span style={{color:"var(--muted)"}}>—</span>}</div></td>
                             <td><strong style={{color:"var(--text)"}}>{s.points??0}</strong> <span style={{color:"var(--muted)",fontSize:".72rem"}}>{s.tier||"Beginner"}</span></td>
                             <td><span className={`status-dot ${s.status?"active":"inactive"}`}>{s.status?"Active":"Inactive"}</span></td>
-                            <td>{(assignMap[s.id]||[]).length>0?<span style={{fontSize:".78rem",color:"var(--mustard)"}}>{(assignMap[s.id]||[]).length} teacher{(assignMap[s.id]||[]).length>1?"s":""}</span>:<span style={{color:"var(--muted)",fontSize:".75rem"}}>Unassigned</span>}</td>
+                            <td>{(assignMap[sidKey(s.id)]||[]).length>0?<span style={{fontSize:".78rem",color:"var(--mustard)"}}>{(assignMap[sidKey(s.id)]||[]).length} teacher{(assignMap[sidKey(s.id)]||[]).length>1?"s":""}</span>:<span style={{color:"var(--muted)",fontSize:".75rem"}}>Unassigned</span>}</td>
                             <td>
                               <div className="ad-btn-row">
-                                <button className="btn-sm btn-assign" onClick={()=>openAssign(s)}>{(assignMap[s.id]||[]).length>0?"Add Teacher":"Assign"}</button>
-                                {(assignMap[s.id]||[]).length>0&&<button className="btn-sm btn-del" onClick={()=>removeAssignment(s.id)} title="Remove all teachers">{I.Trash}</button>}
+                                <button className="btn-sm btn-assign" onClick={()=>openAssign(s)}>{(assignMap[sidKey(s.id)]||[]).length>0?"Add Teacher":"Assign"}</button>
+                                {(assignMap[sidKey(s.id)]||[]).length>0&&<button className="btn-sm btn-del" onClick={()=>removeAssignment(s.id)} title="Remove all teachers">{I.Trash}</button>}
                                 <button className={`btn-sm ${s.status?"btn-deact":"btn-act"}`} onClick={()=>toggleStatus(s.id,s.status)}>{s.status?"Deactivate":"Activate"}</button>
                                 <button className="btn-sm btn-del" onClick={()=>setDeleteModal(s)}>{I.Trash}</button>
                               </div>
@@ -1479,7 +1485,7 @@ export default function AdminDashboard() {
                       <div className="ad-chart-sub">Students with ≥80 pts or ≥2-day streak, tracked across checkpoints</div>
                       <LineChart
                         xAxis={[{scaleType:"point",data:["C1","C2","C3","C4","Now"],tickLabelStyle:{fill:"#b87a80",fontSize:11}}]}
-                        series={[{data:lbMomentumLine,curve:"natural",color:"#d4a017",label:"Students",area:true,showMark:true}]}
+                        series={[{data:momentumCheckpoints,curve:"natural",color:"#d4a017",label:"Students",area:true,showMark:true}]}
                         height={230}
                         margin={{top:16,right:16,bottom:44,left:36}}
                         sx={chartSx}
