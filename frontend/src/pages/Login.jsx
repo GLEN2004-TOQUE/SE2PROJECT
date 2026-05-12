@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { canAttemptAuth, isValidEmail, sanitizeEmail } from "../utils/security";
+import { decodeJwtPayload } from "../services/api";
 
 /* ─── Inline styles & keyframes injected once ─── */
 const GlobalStyles = () => (
@@ -371,7 +372,12 @@ function Login() {
 
       if (data.token) {
         localStorage.setItem("token", data.token);
-        const payload = JSON.parse(atob(data.token.split(".")[1]));
+        const payload = decodeJwtPayload(data.token);
+        if (!payload) {
+          localStorage.removeItem("token");
+          setErrorMsg("Invalid login token received. Please try again.");
+          return;
+        }
         const dest = ROLE_HOME[payload.role];
         if (dest) navigate(dest);
         else setErrorMsg(`Unknown role: ${payload.role}`);
