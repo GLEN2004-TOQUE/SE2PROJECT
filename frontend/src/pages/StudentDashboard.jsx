@@ -492,7 +492,8 @@ export default function StudentDashboard() {
   const [quizzes, setQuizzes]           = useState([]);
   const [quizResults, setQuizResults]   = useState({});
   const [attendanceMap, setAttendanceMap] = useState({});
-  const [loadingQuizzes, setLoadingQuizzes] = useState(false);
+  /** Start true so overview does not flash "No teacher" while quizzes may still supply teacher fallback. */
+  const [loadingQuizzes, setLoadingQuizzes] = useState(true);
   const [quizError, setQuizError]       = useState("");
   const [profilePhoto, setProfilePhoto] = useState("");
   const [pwForm, setPwForm] = useState({ current:"", next:"", confirm:"" });
@@ -554,7 +555,14 @@ export default function StudentDashboard() {
     if (tokenUser.role !== "student") { navigate("/teacher"); return; }
     getMyProfile().then(setProfile).catch(() => {});
     apiFetch("/api/admin/my-teacher")
-      .then((data) => setMyTeachers(Array.isArray(data) ? data : []))
+      .then((data) => {
+        const list = Array.isArray(data)
+          ? data
+          : Array.isArray(data?.teachers)
+            ? data.teachers
+            : [];
+        setMyTeachers(list);
+      })
       .catch(() => setMyTeachers([]))
       .finally(() => setPageLoading(false));
     if (tokenUser?.id) setProfilePhoto(localStorage.getItem(`student_photo_${tokenUser.id}`) || "");
@@ -565,7 +573,10 @@ export default function StudentDashboard() {
   const studentId = tokenUser?.id;
   const isStudent = tokenUser?.role === "student";
   useEffect(() => {
-    if (!studentId || !isStudent) return;
+    if (!studentId || !isStudent) {
+      setLoadingQuizzes(false);
+      return;
+    }
     loadQuizzes();
     loadResults();
     loadAttendance();
@@ -594,6 +605,10 @@ export default function StudentDashboard() {
     }
     return [...byKey.values()];
   }, [myTeachers, quizzes]);
+
+  /** Wait for quiz list when we still need it to infer teachers (avoids false "no teacher" before my-quizzes returns). */
+  const teacherOverviewLoading =
+    pageLoading || (myTeachers.length === 0 && loadingQuizzes);
 
   const handleRefreshQuizzes = async () => { await loadQuizzes(); await loadResults(); await loadAttendance(); };
   const handlePhotoPick = (e) => {
@@ -719,7 +734,7 @@ export default function StudentDashboard() {
                 </div>
 
                 {/* Teacher */}
-                {pageLoading ? (
+                {teacherOverviewLoading ? (
                   <div className="glass-card" style={{padding:"1.4rem 1.6rem",marginBottom:"1.75rem"}}>
                     <div className="skeleton" style={{width:110,marginBottom:".9rem"}} />
                     <div style={{display:"flex",gap:"1rem",alignItems:"center"}}>
@@ -763,7 +778,6 @@ export default function StudentDashboard() {
                               </div>
                             )}
                           </div>
-                          {t.tier && <div className="sd-teacher-tier">{t.tier}</div>}
                         </div>
                       </div>
                     );})}

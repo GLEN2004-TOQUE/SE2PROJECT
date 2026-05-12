@@ -513,7 +513,13 @@ exports.getMyTeacher = async (req, res) => {
   try {
     const rawStudentId = req.user.id;
     const studentIdCandidates = Array.from(
-      new Set([rawStudentId, rawStudentId != null ? String(rawStudentId) : null].filter((v) => v != null && v !== ""))
+      new Set(
+        [
+          rawStudentId,
+          rawStudentId != null ? String(rawStudentId) : null,
+          Number.isFinite(Number(rawStudentId)) ? Number(rawStudentId) : null,
+        ].filter((v) => v != null && v !== "")
+      )
     );
 
     let rows = [];
@@ -541,7 +547,7 @@ exports.getMyTeacher = async (req, res) => {
 
     const { data: teachers, error: tErr } = await supabaseAdmin
       .from("users")
-      .select("id, full_name, email, tier, subject")
+      .select("id, full_name, email, subject")
       .in("id", teacherIds);
 
     if (tErr) return res.status(400).json({ error: tErr.message });
@@ -567,7 +573,6 @@ exports.getMyTeacher = async (req, res) => {
         id: t.id,
         full_name: t.full_name,
         email: t.email,
-        tier: t.tier,
         subject: t.subject,
         assigned_at: row.assigned_at,
       });

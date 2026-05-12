@@ -3,6 +3,17 @@ const aiService = require("../services/aiService");
 const { supabaseAdmin } = require("../supabaseClient");
 const { updateGamification } = require("../services/scoringServices");
 
+/** JWT / DB may disagree on numeric vs string IDs for FK columns. */
+function userIdCandidates(raw) {
+  return Array.from(
+    new Set(
+      [raw, raw != null ? String(raw) : null, Number.isFinite(Number(raw)) ? Number(raw) : null].filter(
+        (v) => v != null && v !== ""
+      )
+    )
+  );
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Generate quiz questions using AI
 // ─────────────────────────────────────────────────────────────────────────────
@@ -275,12 +286,24 @@ exports.scheduleQuiz = async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 exports.getQuizzesForStudent = async (req, res) => {
   try {
-    const studentId = req.user.id;
+    const studentIdCandidates = userIdCandidates(req.user.id);
 
-    const { data: assignments, error: assignErr } = await supabaseAdmin
-      .from("quiz_assignments")
-      .select("quiz_id")
-      .eq("student_id", studentId);
+    let assignments = [];
+    let assignErr = null;
+    for (const sid of studentIdCandidates) {
+      const { data, error } = await supabaseAdmin
+        .from("quiz_assignments")
+        .select("quiz_id")
+        .eq("student_id", sid);
+      if (error) {
+        assignErr = error;
+        break;
+      }
+      if (data && data.length > 0) {
+        assignments = data;
+        break;
+      }
+    }
 
     if (assignErr) {
       console.error("Assignment fetch error:", assignErr);
@@ -313,7 +336,11 @@ exports.getQuizzesForStudent = async (req, res) => {
         .in("id", teacherIds);
       if (tErr) console.error("Teacher lookup (student quizzes):", tErr);
       (teachers || []).forEach((u) => {
+        if (u?.id == null) return;
         teacherById[u.id] = u;
+        teacherById[String(u.id)] = u;
+        const n = Number(u.id);
+        if (Number.isFinite(n)) teacherById[n] = u;
       });
     }
 
@@ -352,7 +379,11 @@ exports.getQuizzesForStudent = async (req, res) => {
     const quizzes = (quizRows || [])
       .filter((q) => q.start_time && q.end_time)
       .map((q) => {
-        const teacher = q.teacher_id != null ? teacherById[q.teacher_id] : null;
+        const tid = q.teacher_id;
+        const teacher =
+          tid == null
+            ? null
+            : teacherById[tid] ?? teacherById[String(tid)] ?? (Number.isFinite(Number(tid)) ? teacherById[Number(tid)] : null);
         const lecture = q.lecture_id != null ? lectureById[q.lecture_id] : null;
         const lectureTitle = lecture?.title || null;
         const teacherSubjects = formatSubjectList(teacher?.subject);
@@ -368,8 +399,8 @@ exports.getQuizzesForStudent = async (req, res) => {
           teacher_name: teacherName,
           teacher_email: teacher?.email || null,
           teacher_subjects: teacher?.subject || null,
-          /** Lecture title, teacher profile subjects, or subject chosen when the quiz was sent */
-          subject_label: lectureTitle || teacherSubjects || assignedLabel || null,
+          /** Subject when sent, then teacher profile, then lecture title (file/topic name — not a course label). */
+          subject_label: assignedLabel || teacherSubjects || lectureTitle || null,
         };
       });
 
@@ -390,13 +421,25 @@ exports.getQuiz = async (req, res) => {
 
     console.log(`🔍 Student ${studentId} requesting quiz ${quizId}`);
 
-    // 1. Check assignment
-    const { data: assignment, error: assignErr } = await supabaseAdmin
-      .from("quiz_assignments")
-      .select("quiz_id")
-      .eq("quiz_id", quizId)
-      .eq("student_id", studentId)
-      .maybeSingle();
+    // 1. Check assignment (student_id type may differ from JWT id)
+    let assignment = null;
+    let assignErr = null;
+    for (const sid of userIdCandidates(studentId)) {
+      const { data, error } = await supabaseAdmin
+        .from("quiz_assignments")
+        .select("quiz_id")
+        .eq("quiz_id", quizId)
+        .eq("student_id", sid)
+        .maybeSingle();
+      if (error) {
+        assignErr = error;
+        break;
+      }
+      if (data) {
+        assignment = data;
+        break;
+      }
+    }
 
     if (assignErr) {
       console.error("❌ Assignment check error:", assignErr);
@@ -498,24 +541,43 @@ exports.submitQuiz = async (req, res) => {
     }
 
     // Check assignment
-    const { data: assignment, error: assignErr } = await supabaseAdmin
-      .from("quiz_assignments")
-      .select("quiz_id")
-      .eq("quiz_id", quizId)
-      .eq("student_id", userId)
-      .maybeSingle();
+    let assignment = null;
+    let assignErr = null;
+    for (const sid of userIdCandidates(userId)) {
+      const { data, error } = await supabaseAdmin
+        .from("quiz_assignments")
+        .select("quiz_id")
+        .eq("quiz_id", quizId)
+        .eq("student_id", sid)
+        .maybeSingle();
+      if (error) {
+        assignErr = error;
+        break;
+      }
+      if (data) {
+        assignment = data;
+        break;
+      }
+    }
 
     if (assignErr || !assignment) {
       return res.status(403).json({ message: "You are not assigned to this quiz" });
     }
 
     // Check if already submitted
-    const { data: existingResult } = await supabaseAdmin
-      .from("results")
-      .select("id, score, total")
-      .eq("user_id", userId)
-      .eq("quiz_id", quizId)
-      .maybeSingle();
+    let existingResult = null;
+    for (const uid of userIdCandidates(userId)) {
+      const { data } = await supabaseAdmin
+        .from("results")
+        .select("id, score, total")
+        .eq("user_id", uid)
+        .eq("quiz_id", quizId)
+        .maybeSingle();
+      if (data) {
+        existingResult = data;
+        break;
+      }
+    }
 
     if (existingResult) {
       return res.status(400).json({
@@ -674,10 +736,13 @@ exports.getAttendanceStats = async (req, res) => {
 exports.getMyAttendance = async (req, res) => {
   try {
     const userId = req.user.id;
+    const ids = userIdCandidates(userId);
+    if (!ids.length) return res.json([]);
+
     const { data, error } = await supabaseAdmin
       .from("attendance")
       .select("quiz_id, status, timestamp")
-      .eq("user_id", userId)
+      .in("user_id", ids)
       .order("timestamp", { ascending: false });
     if (error) return res.status(400).json({ error: error.message });
     res.json(data || []);
