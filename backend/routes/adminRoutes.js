@@ -9,10 +9,6 @@ const {
   assignSubjectToMyStudent,
   resetMyStudentsPoints,
   resetSingleMyStudentPoints,
-  getMyCertificateRequests,
-  createCertificateRequest,
-  getAllCertificateRequests,
-  updateCertificateRequestStatus,
 } = require("../controllers/adminController");
 const { verifyToken, authorizeRole, requireActiveUser } = require("../middleware/roleMiddleware");
 const { supabaseAdmin } = require("../supabaseClient");
@@ -76,14 +72,8 @@ router.get("/my-students",  verifyToken, requireActiveUser, authorizeRole("teach
 router.patch("/my-students/:studentId/subject", verifyToken, requireActiveUser, authorizeRole("teacher"), assignSubjectToMyStudent);
 router.patch("/my-students/reset-points", verifyToken, requireActiveUser, authorizeRole("teacher"), resetMyStudentsPoints);
 router.patch("/my-students/:studentId/reset-points", verifyToken, requireActiveUser, authorizeRole("teacher"), resetSingleMyStudentPoints);
-router.get("/my-certificate-requests", verifyToken, requireActiveUser, authorizeRole("teacher"), getMyCertificateRequests);
-router.post("/certificate-requests", verifyToken, requireActiveUser, authorizeRole("teacher"), createCertificateRequest);
 
 // ─── Student: see assigned teacher ───────────────────────────────────────
 router.get("/my-teacher",   verifyToken, requireActiveUser, authorizeRole("student"), getMyTeacher);
-
-// ─── Admin: certificate approvals ────────────────────────────────────────
-router.get("/certificate-requests", verifyToken, requireActiveUser, authorizeRole("admin"), getAllCertificateRequests);
-router.patch("/certificate-requests/:requestId/status", verifyToken, requireActiveUser, authorizeRole("admin"), updateCertificateRequestStatus);
 
 module.exports = router;

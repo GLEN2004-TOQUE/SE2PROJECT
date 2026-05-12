@@ -757,74 +757,6 @@ const Styles = () => (
 );
 
 /* ══════════════════════════════
-   CERTIFICATE COMPONENT
-══════════════════════════════ */
-const Certificate = ({ student, rank, onClose }) => {
-  const handlePrint = () => {
-    const certRoot = document.getElementById("cert-print-root");
-    certRoot.innerHTML = document.getElementById("cert-content").innerHTML;
-    certRoot.style.display = "block";
-    window.print();
-    setTimeout(() => { certRoot.style.display = "none"; certRoot.innerHTML = ""; }, 500);
-  };
-  const today = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
-  const tierColors = { Master: "#b45309", Advanced: "#1d4ed8", Intermediate: "#065f46", Beginner: "#374151" };
-  const tc = tierColors[student.tier] || "#374151";
-
-  return (
-    <div className="cert-overlay" onClick={onClose}>
-      <div style={{ width: "100%", maxWidth: 680 }} onClick={e => e.stopPropagation()}>
-        <div className="cert-box">
-          <div id="cert-content">
-            <div style={{ padding:"48px 56px", background:"#fff", fontFamily:"'Georgia',serif", position:"relative", border:"24px solid #f9f3e8", outline:"3px solid #c9a227", outlineOffset:"-30px" }}>
-              {["top:0;left:0","top:0;right:0;transform:scaleX(-1)","bottom:0;left:0;transform:scaleY(-1)","bottom:0;right:0;transform:scale(-1)"].map((s,i)=>(
-                <div key={i} style={{position:"absolute",...Object.fromEntries(s.split(";").map(p=>p.split(":")))}}>
-                  <svg width="40" height="40" viewBox="0 0 40 40" fill="none"><path d="M2 2 L18 2 L18 6 L6 6 L6 18 L2 18 Z" fill="#c9a227" opacity=".7"/></svg>
-                </div>
-              ))}
-              <div style={{textAlign:"center",marginBottom:24}}>
-                <div style={{fontSize:11,letterSpacing:"0.3em",textTransform:"uppercase",color:"#9ca3af",marginBottom:8}}>School Quiz System</div>
-                <h1 style={{fontFamily:"'Georgia',serif",fontSize:32,fontWeight:400,color:"#1a0a0a",letterSpacing:"-0.02em",marginBottom:4}}>Certificate of Achievement</h1>
-                <div style={{width:80,height:2,background:"linear-gradient(90deg,transparent,#c9a227,transparent)",margin:"12px auto"}}/>
-                <p style={{fontSize:13,color:"#6b7280",fontStyle:"italic"}}>This certifies that</p>
-              </div>
-              <div style={{textAlign:"center",margin:"20px 0"}}>
-                <div style={{fontFamily:"'Georgia',serif",fontSize:36,color:"#1a0a0a",letterSpacing:"-0.02em",borderBottom:"2px solid #c9a227",display:"inline-block",paddingBottom:6}}>{student.full_name}</div>
-              </div>
-              <div style={{textAlign:"center",fontSize:14,color:"#374151",lineHeight:1.8,margin:"20px 0"}}>
-                <p>has demonstrated outstanding academic performance and has been ranked</p>
-                <div style={{margin:"12px 0",display:"flex",alignItems:"center",justifyContent:"center",gap:12}}>
-                  <span style={{fontSize:48,fontWeight:700,color:"#c9a227",fontFamily:"serif"}}>#{rank}</span>
-                  <span style={{fontSize:14,color:"#6b7280"}}>in the<br/>class leaderboard</span>
-                </div>
-                {student.section && (<p>Section: <strong style={{color:"#1a0a0a"}}>{student.section}</strong>{student.course ? ` · ${student.course}` : ""}</p>)}
-              </div>
-              <div style={{display:"flex",justifyContent:"center",gap:32,margin:"20px 0 28px",padding:"16px 24px",background:"#f9f3e8",borderRadius:8}}>
-                {[{label:"Total Points",value:(student.points||0).toLocaleString()},{label:"Achievement Tier",value:student.tier||"Beginner"},{label:"Study Streak",value:`${student.streak||0} days`}].map(s=>(
-                  <div key={s.label} style={{textAlign:"center"}}>
-                    <div style={{fontSize:20,fontWeight:700,color:tc}}>{s.value}</div>
-                    <div style={{fontSize:10,color:"#9ca3af",letterSpacing:"0.1em",textTransform:"uppercase",marginTop:2}}>{s.label}</div>
-                  </div>
-                ))}
-              </div>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginTop:24}}>
-                <div style={{textAlign:"center"}}><div style={{width:120,borderTop:"1px solid #9ca3af",paddingTop:6,fontSize:11,color:"#9ca3af"}}>Class Teacher</div></div>
-                <div style={{textAlign:"center",fontSize:11,color:"#9ca3af"}}><div style={{fontWeight:600,color:"#374151",marginBottom:2}}>{today}</div>Date Issued</div>
-                <div style={{textAlign:"center"}}><div style={{width:120,borderTop:"1px solid #9ca3af",paddingTop:6,fontSize:11,color:"#9ca3af"}}>Administrator</div></div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div className="cert-actions">
-          <button className="cert-close-btn" onClick={onClose}>Close</button>
-          <button className="cert-print-btn" onClick={handlePrint}>🖨 Print Certificate</button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-/* ══════════════════════════════
    ICONS
 ══════════════════════════════ */
 const I = {
@@ -842,7 +774,6 @@ const I = {
   Chart:   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>,
   User:    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>,
   Logout:  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>,
-  Filter:  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>,
 };
 
 const initials = (n="") => n.split(" ").slice(0,2).map(w=>w[0]).join("").toUpperCase()||"?";
@@ -1070,7 +1001,9 @@ export default function AdminDashboard() {
     <>
       <PrintStyles />
       <Styles />
+
       <div id="cert-print-root" />
+
 
       {toast && (
         <div className={`ad-toast ${toast.type}`}>
@@ -1179,8 +1112,6 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {certModal && <Certificate student={certModal.student} rank={certModal.rank} onClose={()=>setCertModal(null)}/>}
-
       <div className="ad-root">
 
         {/* ══════ TOPBAR ══════ */}
@@ -1246,10 +1177,7 @@ export default function AdminDashboard() {
                     <h1 className="ad-page-title">Analytics</h1>
                     <p className="ad-page-sub">System-wide summary and performance insights</p>
                   </div>
-                  <button className="ad-filter-btn">
-                    {I.Filter}
-                    <span>Filter</span>
-                  </button>
+
                 </div>
 
                 {/* Sparkline card */}
@@ -1586,7 +1514,6 @@ export default function AdminDashboard() {
                         ))}
                       </div>
                     </div>
-                    <div style={{fontSize:".75rem",color:"var(--muted)"}}>🏅 Click row to generate certificate</div>
                   </div>
 
                   {lbLoading ? (
@@ -1613,7 +1540,6 @@ export default function AdminDashboard() {
                         <div className="ad-lb-tier">{u.tier||"Beginner"}</div>
                         {(u.streak??0)>0&&<div style={{fontSize:".68rem",color:"var(--red)"}}>🔥 {u.streak}d</div>}
                       </div>
-                      <button className="btn-sm btn-cert" onClick={e=>{e.stopPropagation();setCertModal({student:u,rank:i+1});}}>🏅 Certificate</button>
                     </div>
                   ))}
                 </div>
