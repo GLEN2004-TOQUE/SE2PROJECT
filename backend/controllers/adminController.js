@@ -511,16 +511,69 @@ exports.resetSingleMyStudentPoints = async (req, res) => {
 
 exports.getMyTeacher = async (req, res) => {
   try {
-    const studentId = req.user.id;
-    const { data, error } = await supabaseAdmin
-      .from("teacher_student_assignments")
-      .select(`assigned_at, teacher:teacher_id ( id, full_name, email, tier )`)
-      .eq("student_id", studentId)
-      .maybeSingle();
+    const rawStudentId = req.user.id;
+    const studentIdCandidates = Array.from(
+      new Set([rawStudentId, rawStudentId != null ? String(rawStudentId) : null].filter((v) => v != null && v !== ""))
+    );
 
-    if (error) return res.status(400).json({ error: error.message });
-    if (!data) return res.json(null);
-    res.json({ ...data.teacher, assigned_at: data.assigned_at });
+    let rows = [];
+    let lastError = null;
+    for (const sid of studentIdCandidates) {
+      const { data, error } = await supabaseAdmin
+        .from("teacher_student_assignments")
+        .select("teacher_id, assigned_at")
+        .eq("student_id", sid)
+        .order("assigned_at", { ascending: false });
+      if (error) {
+        lastError = error;
+        break;
+      }
+      if (data && data.length > 0) {
+        rows = data;
+        break;
+      }
+    }
+    if (lastError) return res.status(400).json({ error: lastError.message });
+    if (!rows.length) return res.json([]);
+
+    const teacherIds = [...new Set(rows.map((r) => r.teacher_id).filter((id) => id != null && id !== ""))];
+    if (teacherIds.length === 0) return res.json([]);
+
+    const { data: teachers, error: tErr } = await supabaseAdmin
+      .from("users")
+      .select("id, full_name, email, tier, subject")
+      .in("id", teacherIds);
+
+    if (tErr) return res.status(400).json({ error: tErr.message });
+
+    const byId = {};
+    (teachers || []).forEach((u) => {
+      if (u?.id == null) return;
+      byId[u.id] = u;
+      byId[String(u.id)] = u;
+    });
+
+    const seen = new Set();
+    const out = [];
+    for (const row of rows) {
+      const tid = row.teacher_id;
+      if (tid == null || tid === "") continue;
+      const tidKey = String(tid);
+      if (seen.has(tidKey)) continue;
+      const t = byId[tid] || byId[tidKey];
+      if (!t) continue;
+      seen.add(tidKey);
+      out.push({
+        id: t.id,
+        full_name: t.full_name,
+        email: t.email,
+        tier: t.tier,
+        subject: t.subject,
+        assigned_at: row.assigned_at,
+      });
+    }
+
+    res.json(out);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

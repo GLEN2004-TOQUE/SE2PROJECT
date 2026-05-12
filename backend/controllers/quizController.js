@@ -213,7 +213,7 @@ exports.deleteQuiz = async (req, res) => {
 exports.scheduleQuiz = async (req, res) => {
   try {
     const teacherId = req.user.id;
-    const { quizId, startTime, endTime, studentIds } = req.body;
+    const { quizId, startTime, endTime, studentIds, assignedSubject } = req.body;
 
     if (!quizId || !startTime || !endTime) {
       return res.status(400).json({ error: "quizId, startTime, and endTime are required" });
@@ -233,10 +233,25 @@ exports.scheduleQuiz = async (req, res) => {
       return res.status(403).json({ message: "Forbidden" });
     }
 
-    const { error: updateErr } = await supabaseAdmin
+    const trimmedSubject =
+      assignedSubject != null && String(assignedSubject).trim()
+        ? String(assignedSubject).trim()
+        : null;
+
+    const baseUpdate = { start_time: startTime, end_time: endTime };
+    let { error: updateErr } = await supabaseAdmin
       .from("quizzes")
-      .update({ start_time: startTime, end_time: endTime })
+      .update(
+        trimmedSubject ? { ...baseUpdate, assigned_subject: trimmedSubject } : baseUpdate
+      )
       .eq("id", quizId);
+
+    if (updateErr && trimmedSubject) {
+      ({ error: updateErr } = await supabaseAdmin
+        .from("quizzes")
+        .update(baseUpdate)
+        .eq("id", quizId));
+    }
 
     if (updateErr) throw new Error(updateErr.message);
 
@@ -264,12 +279,7 @@ exports.getQuizzesForStudent = async (req, res) => {
 
     const { data: assignments, error: assignErr } = await supabaseAdmin
       .from("quiz_assignments")
-      .select(`
-        quiz_id,
-        quizzes!inner (
-          id, title, start_time, end_time, teacher_id
-        )
-      `)
+      .select("quiz_id")
       .eq("student_id", studentId);
 
     if (assignErr) {
@@ -280,19 +290,88 @@ exports.getQuizzesForStudent = async (req, res) => {
       return res.json([]);
     }
 
+    const quizIds = [...new Set(assignments.map((a) => a.quiz_id).filter(Boolean))];
+
+    const { data: quizRows, error: quizErr } = await supabaseAdmin
+      .from("quizzes")
+      .select("id, title, start_time, end_time, teacher_id, lecture_id")
+      .in("id", quizIds);
+
+    if (quizErr) {
+      console.error("Quiz fetch error (student list):", quizErr);
+      return res.json([]);
+    }
+
+    const teacherIds = [...new Set((quizRows || []).map((q) => q.teacher_id).filter(Boolean))];
+    const lectureIds = [...new Set((quizRows || []).map((q) => q.lecture_id).filter(Boolean))];
+
+    const teacherById = {};
+    if (teacherIds.length) {
+      const { data: teachers, error: tErr } = await supabaseAdmin
+        .from("users")
+        .select("id, full_name, email, subject")
+        .in("id", teacherIds);
+      if (tErr) console.error("Teacher lookup (student quizzes):", tErr);
+      (teachers || []).forEach((u) => {
+        teacherById[u.id] = u;
+      });
+    }
+
+    const lectureById = {};
+    if (lectureIds.length) {
+      const { data: lectures, error: lErr } = await supabaseAdmin
+        .from("lectures")
+        .select("id, title")
+        .in("id", lectureIds);
+      if (lErr) console.error("Lecture lookup (student quizzes):", lErr);
+      (lectures || []).forEach((lec) => {
+        lectureById[lec.id] = lec;
+      });
+    }
+
+    const assignedByQuizId = {};
+    const { data: subjectRows, error: subjectErr } = await supabaseAdmin
+      .from("quizzes")
+      .select("id, assigned_subject")
+      .in("id", quizIds);
+    if (!subjectErr && subjectRows) {
+      subjectRows.forEach((row) => {
+        if (row.id != null && row.assigned_subject != null && String(row.assigned_subject).trim()) {
+          assignedByQuizId[row.id] = String(row.assigned_subject).trim();
+        }
+      });
+    }
+
+    const formatSubjectList = (raw) => {
+      if (raw == null || !String(raw).trim()) return null;
+      const s = String(raw).split("|").map((x) => x.trim()).filter(Boolean).join(" · ");
+      return s || null;
+    };
+
     const now = new Date();
-    const quizzes = assignments
-      .filter(a => a.quizzes)
-      .map(a => a.quizzes)
-      .filter(q => q.start_time && q.end_time)
-      .map(q => ({
-        id: q.id,
-        title: q.title,
-        start_time: q.start_time,
-        end_time: q.end_time,
-        status: now < new Date(q.start_time) ? "upcoming" :
-                now > new Date(q.end_time) ? "ended" : "active"
-      }));
+    const quizzes = (quizRows || [])
+      .filter((q) => q.start_time && q.end_time)
+      .map((q) => {
+        const teacher = q.teacher_id != null ? teacherById[q.teacher_id] : null;
+        const lecture = q.lecture_id != null ? lectureById[q.lecture_id] : null;
+        const lectureTitle = lecture?.title || null;
+        const teacherSubjects = formatSubjectList(teacher?.subject);
+        const assignedLabel = assignedByQuizId[q.id] || null;
+        const teacherName = (teacher?.full_name && String(teacher.full_name).trim()) || null;
+        return {
+          id: q.id,
+          title: q.title,
+          start_time: q.start_time,
+          end_time: q.end_time,
+          status: now < new Date(q.start_time) ? "upcoming" :
+                  now > new Date(q.end_time) ? "ended" : "active",
+          teacher_name: teacherName,
+          teacher_email: teacher?.email || null,
+          teacher_subjects: teacher?.subject || null,
+          /** Lecture title, teacher profile subjects, or subject chosen when the quiz was sent */
+          subject_label: lectureTitle || teacherSubjects || assignedLabel || null,
+        };
+      });
 
     res.json(quizzes);
   } catch (err) {

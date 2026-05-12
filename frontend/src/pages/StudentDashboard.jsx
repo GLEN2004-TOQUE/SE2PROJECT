@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useNavigate } from "react-router-dom";
 import { getUser, logout, getMyProfile, getFriendlyApiErrorMessage } from "../services/api";
 import { BarChart } from "@mui/x-charts/BarChart";
@@ -453,6 +453,14 @@ const formatTime = (iso) => {
   })} PH`;
 };
 
+/** Subject shown for a quiz: lecture-based label from API, else teacher subject field (pipe-separated). */
+const quizSubjectDisplay = (quiz) => {
+  if (quiz?.subject_label && String(quiz.subject_label).trim()) return String(quiz.subject_label).trim();
+  const raw = quiz?.teacher_subjects;
+  if (raw == null || !String(raw).trim()) return "";
+  return String(raw).split("|").map((x) => x.trim()).filter(Boolean).join(" · ");
+};
+
 /* ── Icons ── */
 const IconGrid = () => (
   <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6">
@@ -476,7 +484,7 @@ export default function StudentDashboard() {
   const navigate = useNavigate();
   const [activeView, setActiveView] = useState(readStoredStudentView);
   const [profile, setProfile]           = useState(null);
-  const [myTeacher, setMyTeacher]       = useState(undefined);
+  const [myTeachers, setMyTeachers]     = useState([]);
   const [leaderboard, setLeaderboard]   = useState([]);
   const [lbType, setLbType]             = useState("overall");
   const [lbLoading, setLbLoading]       = useState(false);
@@ -546,12 +554,46 @@ export default function StudentDashboard() {
     if (tokenUser.role !== "student") { navigate("/teacher"); return; }
     getMyProfile().then(setProfile).catch(() => {});
     apiFetch("/api/admin/my-teacher")
-      .then(setMyTeacher).catch(() => setMyTeacher(null))
+      .then((data) => setMyTeachers(Array.isArray(data) ? data : []))
+      .catch(() => setMyTeachers([]))
       .finally(() => setPageLoading(false));
     if (tokenUser?.id) setProfilePhoto(localStorage.getItem(`student_photo_${tokenUser.id}`) || "");
   }, [navigate, tokenUser]);
 
   useEffect(() => { loadLeaderboard(lbType); }, [lbType, loadLeaderboard]);
+
+  const studentId = tokenUser?.id;
+  const isStudent = tokenUser?.role === "student";
+  useEffect(() => {
+    if (!studentId || !isStudent) return;
+    loadQuizzes();
+    loadResults();
+    loadAttendance();
+  }, [studentId, isStudent, loadQuizzes, loadResults, loadAttendance]);
+
+  /** Prefer /api/admin/my-teacher; if empty (e.g. id type mismatch), derive teachers from assigned quizzes. */
+  const teachersForOverview = useMemo(() => {
+    if (Array.isArray(myTeachers) && myTeachers.length > 0) return myTeachers;
+
+    const byKey = new Map();
+    for (const q of quizzes) {
+      const name = (q.teacher_name && String(q.teacher_name).trim()) || "";
+      const email = (q.teacher_email && String(q.teacher_email).trim()) || "";
+      if (!name && !email) continue;
+      const key = (email || name).toLowerCase();
+      if (byKey.has(key)) continue;
+      const rawSubj = q.teacher_subjects != null && String(q.teacher_subjects).trim();
+      byKey.set(key, {
+        id: `quiz-teacher-${key.replace(/[^a-z0-9@._-]+/gi, "-").slice(0, 80)}`,
+        full_name: name || email,
+        email,
+        subject: rawSubj || null,
+        tier: null,
+        assigned_at: null,
+      });
+    }
+    return [...byKey.values()];
+  }, [myTeachers, quizzes]);
 
   const handleRefreshQuizzes = async () => { await loadQuizzes(); await loadResults(); await loadAttendance(); };
   const handlePhotoPick = (e) => {
@@ -688,25 +730,43 @@ export default function StudentDashboard() {
                       </div>
                     </div>
                   </div>
-                ) : myTeacher ? (
-                  <div className="glass-card sd-teacher-card">
-                    <div className="sd-teacher-label">
-                      <span className="sd-teacher-label-dot" /> Your Assigned Teacher
+                ) : teachersForOverview.length > 0 ? (
+                  <div style={{ display:"flex", flexDirection:"column", gap:"1rem", marginBottom:"1.75rem" }}>
+                    <div className="sd-teacher-label" style={{ marginBottom:0 }}>
+                      <span className="sd-teacher-label-dot" /> Your Teachers &amp; subjects
                     </div>
-                    <div className="sd-teacher-inner">
-                      <div className="sd-teacher-avatar">
-                        <img
-                          src={`https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(myTeacher.full_name||"Teacher")}`}
-                          alt={myTeacher.full_name}
-                          style={{width:"100%",height:"100%",objectFit:"cover"}}
-                        />
+                    {teachersForOverview.map((t) => {
+                      const fromTeacher = (t.subject && String(t.subject).trim())
+                        ? String(t.subject).split("|").map((x) => x.trim()).filter(Boolean)
+                        : [];
+                      const courseStr = profile?.course && String(profile.course).trim();
+                      const subjectParts = [...fromTeacher];
+                      if (courseStr && !subjectParts.some((p) => p.toLowerCase() === courseStr.toLowerCase())) {
+                        subjectParts.push(courseStr);
+                      }
+                      return (
+                      <div key={t.id} className="glass-card sd-teacher-card" style={{ marginBottom:0 }}>
+                        <div className="sd-teacher-inner">
+                          <div className="sd-teacher-avatar">
+                            <img
+                              src={`https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(t.full_name||"Teacher")}`}
+                              alt={t.full_name}
+                              style={{width:"100%",height:"100%",objectFit:"cover"}}
+                            />
+                          </div>
+                          <div style={{ flex:1, minWidth:0 }}>
+                            <div className="sd-teacher-name">{t.full_name}</div>
+                            <div className="sd-teacher-email">{t.email}</div>
+                            {subjectParts.length > 0 && (
+                              <div style={{ marginTop:".45rem", fontSize:".78rem", color:"rgba(196,181,253,.95)", fontWeight:500 }}>
+                                Subjects: {subjectParts.join(" · ")}
+                              </div>
+                            )}
+                          </div>
+                          {t.tier && <div className="sd-teacher-tier">{t.tier}</div>}
+                        </div>
                       </div>
-                      <div>
-                        <div className="sd-teacher-name">{myTeacher.full_name}</div>
-                        <div className="sd-teacher-email">{myTeacher.email}</div>
-                      </div>
-                      {myTeacher.tier && <div className="sd-teacher-tier">{myTeacher.tier}</div>}
-                    </div>
+                    );})}
                   </div>
                 ) : (
                   <div className="sd-no-teacher">
@@ -813,6 +873,22 @@ export default function StudentDashboard() {
                             </div>
                             <div className="sd-quiz-info">
                               <div className="sd-quiz-title">{quiz.title}</div>
+                              <div className="sd-quiz-context" style={{ fontSize:".72rem", color:"rgba(200,170,100,.5)", marginBottom:".35rem", marginTop:".08rem", lineHeight:1.45 }}>
+                                <div>
+                                  <span style={{ color:"rgba(200,160,60,.45)" }}>Teacher </span>
+                                  <strong style={{ color:"rgba(232,200,120,.85)", fontWeight:500 }}>
+                                    {(quiz.teacher_name && String(quiz.teacher_name).trim())
+                                      || (quiz.teacher_email && String(quiz.teacher_email).trim())
+                                      || "Unknown"}
+                                  </strong>
+                                </div>
+                                <div style={{ marginTop:".12rem" }}>
+                                  <span style={{ color:"rgba(200,160,60,.45)" }}>Subject </span>
+                                  <strong style={{ color:"rgba(196,181,253,.9)", fontWeight:500 }}>
+                                    {quizSubjectDisplay(quiz) || "Not specified"}
+                                  </strong>
+                                </div>
+                              </div>
                               <div className="sd-quiz-meta">
                                 <span className={`sd-status-badge ${quiz.status}`}>
                                   {isActive ? "● Live Now" : quiz.status==="upcoming" ? "⏰ Upcoming" : "Ended"}
