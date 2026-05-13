@@ -40,9 +40,22 @@ function authUserIds(req) {
   for (const source of [req.user?.id, req.dbUser?.id]) {
     for (const c of userIdCandidates(source)) {
       out.add(c);
+      out.add(String(c));
     }
   }
   return [...out].filter((v) => v != null && v !== "");
+}
+
+function authUserIdsNormalized(req) {
+  // For Supabase, column types might be uuid/int/text.
+  // We try all safe string + numeric representations.
+  const out = new Set();
+  for (const id of authUserIds(req)) {
+    out.add(String(id));
+    const n = Number(id);
+    if (Number.isFinite(n)) out.add(n);
+  }
+  return [...out];
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -874,7 +887,7 @@ exports.getTeacherAttendanceTimeline = async (req, res) => {
 exports.getTeacherQuizDetail = async (req, res) => {
   try {
     const { quizId } = req.params;
-    const teacherIds = authUserIds(req);
+    const teacherIds = authUserIdsNormalized(req);
     if (!teacherIds.length) {
       return res.status(403).json({ message: "Forbidden" });
     }

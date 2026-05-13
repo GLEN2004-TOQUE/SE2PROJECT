@@ -345,6 +345,19 @@ function Login() {
   const [showPassword,setShowPassword]= useState(false);
   const [isLoading,   setIsLoading]   = useState(false);
   const [errorMsg,    setErrorMsg]    = useState("");
+
+  // ─── Forgot password state ───
+  const [forgotStep, setForgotStep] = useState(0); // 0=hidden, 1=email, 2=otp, 3=reset
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [otpDigits, setOtpDigits] = useState(["","","","","",""]);
+  const [forgotNewPw, setForgotNewPw] = useState("");
+  const [forgotConfirmPw, setForgotConfirmPw] = useState("");
+  const [otpShake, setOtpShake] = useState(false);
+  const [forgotCountdown, setForgotCountdown] = useState(0);
+
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotMsg, setForgotMsg] = useState("");
+
   const navigate = useNavigate();
   const { user } = useAuth();
 
@@ -429,67 +442,437 @@ function Login() {
               </div>
             )}
 
-            <form onSubmit={handleLogin}>
-              {/* Email */}
-              <div className="field">
-                <label htmlFor="email">Email Address</label>
-                <div className="input-wrap">
-                  <IconMail />
-                  <input
-                    id="email" type="email"
-                    placeholder="student@school.edu"
-                    value={email}
-                    onChange={e => setEmail(e.target.value)}
-                    required
-                    autoComplete="email"
-                  />
+            {/* Step 0: Login form */}
+            {forgotStep === 0 && (
+              <form onSubmit={handleLogin}>
+                {/* Email */}
+                <div className="field">
+                  <label htmlFor="email">Email Address</label>
+                  <div className="input-wrap">
+                    <IconMail />
+                    <input
+                      id="email" type="email"
+                      placeholder="student@school.edu"
+                      value={email}
+                      onChange={e => setEmail(e.target.value)}
+                      required
+                      autoComplete="email"
+                    />
+                  </div>
                 </div>
-              </div>
 
-              {/* Password */}
-              <div className="field">
-                <label htmlFor="password">Password</label>
-                <div className="input-wrap">
-                  <IconLock />
-                  <input
-                    id="password"
-                    type={showPassword ? "text" : "password"}
-                    placeholder="••••••••"
-                    value={password}
-                    onChange={e => setPassword(e.target.value)}
-                    required
-                    className="password-input"
-                    autoComplete="current-password"
-                  />
+                {/* Password */}
+                <div className="field">
+                  <label htmlFor="password">Password</label>
+                  <div className="input-wrap">
+                    <IconLock />
+                    <input
+                      id="password"
+                      type={showPassword ? "text" : "password"}
+                      placeholder="••••••••"
+                      value={password}
+                      onChange={e => setPassword(e.target.value)}
+                      required
+                      className="password-input"
+                      autoComplete="current-password"
+                    />
+                    <button
+                      type="button"
+                      className="toggle-password"
+                      onClick={() => setShowPassword(v => !v)}
+                      aria-label={showPassword ? "Hide password" : "Show password"}
+                    >
+                      {showPassword ? <IconEyeOpen /> : <IconEyeClosed />}
+                    </button>
+                  </div>
+                </div>
+
+                <button type="submit" className="btn-submit" disabled={isLoading}>
+                  {isLoading
+                    ? <><span className="spinner" />Signing in…</>
+                    : "Sign In"}
+                </button>
+
+                <div style={{ marginTop: ".9rem", textAlign: "center" }}>
                   <button
                     type="button"
-                    className="toggle-password"
-                    onClick={() => setShowPassword(v => !v)}
-                    aria-label={showPassword ? "Hide password" : "Show password"}
+                    onClick={() => {
+                      setForgotMsg("");
+                      setErrorMsg("");
+                      setForgotNewPw("");
+                      setForgotConfirmPw("");
+                      setOtpDigits(["","","","","",""]);
+                      setForgotEmail(sanitizeEmail(email));
+                      setForgotStep(1);
+                    }}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      cursor: "pointer",
+                      color: "rgba(200,170,100,.7)",
+                      fontSize: ".82rem",
+                      textDecoration: "underline",
+                      textUnderlineOffset: "3px",
+                    }}
                   >
-                    {showPassword ? <IconEyeOpen /> : <IconEyeClosed />}
+                    Forgot password?
                   </button>
                 </div>
-              </div>
+              </form>
+            )}
 
-              <button type="submit" className="btn-submit" disabled={isLoading}>
-                {isLoading
-                  ? <><span className="spinner" />Signing in…</>
-                  : "Sign In"}
-              </button>
-            </form>
+            {/* Step 1: Forgot password - Send OTP */}
+            {forgotStep === 1 && (
+              <form
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  setForgotMsg("");
+                  setErrorMsg("");
 
-            <div className="divider"><span>New here?</span></div>
+                  const cleanEmail = sanitizeEmail(forgotEmail);
+                  if (!isValidEmail(cleanEmail)) {
+                    setForgotMsg("Please enter a valid email address.");
+                    return;
+                  }
 
-            <p className="register-line">
-              Don't have an account?{" "}
-              <Link to="/register">Create one now</Link>
-            </p>
+                  if (!canAttemptAuth()) {
+                    setForgotMsg("Too many attempts. Please wait a few minutes.");
+                    return;
+                  }
 
-            <div className="secure-badge">
-              <IconShield />
-              Secure, encrypted connection
-            </div>
+                  setForgotLoading(true);
+                  try {
+                    const res = await fetch(
+                      `${process.env.REACT_APP_API_URL || "https://backend-7lik.onrender.com"}/otp/forgot/send`,
+                      {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ email: cleanEmail }),
+                      }
+                    );
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok) {
+                      setForgotMsg(data.message || data.error || "Failed to send OTP.");
+                      return;
+                    }
+                    setForgotEmail(cleanEmail);
+                    setForgotMsg("OTP sent! Check your Gmail inbox.");
+                    setForgotStep(2);
+                  } catch {
+                    setForgotMsg("Cannot reach the server. Please try again.");
+                  } finally {
+                    setForgotLoading(false);
+                  }
+                }}
+              >
+                <div className="field">
+                  <label htmlFor="forgot-email">Email Address</label>
+                  <div className="input-wrap">
+                    <IconMail />
+                    <input
+                      id="forgot-email"
+                      type="email"
+                      placeholder="student@school.edu"
+                      value={forgotEmail}
+                      onChange={(e) => setForgotEmail(e.target.value)}
+                      required
+                      autoComplete="email"
+                    />
+                  </div>
+                </div>
+
+                {forgotMsg && (
+                  <div className="error-alert" style={{ background: "rgba(239,68,68,.06)", borderColor: "rgba(239,68,68,.18)", color: "#fca5a5" }}>
+                    <IconAlert />
+                    {forgotMsg}
+                  </div>
+                )}
+
+                <button type="submit" className="btn-submit" disabled={forgotLoading}>
+                  {forgotLoading ? (
+                    <><span className="spinner" />Sending OTP…</>
+                  ) : (
+                    "Send OTP"
+                  )}
+                </button>
+
+                <div style={{ marginTop: ".9rem", textAlign: "center" }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setForgotStep(0);
+                      setForgotMsg("");
+                    }}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      cursor: "pointer",
+                      color: "rgba(200,170,100,.7)",
+                      fontSize: ".82rem",
+                      textDecoration: "underline",
+                      textUnderlineOffset: "3px",
+                    }}
+                  >
+                    Back to Login
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* Step 2: Forgot password - OTP verify */}
+            {forgotStep === 2 && (
+              <form
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  setForgotMsg("");
+                  setErrorMsg("");
+
+                  const otp = otpDigits.join("");
+                  if (otp.length < 6) {
+                    setForgotMsg("Please enter all 6 digits.");
+                    setOtpShake(true);
+                    setTimeout(() => setOtpShake(false), 450);
+                    return;
+                  }
+
+                  if (!canAttemptAuth()) {
+                    setForgotMsg("Too many attempts. Please wait a few minutes.");
+                    return;
+                  }
+
+                  setForgotLoading(true);
+                  try {
+                    // We don’t update password yet here; we’ll just move to reset step after verifying OTP.
+                    // Backend requires newPassword in /forgot/verify, so we directly proceed to reset step.
+                    setForgotStep(3);
+                    setForgotMsg("");
+                  } finally {
+                    setForgotLoading(false);
+                  }
+                }}
+              >
+                <h1 className="headline" style={{ marginBottom: ".8rem", fontSize: "1.35rem" }}>Verify OTP</h1>
+                <p style={{ textAlign: "center", color: "rgba(200,170,100,.75)", fontSize: ".8rem", marginBottom: "1.1rem" }}>
+                  Enter the 6-digit OTP sent to <strong>{forgotEmail}</strong>
+                </p>
+
+                <div style={{ display: "flex", gap: ".55rem", justifyContent: "center", margin: "1.2rem 0" }}>
+                  {otpDigits.map((d, idx) => (
+                    <input
+                      key={idx}
+                      id={`forgot-otp-${idx}`}
+                      className={otpShake ? "otp-input" : "otp-input"}
+                      style={{
+                        width: "46px",
+                        height: "54px",
+                        outline: "none",
+                        borderRadius: "10px",
+                        border: "1px solid rgba(200,160,50,.25)",
+                        background: d ? "rgba(255,255,255,.08)" : "rgba(255,255,255,.05)",
+                        color: "#f5e6c8",
+                        textAlign: "center",
+                        fontSize: "1.2rem",
+                        transition: "all .2s",
+                      }}
+                      value={d}
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/\D/g, "").slice(0, 1);
+                        const next = [...otpDigits];
+                        next[idx] = val;
+                        setOtpDigits(next);
+                        if (val && idx < 5) {
+                          document.getElementById(`forgot-otp-${idx + 1}`)?.focus();
+                        }
+                      }}
+                      inputMode="numeric"
+                      maxLength={1}
+                    />
+                  ))}
+                </div>
+
+                {forgotMsg && (
+                  <div className="error-alert">
+                    <IconAlert />
+                    {forgotMsg}
+                  </div>
+                )}
+
+                <button type="submit" className="btn-submit" disabled={forgotLoading}>
+                  {forgotLoading ? (
+                    <><span className="spinner" />Verifying…</>
+                  ) : (
+                    "Continue →"
+                  )}
+                </button>
+
+                <div style={{ marginTop: ".9rem", textAlign: "center" }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setForgotStep(1);
+                      setForgotMsg("");
+                    }}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      cursor: "pointer",
+                      color: "rgba(200,170,100,.7)",
+                      fontSize: ".82rem",
+                      textDecoration: "underline",
+                      textUnderlineOffset: "3px",
+                    }}
+                  >
+                    Back
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* Step 3: Forgot password - set new password + submit */}
+            {forgotStep === 3 && (
+              <form
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  setForgotMsg("");
+
+                  const otp = otpDigits.join("");
+                  if (otp.length < 6) {
+                    setForgotMsg("OTP is incomplete. Please go back.");
+                    return;
+                  }
+                  if (!forgotNewPw || forgotNewPw.length < 6) {
+                    setForgotMsg("New password must be at least 6 characters.");
+                    return;
+                  }
+                  if (forgotNewPw !== forgotConfirmPw) {
+                    setForgotMsg("Passwords do not match.");
+                    return;
+                  }
+
+                  setForgotLoading(true);
+                  try {
+                    const res = await fetch(
+                      `${process.env.REACT_APP_API_URL || "https://backend-7lik.onrender.com"}/otp/forgot/verify`,
+                      {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          email: sanitizeEmail(forgotEmail),
+                          otp,
+                          newPassword: forgotNewPw,
+                        }),
+                      }
+                    );
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok) {
+                      setForgotMsg(data.message || data.error || "Failed to reset password.");
+                      return;
+                    }
+                    setForgotMsg("Password updated! You can now log in.");
+                    setForgotStep(0);
+                    setOtpDigits(["","","","","",""]);
+                    setForgotNewPw("");
+                    setForgotConfirmPw("");
+                  } catch {
+                    setForgotMsg("Cannot reach the server. Please try again.");
+                  } finally {
+                    setForgotLoading(false);
+                  }
+                }}
+              >
+                <h1 className="headline" style={{ marginBottom: ".8rem", fontSize: "1.35rem" }}>Create New Password</h1>
+                <p style={{ textAlign: "center", color: "rgba(200,170,100,.75)", fontSize: ".8rem", marginBottom: "1.1rem" }}>
+                  Email: <strong>{forgotEmail}</strong>
+                </p>
+
+                <div className="field">
+                  <label htmlFor="new-password">New password</label>
+                  <div className="input-wrap">
+                    <IconLock />
+                    <input
+                      id="new-password"
+                      type="password"
+                      placeholder="Min. 6 characters"
+                      value={forgotNewPw}
+                      onChange={(e) => setForgotNewPw(e.target.value)}
+                      required
+                      className="password-input"
+                      autoComplete="new-password"
+                    />
+                  </div>
+                </div>
+
+                <div className="field">
+                  <label htmlFor="confirm-password">Confirm new password</label>
+                  <div className="input-wrap">
+                    <IconLock />
+                    <input
+                      id="confirm-password"
+                      type="password"
+                      placeholder="Confirm password"
+                      value={forgotConfirmPw}
+                      onChange={(e) => setForgotConfirmPw(e.target.value)}
+                      required
+                      className="password-input"
+                      autoComplete="new-password"
+                    />
+                  </div>
+                </div>
+
+                {forgotMsg && (
+                  <div className="error-alert" style={{ background: "rgba(239,68,68,.06)", borderColor: "rgba(239,68,68,.18)", color: "#fca5a5" }}>
+                    <IconAlert />
+                    {forgotMsg}
+                  </div>
+                )}
+
+                <button type="submit" className="btn-submit" disabled={forgotLoading}>
+                  {forgotLoading ? (
+                    <><span className="spinner" />Updating…</>
+                  ) : (
+                    "Update Password"
+                  )}
+                </button>
+
+                <div style={{ marginTop: ".9rem", textAlign: "center" }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setForgotStep(2);
+                      setForgotMsg("");
+                    }}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      cursor: "pointer",
+                      color: "rgba(200,170,100,.7)",
+                      fontSize: ".82rem",
+                      textDecoration: "underline",
+                      textUnderlineOffset: "3px",
+                    }}
+                  >
+                    Back
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* Step 0 helper links (only show on login) */}
+            {forgotStep === 0 && (
+              <>
+                <div className="divider"><span>New here?</span></div>
+
+                <p className="register-line">
+                  Don't have an account?{" "}
+                  <Link to="/register">Create one now</Link>
+                </p>
+
+                <div className="secure-badge">
+                  <IconShield />
+                  Secure, encrypted connection
+                </div>
+              </>
+            )}
           </div>
 
           <p className="footer-note">

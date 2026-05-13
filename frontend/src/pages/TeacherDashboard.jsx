@@ -792,6 +792,25 @@ function SendQuizModal({
   const [startTime, setStartTime] = useState(formatDateTimeLocalForPH(new Date(now.getTime() + 5 * 60000)));
   const [endTime, setEndTime]     = useState(formatDateTimeLocalForPH(new Date(now.getTime() + 65 * 60000)));
 
+  // Interval scheduling (duration)
+  const [scheduleMode, setScheduleMode] = useState("manual"); // "manual" | "duration"
+  const [durationValue, setDurationValue] = useState(60);
+  const [durationUnit, setDurationUnit] = useState("seconds"); // "seconds" | "minutes"
+
+  const computeEndTimeFromDuration = useCallback((manualStartTime, value, unit) => {
+    const parsedStart = parsePHDateTimeLocal(manualStartTime);
+    if (!parsedStart) return null;
+    const n = Number(value);
+    if (!Number.isFinite(n) || n <= 0) return null;
+
+    const msPer = unit === "minutes" ? 60_000 : 1_000;
+    const safeN = Math.min(Math.max(n, 1), unit === "minutes" ? 1440 : 86400); // clamp: up to 24h
+
+    const end = new Date(parsedStart.getTime() + safeN * msPer);
+    return formatDateTimeLocalForPH(end);
+  }, []);
+
+
   // Build section map: { sectionName: [students] }
   const sectionMap = myStudents.reduce((acc, s) => {
     const sec = (s.section || "Unspecified").trim();
