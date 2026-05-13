@@ -49,16 +49,27 @@ exports.getAllUsers = async (req, res) => {
 
 exports.createTeacher = async (req, res) => {
   try {
-    const { fullName, email, subject } = req.body;
+    const { firstName, middleName, lastName, fullName: legacyFullName, email, subject } = req.body;
 
-    if (!fullName || !email || !subject) {
-      return res.status(400).json({ error: "Full name, email, and subject are required" });
+    const fromParts =
+      firstName?.trim() && middleName?.trim() && lastName?.trim()
+        ? [firstName, middleName, lastName].map((s) => String(s).trim()).join(" ")
+        : "";
+    const fullName = (fromParts || String(legacyFullName || "").trim()).trim();
+
+    const emailNorm = String(email || "").toLowerCase().trim();
+    const subj = String(subject || "").trim();
+
+    if (!fullName || !emailNorm || !subj) {
+      return res.status(400).json({
+        error: "Please fill in first name, middle name, last name, email, and subject.",
+      });
     }
 
     const { data: existing } = await supabaseAdmin
       .from("users")
       .select("id")
-      .eq("email", email.toLowerCase().trim())
+      .eq("email", emailNorm)
       .maybeSingle();
     if (existing) return res.status(409).json({ error: "Email already registered" });
 
@@ -69,10 +80,10 @@ exports.createTeacher = async (req, res) => {
       .from("users")
       .insert([{
         full_name: fullName.trim(),
-        email: email.toLowerCase().trim(),
+        email: emailNorm,
         password: hashedPassword,
         role: "teacher",
-        subject: subject.trim(),
+        subject: subj,
         status: true,
         points: 0,
         streak: 0,
@@ -85,16 +96,16 @@ exports.createTeacher = async (req, res) => {
 
     let emailSent = false;
     try {
-      await sendTeacherCredentials(email.toLowerCase().trim(), fullName.trim(), tempPassword);
+      await sendTeacherCredentials(emailNorm, fullName.trim(), tempPassword);
       emailSent = true;
-      console.log(`✅ Credentials email sent to ${email}`);
+      console.log(`✅ Credentials email sent to ${emailNorm}`);
     } catch (emailErr) {
-      console.error(`❌ Email send failed for ${email}:`, emailErr.message);
+      console.error(`❌ Email send failed for ${emailNorm}:`, emailErr.message);
     }
 
     res.status(201).json({
       message: emailSent
-        ? `Teacher account created. Login credentials have been sent to ${email}.`
+        ? `Teacher account created. Login credentials have been sent to ${emailNorm}.`
         : `Teacher account created, but the credentials email could not be delivered. Please share login details manually.`,
       user: data,
       emailSent,
@@ -350,34 +361,62 @@ exports.assignTeacherToStudent = async (req, res) => {
       return res.status(400).json({ error: "teacherId and studentId are required" });
     }
 
-    const { data: teacher } = await supabaseAdmin
-      .from("users").select("id, full_name, role").eq("id", teacherId).eq("role", "teacher").single();
+    const { data: teacher, error: teacherErr } = await supabaseAdmin
+      .from("users")
+      .select("id, full_name, role")
+      .eq("id", teacherId)
+      .eq("role", "teacher")
+      .maybeSingle();
+    if (teacherErr) return res.status(400).json({ error: teacherErr.message });
     if (!teacher) return res.status(404).json({ error: "Teacher not found" });
 
-    const { data: student } = await supabaseAdmin
-      .from("users").select("id, full_name, role").eq("id", studentId).eq("role", "student").single();
+    const { data: student, error: studentErr } = await supabaseAdmin
+      .from("users")
+      .select("id, full_name, role")
+      .eq("id", studentId)
+      .eq("role", "student")
+      .maybeSingle();
+    if (studentErr) return res.status(400).json({ error: studentErr.message });
     if (!student) return res.status(404).json({ error: "Student not found" });
 
-    const { data: existingLink } = await supabaseAdmin
+    // Use IDs exactly as stored (avoids string/number UUID mismatches on .eq() so we don't miss a row and INSERT into a duplicate student_id).
+    const tid = teacher.id;
+    const sid = student.id;
+
+    const { data: existingPair, error: exErr } = await supabaseAdmin
       .from("teacher_student_assignments")
       .select("id")
-      .eq("teacher_id", teacherId)
-      .eq("student_id", studentId)
+      .eq("student_id", sid)
+      .eq("teacher_id", tid)
       .maybeSingle();
 
-    if (existingLink) {
-      return res.status(409).json({ error: `${student.full_name} is already assigned to ${teacher.full_name}` });
+    if (exErr) return res.status(400).json({ error: exErr.message });
+
+    if (existingPair) {
+      return res.status(409).json({
+        error: `${student.full_name} is already assigned to ${teacher.full_name}`,
+      });
     }
+
+    const assignedAt = new Date().toISOString();
 
     const { data, error } = await supabaseAdmin
       .from("teacher_student_assignments")
-      .insert({ teacher_id: teacherId, student_id: studentId, assigned_at: new Date().toISOString() })
+      .insert({ student_id: sid, teacher_id: tid, assigned_at: assignedAt })
       .select(`id, assigned_at, teacher:teacher_id(id, full_name, email), student:student_id(id, full_name, email)`)
       .single();
 
-    if (error) return res.status(400).json({ error: error.message });
+    if (error) {
+      if (error.code === "23505" || /duplicate key/i.test(error.message || "")) {
+        return res.status(409).json({
+          error: `${student.full_name} is already assigned to ${teacher.full_name}`,
+        });
+      }
+      return res.status(400).json({ error: error.message });
+    }
+
     res.json({
-      message: `${student.full_name} has been successfully added under ${teacher.full_name}`,
+      message: `${student.full_name} has been successfully assigned to ${teacher.full_name}`,
       assignment: data,
     });
   } catch (err) {
@@ -389,12 +428,9 @@ exports.removeAssignment = async (req, res) => {
   try {
     const { studentId } = req.params;
     const { teacherId } = req.query;
-    const query = supabaseAdmin
-      .from("teacher_student_assignments")
-      .delete()
-      .eq("student_id", studentId);
-    if (teacherId) query.eq("teacher_id", teacherId);
-    const { error } = await query;
+    let q = supabaseAdmin.from("teacher_student_assignments").delete().eq("student_id", studentId);
+    if (teacherId) q = q.eq("teacher_id", teacherId);
+    const { error } = await q;
     if (error) return res.status(400).json({ error: error.message });
     res.json({ message: teacherId ? "Teacher assignment removed successfully" : "All assignments removed successfully" });
   } catch (err) {

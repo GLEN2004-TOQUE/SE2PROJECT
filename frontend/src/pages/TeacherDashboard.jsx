@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useEffect, useState, useCallback, useRef } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { getUser, logout, getFriendlyApiErrorMessage } from "../services/api";
 import { BarChart } from "@mui/x-charts/BarChart";
 import { LineChart } from "@mui/x-charts/LineChart";
@@ -310,7 +310,27 @@ const Styles = () => (
     .td-quiz-delete-btn:hover { background:rgba(239,68,68,.14); border-color:rgba(239,68,68,.45); color:#fca5a5; }
     .td-quiz-delete-btn:disabled { opacity:.45; cursor:not-allowed; }
 
-    /* ── Students grid ── */
+    .td-pass-pill { background:rgba(16,185,129,.12); color:#6ee7b7; border:1px solid rgba(16,185,129,.35); }
+    .td-fail-pill { background:rgba(239,68,68,.1); color:#fca5a5; border:1px solid rgba(239,68,68,.28); }
+    .td-pend-pill { background:rgba(200,160,50,.08); color:rgba(200,170,100,.55); border:1px solid rgba(200,160,50,.15); }
+    .td-quiz-results-btn {
+      padding:.4rem .75rem; border-radius:8px; cursor:pointer;
+      font-family:'DM Sans',sans-serif; font-size:.74rem; font-weight:500;
+      border:1px solid rgba(200,160,50,.25); background:rgba(200,160,50,.06);
+      color:rgba(232,200,120,.85); transition:all .15s; white-space:nowrap;
+    }
+    .td-quiz-results-btn:hover { background:rgba(200,160,50,.12); color:#f5e6c8; }
+    .td-quiz-edit-btn {
+      padding:.44rem .85rem; border-radius:9px; cursor:pointer;
+      font-family:'DM Sans',sans-serif; font-size:.78rem; font-weight:500;
+      border:1px solid rgba(147,130,200,.4); background:rgba(147,130,200,.1);
+      color:#c4b5fd; transition:all .15s; white-space:nowrap;
+    }
+    .td-quiz-edit-btn:hover:not(:disabled) { background:rgba(147,130,200,.2); color:#e9d5ff; }
+    .td-quiz-edit-btn:disabled { opacity:.4; cursor:not-allowed; }
+    .td-results-table { width:100%; border-collapse:collapse; font-size:.8rem; }
+    .td-results-table th { text-align:left; padding:.5rem .6rem; color:rgba(200,160,60,.55); font-weight:500; border-bottom:1px solid rgba(200,160,50,.12); }
+    .td-results-table td { padding:.55rem .6rem; border-bottom:1px solid rgba(200,160,50,.06); color:rgba(245,230,200,.75); }
     .td-students-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:.9rem; }
     .td-student-card { padding:1.25rem; transition:all .15s; }
     .td-student-card:hover { background:rgba(200,160,50,.04) !important; }
@@ -626,16 +646,18 @@ const parsePHDateTimeLocal = (datetimeLocal) => {
 const fileTypeEmoji = (fileType) => {
   if (!fileType) return "📄";
   if (fileType.includes("pdf")) return "📕";
-  if (fileType.includes("word") || fileType.includes("docx")) return "📘";
+  if (fileType.includes("word") || fileType.includes("docx") || fileType.includes("msword")) return "📘";
   if (fileType.includes("presentation") || fileType.includes("pptx")) return "📊";
+  if (fileType.includes("wps") || fileType.includes("kingsoft")) return "📝";
   return "📄";
 };
 
 const fileTypeBg = (fileType) => {
   if (!fileType) return "rgba(255,255,255,.04)";
   if (fileType.includes("pdf")) return "rgba(200,60,40,.1)";
-  if (fileType.includes("word") || fileType.includes("docx")) return "rgba(40,80,200,.1)";
+  if (fileType.includes("word") || fileType.includes("docx") || fileType.includes("msword")) return "rgba(40,80,200,.1)";
   if (fileType.includes("presentation") || fileType.includes("pptx")) return "rgba(200,140,20,.1)";
+  if (fileType.includes("wps") || fileType.includes("kingsoft")) return "rgba(60,160,120,.12)";
   return "rgba(255,255,255,.04)";
 };
 
@@ -1081,6 +1103,7 @@ const readStoredTeacherView = () => {
 
 export default function TeacherDashboard() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [activeView, setActiveView] = useState(readStoredTeacherView);
   const [teacherName, setTeacherName] = useState("");
   const [teacherProfile, setTeacherProfile] = useState(null);
@@ -1109,6 +1132,11 @@ export default function TeacherDashboard() {
   const [toast, setToast] = useState(null);
 
   const [confirmModal, setConfirmModal] = useState(null);
+
+  const pendingSendQuizIdRef = useRef(null);
+  const [resultsModalQuiz, setResultsModalQuiz] = useState(null);
+  const [resultsModalLoading, setResultsModalLoading] = useState(false);
+  const [resultsModalPayload, setResultsModalPayload] = useState(null);
 
   const [pwForm, setPwForm] = useState({ current: "", next: "", confirm: "" });
   const [pwLoading, setPwLoading] = useState(false);
@@ -1391,6 +1419,37 @@ export default function TeacherDashboard() {
     loadAttendanceTimeline();
   }, [navigate, loadQuizzes, loadProfile, loadCertRequests, loadAttendanceTimeline]);
 
+  useEffect(() => {
+    const raw = location.state?.openSendQuizId;
+    if (raw == null) return;
+    pendingSendQuizIdRef.current = String(raw);
+  }, [location.state]);
+
+  useEffect(() => {
+    const id = pendingSendQuizIdRef.current;
+    if (!id || !myQuizzes.length) return;
+    const quiz = myQuizzes.find((q) => String(q.id) === id);
+    if (quiz) {
+      setSendModal({ quiz });
+      pendingSendQuizIdRef.current = null;
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  }, [myQuizzes, location.pathname, navigate]);
+
+  const openQuizResults = async (quiz) => {
+    setResultsModalQuiz(quiz);
+    setResultsModalPayload(null);
+    setResultsModalLoading(true);
+    try {
+      const data = await apiFetch(`/api/quiz/teacher/${quiz.id}/results`);
+      setResultsModalPayload(data);
+    } catch (e) {
+      setResultsModalPayload({ error: e.message, students: [], passingPercent: 75 });
+    } finally {
+      setResultsModalLoading(false);
+    }
+  };
+
   /* ── Derived data ── */
   const sectionSummary = myStudents.reduce((acc, s) => {
     const key = s.section || "Unspecified";
@@ -1466,6 +1525,77 @@ export default function TeacherDashboard() {
           onSend={handleSend}
           sending={sending}
         />
+      )}
+
+      {resultsModalQuiz && (
+        <div className="td-modal-overlay" style={{ zIndex: 62 }} onClick={() => !resultsModalLoading && setResultsModalQuiz(null)}>
+          <div className="td-modal" style={{ maxWidth: 620 }} onClick={(e) => e.stopPropagation()}>
+            <div className="td-modal-icon">{Ico.Quiz}</div>
+            <h2 className="td-modal-title">Submissions — {resultsModalQuiz.title}</h2>
+            <p className="td-modal-sub">
+              Pass = at least <strong>{resultsModalPayload?.passingPercent ?? 75}%</strong> of weighted points. Custom per-question weights apply from the quiz editor.
+            </p>
+            {resultsModalLoading ? (
+              <div style={{ padding: "2rem", textAlign: "center", color: "rgba(200,170,100,.4)" }}>
+                <span className="td-spinner" style={{ verticalAlign: "middle", marginRight: 8 }} />
+                Loading…
+              </div>
+            ) : resultsModalPayload?.error ? (
+              <div className="td-error-box">{resultsModalPayload.error}</div>
+            ) : (
+              <div style={{ overflowX: "auto", maxHeight: "50vh" }}>
+                <table className="td-results-table">
+                  <thead>
+                    <tr>
+                      <th>Student</th>
+                      <th>Score</th>
+                      <th>%</th>
+                      <th>Result</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(resultsModalPayload?.students || []).length === 0 ? (
+                      <tr>
+                        <td colSpan={4} style={{ textAlign: "center", color: "rgba(200,170,100,.35)", padding: "1.2rem" }}>
+                          No students were assigned to this quiz.
+                        </td>
+                      </tr>
+                    ) : (
+                      (resultsModalPayload.students || []).map((s) => {
+                        const label =
+                          !s.submitted ? "Not taken" : s.passed === true ? "Passed" : s.passed === false ? "Failed" : "—";
+                        const pillClass =
+                          !s.submitted ? "td-pill td-pend-pill" : s.passed ? "td-pill td-pass-pill" : "td-pill td-fail-pill";
+                        return (
+                          <tr key={String(s.student_id)}>
+                            <td>
+                              <div style={{ fontWeight: 500 }}>{s.full_name}</div>
+                              <div style={{ fontSize: ".68rem", color: "rgba(200,170,100,.35)", fontFamily: "'DM Mono',monospace" }}>{s.email}</div>
+                            </td>
+                            <td style={{ fontFamily: "'DM Mono',monospace" }}>
+                              {s.submitted && s.score != null && s.total != null ? `${s.score}/${s.total}` : "—"}
+                            </td>
+                            <td style={{ fontFamily: "'DM Mono',monospace" }}>
+                              {s.percentage != null ? `${s.percentage}%` : "—"}
+                            </td>
+                            <td>
+                              <span className={pillClass} style={{ margin: 0 }}>{label}</span>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            <div className="td-modal-actions" style={{ marginTop: "1.25rem" }}>
+              <button type="button" className="td-btn-cancel" onClick={() => setResultsModalQuiz(null)} disabled={resultsModalLoading}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Send success overlay */}
@@ -1727,6 +1857,26 @@ export default function TeacherDashboard() {
                             <span className={`td-status-badge ${quiz.status}`}>{statusLabel(quiz.status)}</span>
                           </div>
                           <div className="td-quiz-actions">
+                            {quiz.status === "draft" && (
+                              <button
+                                type="button"
+                                className="td-quiz-edit-btn"
+                                disabled={deletingQuizId === quiz.id}
+                                onClick={(e) => { e.stopPropagation(); navigate(`/generate-quiz?edit=${quiz.id}`); }}
+                              >
+                                Edit
+                              </button>
+                            )}
+                            {quiz.start_time && (
+                              <button
+                                type="button"
+                                className="td-quiz-results-btn"
+                                disabled={deletingQuizId === quiz.id}
+                                onClick={(e) => { e.stopPropagation(); openQuizResults(quiz); }}
+                              >
+                                Submissions
+                              </button>
+                            )}
                             {quiz.status !== "ended" && (
                               <button
                                 className="td-quiz-send-btn"

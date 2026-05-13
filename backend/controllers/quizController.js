@@ -3,6 +3,26 @@ const aiService = require("../services/aiService");
 const { supabaseAdmin } = require("../supabaseClient");
 const { updateGamification } = require("../services/scoringServices");
 
+const PASSING_PERCENT = 75;
+
+/** Safe per-question weight (defaults to 1 if missing or invalid). */
+function questionPoints(q) {
+  const n = Number(q?.points);
+  if (Number.isFinite(n) && n > 0) return Math.round(n);
+  return 1;
+}
+
+function mapQuestionRowToClient(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    question: row.question_text,
+    options: [row.option_a, row.option_b, row.option_c, row.option_d],
+    correct_answer: row.correct_answer,
+    points: questionPoints(row),
+  };
+}
+
 /** JWT / DB may disagree on numeric vs string IDs for FK columns. */
 function userIdCandidates(raw) {
   return Array.from(
@@ -14,12 +34,31 @@ function userIdCandidates(raw) {
   );
 }
 
+/** All id shapes for the signed-in user (JWT + Supabase `req.dbUser`). */
+function authUserIds(req) {
+  const out = new Set();
+  for (const source of [req.user?.id, req.dbUser?.id]) {
+    for (const c of userIdCandidates(source)) {
+      out.add(c);
+    }
+  }
+  return [...out].filter((v) => v != null && v !== "");
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Generate quiz questions using AI
 // ─────────────────────────────────────────────────────────────────────────────
+const AI_QUIZ_TYPES = new Set([
+  "matching",
+  "identification",
+  "true-false",
+  "multiple-choice",
+]);
+const AI_DIFFICULTIES = new Set(["easy", "medium", "hard"]);
+
 exports.generateQuiz = async (req, res) => {
   try {
-    const { lectureId, type, count } = req.body;
+    const { lectureId, type, count, difficulty } = req.body;
     const raw = parseInt(count, 10);
     const safeCount = Number.isFinite(raw)
       ? Math.min(10, Math.max(1, raw))
@@ -27,6 +66,17 @@ exports.generateQuiz = async (req, res) => {
     if (!lectureId) {
       return res.status(400).json({ error: "Lecture ID is required" });
     }
+
+    const quizType = String(type || "").trim();
+    if (!AI_QUIZ_TYPES.has(quizType)) {
+      return res.status(400).json({
+        error:
+          "Invalid quiz type. Use matching, identification, true-false, or multiple-choice.",
+      });
+    }
+
+    const diffRaw = String(difficulty || "medium").toLowerCase();
+    const diff = AI_DIFFICULTIES.has(diffRaw) ? diffRaw : "medium";
 
     const { data: lecture, error: lectureError } = await supabaseAdmin
       .from("lectures")
@@ -40,12 +90,16 @@ exports.generateQuiz = async (req, res) => {
     }
     if (!lecture) return res.status(404).json({ message: "Lecture not found" });
 
-    console.log(`📝 Generating ${safeCount} questions for lecture: ${lecture.title}`);
-    const questions = await aiService.generateQuestions(
-      lecture.extracted_text,
-      type || "multiple-choice",
-      safeCount
+    console.log(
+      `📝 Generating ${safeCount} ${quizType} (${diff}) questions for lecture: ${lecture.title}`
     );
+    const generated = await aiService.generateQuestions(
+      lecture.extracted_text,
+      quizType,
+      safeCount,
+      diff
+    );
+    const questions = generated.slice(0, safeCount);
 
     res.json({
       success: true,
@@ -53,6 +107,8 @@ exports.generateQuiz = async (req, res) => {
       metadata: {
         lectureId,
         lectureTitle: lecture.title,
+        type: quizType,
+        difficulty: diff,
         count: questions.length,
         generatedAt: new Date().toISOString()
       }
@@ -74,7 +130,7 @@ exports.generateQuiz = async (req, res) => {
 exports.saveQuestions = async (req, res) => {
   try {
     const { lectureId, quizTitle, questions } = req.body;
-    const teacherId = req.user.id;
+    const teacherId = req.dbUser?.id ?? req.user.id;
 
     if (!lectureId || !questions || !quizTitle) {
       return res.status(400).json({ message: "Missing data" });
@@ -121,12 +177,14 @@ exports.saveQuestions = async (req, res) => {
         option_d: q.options[3] || "",
         correct_answer: correctLetter,
         ai_generated: true,
+        points: questionPoints(q),
       };
     });
 
-    const { error: insertError } = await supabaseAdmin
+    const { data: insertedRows, error: insertError } = await supabaseAdmin
       .from("questions")
-      .insert(formatted);
+      .insert(formatted)
+      .select("id, question_text, option_a, option_b, option_c, option_d, correct_answer, points");
 
     if (insertError) {
       await supabaseAdmin.from("quizzes").delete().eq("id", quiz.id);
@@ -136,7 +194,13 @@ exports.saveQuestions = async (req, res) => {
     res.json({
       message: "Quiz saved successfully",
       quiz_id: quiz.id,
-      questionsCount: formatted.length
+      questionsCount: formatted.length,
+      quiz: {
+        id: quiz.id,
+        title: quizTitle,
+        lecture_id: lectureId,
+      },
+      questions: (insertedRows || []).map(mapQuestionRowToClient),
     });
   } catch (err) {
     console.error("Save questions error:", err);
@@ -149,7 +213,10 @@ exports.saveQuestions = async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 exports.getTeacherQuizzes = async (req, res) => {
   try {
-    const teacherId = req.user.id;
+    const teacherIds = authUserIds(req);
+    if (!teacherIds.length) {
+      return res.json({ success: true, quizzes: [] });
+    }
 
     const { data: quizzes, error } = await supabaseAdmin
       .from("quizzes")
@@ -157,7 +224,7 @@ exports.getTeacherQuizzes = async (req, res) => {
         id, title, created_at, start_time, end_time,
         lecture:lecture_id ( id, title, file_type, file_url )
       `)
-      .eq("teacher_id", teacherId)
+      .in("teacher_id", teacherIds)
       .order("created_at", { ascending: false });
 
     if (error) throw new Error(error.message);
@@ -193,16 +260,22 @@ exports.getTeacherQuizzes = async (req, res) => {
 exports.deleteQuiz = async (req, res) => {
   try {
     const { quizId } = req.params;
-    const teacherId = req.user.id;
+    const teacherIds = authUserIds(req);
+    if (!teacherIds.length) {
+      return res.status(403).json({ message: "Forbidden" });
+    }
 
     const { data: quiz, error: fetchErr } = await supabaseAdmin
       .from("quizzes")
       .select("id, teacher_id")
       .eq("id", quizId)
-      .eq("teacher_id", teacherId)
-      .single();
+      .in("teacher_id", teacherIds)
+      .maybeSingle();
 
-    if (fetchErr || !quiz) {
+    if (fetchErr) {
+      return res.status(500).json({ error: fetchErr.message });
+    }
+    if (!quiz) {
       return res.status(403).json({ message: "Forbidden" });
     }
 
@@ -223,7 +296,6 @@ exports.deleteQuiz = async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 exports.scheduleQuiz = async (req, res) => {
   try {
-    const teacherId = req.user.id;
     const { quizId, startTime, endTime, studentIds, assignedSubject } = req.body;
 
     if (!quizId || !startTime || !endTime) {
@@ -233,14 +305,22 @@ exports.scheduleQuiz = async (req, res) => {
       return res.status(400).json({ error: "At least one student must be selected" });
     }
 
+    const teacherIds = authUserIds(req);
+    if (!teacherIds.length) {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+
     const { data: quiz, error: fetchErr } = await supabaseAdmin
       .from("quizzes")
       .select("id, teacher_id, title")
       .eq("id", quizId)
-      .eq("teacher_id", teacherId)
-      .single();
+      .in("teacher_id", teacherIds)
+      .maybeSingle();
 
-    if (fetchErr || !quiz) {
+    if (fetchErr) {
+      return res.status(500).json({ error: fetchErr.message });
+    }
+    if (!quiz) {
       return res.status(403).json({ message: "Forbidden" });
     }
 
@@ -495,7 +575,7 @@ exports.getQuiz = async (req, res) => {
     // 4. Fetch questions using admin client — include correct_answer for grading (strip before sending)
     const { data: questions, error: questionsError } = await supabaseAdmin
       .from("questions")
-      .select("id, question_text, option_a, option_b, option_c, option_d")
+      .select("id, question_text, option_a, option_b, option_c, option_d, points")
       .eq("quiz_id", quizId);
 
     if (questionsError) {
@@ -606,10 +686,10 @@ exports.submitQuiz = async (req, res) => {
       attendanceStatus = (now >= startTime && now <= endTime) ? "present" : "absent";
     }
 
-    // Fetch questions WITH correct_answer for grading
+    // Fetch questions WITH correct_answer for grading (points = per-question weight)
     const { data: questions, error: questionsError } = await supabaseAdmin
       .from("questions")
-      .select("id, question_text, option_a, option_b, option_c, option_d, correct_answer")
+      .select("id, question_text, option_a, option_b, option_c, option_d, correct_answer, points")
       .eq("quiz_id", quizId);
 
     if (questionsError) {
@@ -620,25 +700,29 @@ exports.submitQuiz = async (req, res) => {
       return res.status(403).json({ message: "Forbidden" });
     }
 
-    // Grade answers
+    // Grade answers (weighted by `points` per question)
     let score = 0;
+    let total = 0;
     const detailedAnswers = [];
 
     questions.forEach(q => {
+      const w = questionPoints(q);
+      total += w;
       const userAnswer = answers[q.id] || null;
       const isCorrect = userAnswer === q.correct_answer;
-      if (isCorrect) score++;
+      if (isCorrect) score += w;
       detailedAnswers.push({
         questionId: q.id,
         questionText: q.question_text,
         userAnswer,
         correctAnswer: q.correct_answer,
-        isCorrect
+        isCorrect,
+        pointsAvailable: w,
+        pointsEarned: isCorrect ? w : 0,
       });
     });
 
-    const total = questions.length;
-    const percentage = Math.round((score / total) * 100);
+    const percentage = total > 0 ? Math.round((score / total) * 100) : 0;
 
     // Save result
     const { error: resultError } = await supabaseAdmin
@@ -684,7 +768,7 @@ exports.submitQuiz = async (req, res) => {
       score,
       total,
       percentage,
-      passed: score >= total / 2,
+      passed: percentage >= PASSING_PERCENT,
       attendance: attendanceStatus,
       answers: detailedAnswers,
       game
@@ -753,11 +837,13 @@ exports.getMyAttendance = async (req, res) => {
 
 exports.getTeacherAttendanceTimeline = async (req, res) => {
   try {
-    const teacherId = req.user.id;
+    const teacherIds = authUserIds(req);
+    if (!teacherIds.length) return res.json([]);
+
     const { data: quizzes, error: qErr } = await supabaseAdmin
       .from("quizzes")
       .select("id")
-      .eq("teacher_id", teacherId);
+      .in("teacher_id", teacherIds);
     if (qErr) return res.status(400).json({ error: qErr.message });
     const quizIds = (quizzes || []).map((q) => q.id);
     if (!quizIds.length) return res.json([]);
@@ -783,11 +869,274 @@ exports.getTeacherAttendanceTimeline = async (req, res) => {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Teacher: quiz detail (for edit / post-save)
+// ─────────────────────────────────────────────────────────────────────────────
+exports.getTeacherQuizDetail = async (req, res) => {
+  try {
+    const { quizId } = req.params;
+    const teacherIds = authUserIds(req);
+    if (!teacherIds.length) {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+
+    const { data: quizRow, error: qe } = await supabaseAdmin
+      .from("quizzes")
+      .select("id, title, lecture_id, start_time, end_time, teacher_id")
+      .eq("id", quizId)
+      .in("teacher_id", teacherIds)
+      .maybeSingle();
+
+    if (qe) {
+      return res.status(500).json({ error: qe.message });
+    }
+    if (!quizRow) {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+
+    const quiz = {
+      id: quizRow.id,
+      title: quizRow.title,
+      lecture_id: quizRow.lecture_id,
+      start_time: quizRow.start_time,
+      end_time: quizRow.end_time,
+    };
+
+    const { data: rows, error: qErr } = await supabaseAdmin
+      .from("questions")
+      .select("id, question_text, option_a, option_b, option_c, option_d, correct_answer, points")
+      .eq("quiz_id", quizId)
+      .order("id", { ascending: true });
+
+    if (qErr) {
+      return res.status(500).json({ error: qErr.message });
+    }
+
+    res.json({
+      success: true,
+      quiz: {
+        id: quiz.id,
+        title: quiz.title,
+        lecture_id: quiz.lecture_id,
+        start_time: quiz.start_time,
+        end_time: quiz.end_time,
+      },
+      questions: (rows || []).map(mapQuestionRowToClient),
+    });
+  } catch (err) {
+    console.error("getTeacherQuizDetail error:", err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Teacher: update draft quiz questions + title
+// ─────────────────────────────────────────────────────────────────────────────
+exports.patchTeacherQuiz = async (req, res) => {
+  try {
+    const { quizId } = req.params;
+    const { quizTitle, questions } = req.body;
+
+    const teacherIds = authUserIds(req);
+    if (!teacherIds.length) {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+
+    const { data: quizRow, error: qe } = await supabaseAdmin
+      .from("quizzes")
+      .select("id, teacher_id")
+      .eq("id", quizId)
+      .in("teacher_id", teacherIds)
+      .maybeSingle();
+
+    if (qe) {
+      return res.status(500).json({ error: qe.message });
+    }
+    if (!quizRow) {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+
+    if (quizTitle != null && String(quizTitle).trim()) {
+      const { error: te } = await supabaseAdmin
+        .from("quizzes")
+        .update({ title: String(quizTitle).trim() })
+        .eq("id", quizId);
+      if (te) throw new Error(te.message);
+    }
+
+    if (Array.isArray(questions) && questions.length) {
+      const optionLetters = ["A", "B", "C", "D"];
+      for (const q of questions) {
+        if (q == null || q.id == null) continue;
+        let correctLetter = q.correct_answer;
+        const opts = Array.isArray(q.options) ? q.options : [];
+        if (correctLetter && String(correctLetter).length > 1) {
+          const idx = opts.findIndex((o) => o === correctLetter);
+          correctLetter = idx >= 0 ? optionLetters[idx] : "A";
+        }
+        if (!["A", "B", "C", "D"].includes(correctLetter)) correctLetter = "A";
+
+        const { error: up } = await supabaseAdmin
+          .from("questions")
+          .update({
+            question_text: q.question != null ? String(q.question) : "",
+            option_a: opts[0] != null ? String(opts[0]) : "",
+            option_b: opts[1] != null ? String(opts[1]) : "",
+            option_c: opts[2] != null ? String(opts[2]) : "",
+            option_d: opts[3] != null ? String(opts[3]) : "",
+            correct_answer: correctLetter,
+            points: questionPoints(q),
+          })
+          .eq("id", q.id)
+          .eq("quiz_id", quizId);
+
+        if (up) throw new Error(up.message);
+      }
+    }
+
+    const { data: rows, error: rErr } = await supabaseAdmin
+      .from("questions")
+      .select("id, question_text, option_a, option_b, option_c, option_d, correct_answer, points")
+      .eq("quiz_id", quizId)
+      .order("id", { ascending: true });
+
+    if (rErr) throw new Error(rErr.message);
+
+    const { data: qRow } = await supabaseAdmin
+      .from("quizzes")
+      .select("id, title, lecture_id, start_time, end_time")
+      .eq("id", quizId)
+      .single();
+
+    res.json({
+      success: true,
+      message: "Quiz updated",
+      quiz: qRow
+        ? {
+            id: qRow.id,
+            title: qRow.title,
+            lecture_id: qRow.lecture_id,
+            start_time: qRow.start_time,
+            end_time: qRow.end_time,
+          }
+        : { id: quizId },
+      questions: (rows || []).map(mapQuestionRowToClient),
+    });
+  } catch (err) {
+    console.error("patchTeacherQuiz error:", err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+function findResultForStudent(resultsRows, studentId) {
+  const cands = userIdCandidates(studentId);
+  for (const r of resultsRows || []) {
+    if (!r) continue;
+    for (const c of cands) {
+      if (c != null && String(r.user_id) === String(c)) return r;
+    }
+  }
+  return null;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Teacher: assigned students + pass/fail (75% of weighted total)
+// ─────────────────────────────────────────────────────────────────────────────
+exports.getTeacherQuizResults = async (req, res) => {
+  try {
+    const { quizId } = req.params;
+
+    const teacherIds = authUserIds(req);
+    if (!teacherIds.length) {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+
+    const { data: quizRow, error: qe } = await supabaseAdmin
+      .from("quizzes")
+      .select("id, title, start_time, end_time, teacher_id")
+      .eq("id", quizId)
+      .in("teacher_id", teacherIds)
+      .maybeSingle();
+
+    if (qe) {
+      return res.status(500).json({ error: qe.message });
+    }
+    if (!quizRow) {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+
+    const quiz = {
+      id: quizRow.id,
+      title: quizRow.title,
+      start_time: quizRow.start_time,
+      end_time: quizRow.end_time,
+    };
+    const { data: assignments, error: ae } = await supabaseAdmin
+      .from("quiz_assignments")
+      .select("student_id")
+      .eq("quiz_id", quizId);
+    if (ae) throw new Error(ae.message);
+
+    const studentIds = [...new Set((assignments || []).map((a) => a.student_id).filter((x) => x != null))];
+
+    const { data: users, error: ue } =
+      studentIds.length > 0
+        ? await supabaseAdmin.from("users").select("id, full_name, email").in("id", studentIds)
+        : { data: [], error: null };
+    if (ue) throw new Error(ue.message);
+
+    const { data: resultsRows, error: re } = await supabaseAdmin
+      .from("results")
+      .select("user_id, score, total, submitted_at")
+      .eq("quiz_id", quizId);
+    if (re) throw new Error(re.message);
+
+    const userById = new Map();
+    (users || []).forEach((u) => {
+      userById.set(String(u.id), u);
+      if (Number.isFinite(Number(u.id))) userById.set(Number(u.id), u);
+    });
+
+    const students = studentIds.map((sid) => {
+      const u = userById.get(String(sid)) || userById.get(Number(sid)) || {};
+      const resRow = findResultForStudent(resultsRows, sid);
+      const total = resRow && Number(resRow.total) > 0 ? Number(resRow.total) : null;
+      const score = resRow != null && resRow.score != null ? Number(resRow.score) : null;
+      const pct = total != null && total > 0 && score != null ? Math.round((score / total) * 100) : null;
+      const submitted = Boolean(resRow?.submitted_at);
+      const passed = submitted && pct != null ? pct >= PASSING_PERCENT : null;
+
+      return {
+        student_id: sid,
+        full_name: u.full_name || "Student",
+        email: u.email || "",
+        submitted,
+        submitted_at: resRow?.submitted_at || null,
+        score,
+        total,
+        percentage: pct,
+        passed,
+        status: submitted ? (passed ? "passed" : "failed") : "pending",
+      };
+    });
+
+    res.json({
+      success: true,
+      quiz: { id: quiz.id, title: quiz.title, start_time: quiz.start_time, end_time: quiz.end_time },
+      passingPercent: PASSING_PERCENT,
+      students,
+    });
+  } catch (err) {
+    console.error("getTeacherQuizResults error:", err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Generate quiz from raw text
 // ─────────────────────────────────────────────────────────────────────────────
 exports.generateQuizFromText = async (req, res) => {
   try {
-    const { text, type = "multiple-choice", count = 5 } = req.body;
+    const { text, type = "multiple-choice", count = 5, difficulty = "medium" } = req.body;
     const raw = parseInt(count, 10);
     const safeCount = Number.isFinite(raw)
       ? Math.min(10, Math.max(1, raw))
@@ -795,7 +1144,12 @@ exports.generateQuizFromText = async (req, res) => {
     if (!text || text.trim().length === 0) {
       return res.status(400).json({ error: "Text content is required" });
     }
-    const questions = await aiService.generateQuestions(text, type, safeCount);
+    const questions = await aiService.generateQuestions(
+      text,
+      type,
+      safeCount,
+      difficulty
+    );
     res.json({ success: true, questions, generatedAt: new Date().toISOString() });
   } catch (err) {
     const isRateLimit = err.message.includes('quota') || err.message.includes('429');

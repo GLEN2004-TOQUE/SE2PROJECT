@@ -158,9 +158,9 @@ function QuizPage() {
   if (submitted && result) {
     const score    = result.score ?? 0;
     const total    = result.total ?? questions.length;
-    const percent  = total > 0 ? Math.round((score / total) * 100) : 0;
-    const grade    = percent >= 90 ? "A" : percent >= 80 ? "B" : percent >= 70 ? "C" : percent >= 60 ? "D" : "F";
-    const passed   = percent >= 50;
+    const percent = total > 0 ? Math.round((score / total) * 100) : 0;
+    const grade = percent >= 90 ? "A" : percent >= 80 ? "B" : percent >= 70 ? "C" : percent >= 60 ? "D" : "F";
+    const passed = typeof result.passed === "boolean" ? result.passed : percent >= 75;
     const attendance = result.attendance || "present";
     const game     = result.game;
     const detailedAnswers = result.answers || [];

@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from "react";
-import { useNavigate } from "react-router-dom";
-import { getLectures, generateQuiz, saveQuiz } from "../services/api";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { getLectures, generateQuiz, saveQuiz, updateTeacherQuiz, getTeacherQuiz } from "../services/api";
 
 /* ─── Styles ──────────────────────────────────────────────────────────────── */
 const Styles = () => (
@@ -177,6 +177,34 @@ const Styles = () => (
     }
     .gq-slider-block { margin-bottom:1.4rem; }
 
+    /* ── Quiz type & difficulty (segmented) ── */
+    .gq-seg-block { margin-bottom:1.4rem; }
+    .gq-seg-row { display:flex; flex-wrap:wrap; gap:.45rem; }
+    .gq-seg-btn {
+      flex:1; min-width:calc(33.33% - .3rem);
+      padding:.55rem .65rem; border-radius:9px; cursor:pointer;
+      font-family:'DM Sans',sans-serif; font-size:.78rem; font-weight:500;
+      border:1px solid rgba(200,160,50,.2);
+      background:rgba(255,255,255,.04);
+      color:rgba(200,170,100,.5);
+      transition:all .18s; text-align:center; line-height:1.25;
+    }
+    .gq-seg-btn:hover {
+      border-color:rgba(200,160,50,.38);
+      color:rgba(232,200,120,.85);
+      background:rgba(200,160,50,.08);
+    }
+    .gq-seg-btn.active {
+      border-color:rgba(200,160,50,.5);
+      background:rgba(200,160,50,.14);
+      color:#f5e6c8;
+      box-shadow:0 0 0 2px rgba(190,140,30,.1);
+    }
+    .gq-seg-btn:focus-visible {
+      outline:2px solid rgba(200,160,50,.55);
+      outline-offset:2px;
+    }
+
     /* ── Generate button ── */
     .gq-btn-generate-wrap { display:flex; justify-content:center; margin-top:.5rem; }
     .gq-btn-generate {
@@ -294,6 +322,70 @@ const Styles = () => (
       outline:none; width:100%; transition:border-color .2s;
     }
     .gq-q-opt-input:focus { border-color:rgba(200,160,50,.4); }
+
+    /* Multiple-choice / matching: lettered rows */
+    .gq-mc-list { display:flex; flex-direction:column; gap:.5rem; margin-bottom:.85rem; }
+    .gq-mc-row {
+      display:flex; align-items:stretch; gap:.55rem;
+      border-radius:10px; border:1px solid rgba(200,160,50,.14);
+      background:rgba(255,255,255,.035); overflow:hidden;
+      transition:border-color .2s, box-shadow .2s;
+    }
+    .gq-mc-row:focus-within { border-color:rgba(200,160,50,.38); }
+    .gq-mc-letter {
+      flex-shrink:0; width:40px;
+      display:flex; align-items:center; justify-content:center;
+      font-family:'DM Mono',monospace; font-size:.78rem; font-weight:600;
+      color:#e8c878; background:rgba(200,160,50,.1);
+      border-right:1px solid rgba(200,160,50,.15);
+    }
+    .gq-mc-row-input {
+      flex:1; border:none; background:transparent;
+      padding:.55rem .75rem; color:#f5e6c8;
+      font-family:'DM Sans',sans-serif; font-size:.82rem; font-weight:300;
+      outline:none; min-width:0;
+    }
+    .gq-mc-row-input::placeholder { color:rgba(200,170,100,.28); }
+
+    /* True / False */
+    .gq-tf-row {
+      display:grid; grid-template-columns:1fr 1fr; gap:.65rem; margin-bottom:.85rem;
+    }
+    .gq-tf-btn {
+      padding:.85rem 1rem; border-radius:12px; cursor:pointer;
+      font-family:'DM Sans',sans-serif; font-size:.95rem; font-weight:600;
+      border:2px solid rgba(200,160,50,.22);
+      background:rgba(255,255,255,.04); color:rgba(200,170,100,.55);
+      transition:all .18s ease;
+    }
+    .gq-tf-btn:hover {
+      border-color:rgba(200,160,50,.45);
+      color:#f5e6c8; background:rgba(200,160,50,.1);
+    }
+    .gq-tf-btn.active {
+      border-color:rgba(120,200,140,.55);
+      background:rgba(40,120,60,.22);
+      color:#d4f0d8;
+      box-shadow:0 0 0 2px rgba(120,200,140,.12);
+    }
+    .gq-tf-btn.active-false {
+      border-color:rgba(200,100,100,.55);
+      background:rgba(120,40,40,.25);
+      color:#f5d0d0;
+      box-shadow:0 0 0 2px rgba(200,100,100,.1);
+    }
+
+    /* Identification */
+    .gq-id-block { margin-bottom:.85rem; }
+    .gq-id-hint {
+      font-size:.72rem; color:rgba(200,170,100,.38); font-weight:300;
+      margin-top:.35rem; line-height:1.45;
+    }
+    .gq-id-wrong-label {
+      display:block; font-size:.66rem; letter-spacing:.1em; text-transform:uppercase;
+      color:rgba(200,160,60,.45); font-weight:500; margin:.65rem 0 .35rem;
+    }
+    .gq-id-wrong-list { display:flex; flex-direction:column; gap:.45rem; }
     .gq-q-answer-row { display:flex; align-items:center; gap:.65rem; }
     .gq-answer-label {
       font-size:.66rem; letter-spacing:.12em; text-transform:uppercase;
@@ -325,6 +417,55 @@ const Styles = () => (
       color:rgba(200,160,80,.5); transition:all .15s;
     }
     .gq-btn-discard:hover { background:rgba(200,160,50,.12); color:#e8c878; }
+
+    .gq-points-row {
+      display:flex; align-items:center; gap:.65rem; margin-bottom:.85rem; flex-wrap:wrap;
+    }
+    .gq-points-label {
+      font-size:.66rem; letter-spacing:.1em; text-transform:uppercase;
+      color:rgba(200,160,60,.5); font-weight:500;
+    }
+    .gq-points-input {
+      width:72px; padding:.45rem .55rem; border-radius:8px;
+      background:rgba(255,255,255,.055); border:1px solid rgba(200,160,50,.2);
+      color:#e8c878; font-family:'DM Mono',monospace; font-size:.82rem;
+      outline:none;
+    }
+    .gq-points-input:focus { border-color:rgba(200,160,50,.45); }
+    .gq-postsave-actions {
+      display:flex; flex-wrap:wrap; gap:.55rem; margin-top:1.25rem; justify-content:center; align-items:center;
+    }
+    .gq-btn-draft {
+      padding:.42rem 1.1rem; border-radius:7px; cursor:pointer;
+      font-family:'DM Sans',sans-serif; font-size:.73rem; font-weight:500;
+      border:1px solid rgba(200,160,50,.22); background:rgba(200,160,50,.08);
+      color:#e8c878; transition:all .15s;
+    }
+    .gq-btn-draft:hover:not(:disabled) { background:rgba(200,160,50,.16); }
+    .gq-btn-draft:disabled { opacity:.45; cursor:not-allowed; }
+    .gq-btn-send-dash {
+      padding:.42rem 1.1rem; border:none; border-radius:7px; cursor:pointer;
+      font-family:'DM Sans',sans-serif; font-size:.73rem; font-weight:500;
+      color:#fff8e8; transition:all .15s;
+      background:linear-gradient(135deg,#8b1a1a 0%,#6b1010 50%,#8b1a1a 100%);
+      background-size:200% auto;
+      box-shadow:0 4px 16px rgba(120,20,20,.45), 0 1px 0 rgba(255,200,80,.12) inset;
+    }
+    .gq-btn-send-dash:hover:not(:disabled) { animation:shimmer .9s linear infinite; transform:translateY(-1px); }
+    .gq-btn-send-dash:disabled { opacity:.45; cursor:not-allowed; animation:none; transform:none; }
+    .gq-btn-edit {
+      padding:.42rem 1rem; border-radius:7px; cursor:pointer;
+      font-family:'DM Sans',sans-serif; font-size:.73rem; font-weight:500;
+      border:1px solid rgba(147,130,200,.35); background:rgba(147,130,200,.1);
+      color:#c4b5fd; transition:all .15s;
+    }
+    .gq-btn-edit:hover { background:rgba(147,130,200,.18); }
+    .gq-postsave-hint {
+      font-size:.72rem; color:rgba(200,170,100,.38); text-align:center; margin-top:.75rem; font-weight:300;
+    }
+    .gq-q-preview {
+      font-size:.82rem; color:rgba(245,230,200,.75); line-height:1.45; margin-bottom:.5rem;
+    }
 
     /* ── Error ── */
     .gq-error-box {
@@ -414,24 +555,149 @@ const STEPS = [
   { id: 3, label: "Validating & formatting…" },
 ];
 
-const MIN_QUESTIONS = 1;
-const MAX_QUESTIONS = 10;
+const MIN_QUESTIONS = 5;
+
+const QUIZ_TYPES = [
+  { value: "matching", label: "Matching Type" },
+  { value: "identification", label: "Identification" },
+  { value: "true-false", label: "True or False" },
+];
+
+const DIFFICULTIES = [
+  { value: "easy", label: "Easy" },
+  { value: "medium", label: "Medium" },
+  { value: "hard", label: "Hard" },
+];
+
+const OPTION_LETTERS = ["A", "B", "C", "D"];
+
+/** Shape questions for the review UI (and stable save payload) per quiz type. */
+function normalizeQuestionsForReview(items, type) {
+  if (!Array.isArray(items)) return [];
+  const pad4 = (opts) => {
+    const o = [...(opts || [])].map((x) => (x == null ? "" : String(x)));
+    while (o.length < 4) o.push("");
+    return o.slice(0, 4);
+  };
+
+  if (type === "true-false") {
+    return items.map((q) => {
+      const options = pad4(q.options);
+      options[0] = options[0] || "True";
+      options[1] = options[1] || "False";
+      options[2] = "";
+      options[3] = "";
+      let ca = String(q.correct_answer || "A").toUpperCase().trim();
+      if (ca !== "B") ca = "A";
+      const p = Number(q.points);
+      return { ...q, options, correct_answer: ca, points: Number.isFinite(p) && p > 0 ? Math.round(p) : 1 };
+    });
+  }
+
+  if (type === "identification") {
+    return items.map((q) => {
+      const opts = pad4(q.options);
+      let ci = OPTION_LETTERS.indexOf(String(q.correct_answer || "A").toUpperCase().trim());
+      if (ci < 0) ci = 0;
+      const correct = opts[ci] || "";
+      const wrong = [0, 1, 2, 3]
+        .filter((i) => i !== ci)
+        .map((i) => opts[i] || "");
+      const p = Number(q.points);
+      return {
+        ...q,
+        options: [correct, wrong[0] || "", wrong[1] || "", wrong[2] || ""],
+        correct_answer: "A",
+        points: Number.isFinite(p) && p > 0 ? Math.round(p) : 1,
+      };
+    });
+  }
+
+  return items.map((q) => {
+    const p = Number(q.points);
+    return {
+      ...q,
+      options: pad4(q.options),
+      correct_answer: OPTION_LETTERS.includes(String(q.correct_answer || "").toUpperCase())
+        ? String(q.correct_answer).toUpperCase()
+        : "A",
+      points: Number.isFinite(p) && p > 0 ? Math.round(p) : 1,
+    };
+  });
+}
+
+/** Guess quiz type from stored rows (DB has no quiz_type column). */
+function inferQuizType(questions) {
+  if (!questions?.length) return "identification";
+  const q0 = questions[0];
+  const o = q0.options || [];
+  const t0 = String(o[0] || "").trim().toLowerCase();
+  const t1 = String(o[1] || "").trim().toLowerCase();
+  if (
+    (t0 === "true" && t1 === "false") ||
+    (t0 === "false" && t1 === "true")
+  ) {
+    return "true-false";
+  }
+  const hasNonACorrect = questions.some(
+    (q) => String(q.correct_answer || "A").toUpperCase() !== "A"
+  );
+  if (hasNonACorrect) return "matching";
+  return "identification";
+}
 
 export default function GenerateQuiz() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [lectures, setLectures] = useState([]);
   const [selectedLecture, setSelectedLecture] = useState("");
+  const [quizType, setQuizType] = useState("identification");
+  const [difficulty, setDifficulty] = useState("medium");
   const [quizTitle, setQuizTitle] = useState("");
-  const [questionCount, setQuestionCount] = useState(5);
   const [generating, setGenerating] = useState(false);
   const [activeStep, setActiveStep] = useState(0);
   const [progressPct, setProgressPct] = useState(0);
   const [questions, setQuestions] = useState([]);
+  const [savedQuizId, setSavedQuizId] = useState(null);
+  const [postSaveEditing, setPostSaveEditing] = useState(false);
+  const [draftSaving, setDraftSaving] = useState(false);
+  const [sendBusy, setSendBusy] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
+  const [editLoading, setEditLoading] = useState(false);
   const stepTimers = useRef([]);
-  const sliderTrackRef = useRef(null);
+
+  const editQuizId = searchParams.get("edit");
+
+  useEffect(() => {
+    if (!editQuizId) return undefined;
+    let cancelled = false;
+    setEditLoading(true);
+    setError("");
+    getTeacherQuiz(editQuizId)
+      .then((data) => {
+        if (cancelled) return;
+        const qs = data.questions || [];
+        const inferred = inferQuizType(qs);
+        setQuizType(inferred);
+        setQuestions(normalizeQuestionsForReview(qs, inferred));
+        setQuizTitle(data.quiz?.title || "");
+        setSavedQuizId(data.quiz?.id != null ? String(data.quiz.id) : String(editQuizId));
+        if (data.quiz?.lecture_id != null) setSelectedLecture(String(data.quiz.lecture_id));
+        setPostSaveEditing(true);
+        setSearchParams({}, { replace: true });
+      })
+      .catch((err) => {
+        if (!cancelled) setError("Could not load quiz for editing: " + err.message);
+      })
+      .finally(() => {
+        if (!cancelled) setEditLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [editQuizId, setSearchParams]);
 
   useEffect(() => {
     getLectures()
@@ -449,13 +715,17 @@ export default function GenerateQuiz() {
 
   const handleGenerate = async () => {
     if (!selectedLecture) { setError("Please select a lecture."); return; }
+    if (!quizType) { setError("Please select a quiz type."); return; }
+    if (!difficulty) { setError("Please select a difficulty level."); return; }
     setError(""); setGenerating(true); setActiveStep(0); setProgressPct(0);
+    setSavedQuizId(null);
+    setPostSaveEditing(false);
     runFakeProgress();
     try {
-      const data = await generateQuiz(selectedLecture, "multiple-choice", questionCount);
+      const data = await generateQuiz(selectedLecture, quizType, MIN_QUESTIONS, difficulty);
       setProgressPct(100); setActiveStep(4);
       await new Promise(r => setTimeout(r, 600));
-      setQuestions(data.questions);
+      setQuestions(normalizeQuestionsForReview(data.questions, quizType));
     } catch (err) {
       setError("AI generation failed: " + err.message);
     } finally {
@@ -469,8 +739,12 @@ export default function GenerateQuiz() {
     const updated = [...questions];
     if (field === "question") updated[idx].question = value;
     else if (field === "correct_answer") updated[idx].correct_answer = value;
+    else if (field === "points") {
+      const n = parseInt(value, 10);
+      updated[idx].points = Number.isFinite(n) && n > 0 ? n : 1;
+    }
     else if (field.startsWith("opt")) {
-      const oi = parseInt(field.replace("opt", ""));
+      const oi = parseInt(field.replace("opt", ""), 10);
       const opts = [...updated[idx].options];
       opts[oi] = value;
       updated[idx].options = opts;
@@ -478,14 +752,63 @@ export default function GenerateQuiz() {
     setQuestions(updated);
   };
 
+  const setTrueFalseKey = (idx, letter) => {
+    const updated = [...questions];
+    const opts = [...updated[idx].options];
+    opts[0] = opts[0] || "True";
+    opts[1] = opts[1] || "False";
+    opts[2] = "";
+    opts[3] = "";
+    updated[idx].options = opts;
+    updated[idx].correct_answer = letter;
+    setQuestions(updated);
+  };
+
+  const saveDraftToServer = async () => {
+    if (!savedQuizId) throw new Error("No saved quiz");
+    const payload = {
+      quizTitle: quizTitle.trim(),
+      questions: questions.map((q) => ({
+        id: q.id,
+        question: q.question,
+        options: q.options,
+        correct_answer: q.correct_answer,
+        points: q.points,
+      })),
+    };
+    const data = await updateTeacherQuiz(savedQuizId, payload);
+    if (data.questions) setQuestions(data.questions);
+    if (data.quiz?.title) setQuizTitle(data.quiz.title);
+  };
+
+  const handleDraftSave = async () => {
+    setDraftSaving(true); setError("");
+    try {
+      await saveDraftToServer();
+    } catch (err) {
+      setError("Could not save draft: " + err.message);
+    } finally {
+      setDraftSaving(false);
+    }
+  };
+
   const handleSave = async () => {
     if (!quizTitle.trim()) { setError("Please enter a quiz title."); return; }
     if (!questions.length) { setError("No questions to save."); return; }
     setSaving(true); setError("");
     try {
-      await saveQuiz(selectedLecture, quizTitle, questions);
+      const data = await saveQuiz(selectedLecture, quizTitle, questions);
+      const qid = data.quiz_id ?? data.quiz?.id;
+      if (data.questions && data.questions.length) {
+        setQuestions(data.questions);
+      } else if (qid) {
+        const detail = await getTeacherQuiz(qid);
+        setQuestions(detail.questions || []);
+      }
+      if (qid) setSavedQuizId(qid);
+      setPostSaveEditing(false);
       setSaved(true);
-      setTimeout(() => navigate("/teacher"), 2200);
+      setTimeout(() => setSaved(false), 1600);
     } catch (err) {
       setError("Save failed: " + err.message);
     } finally {
@@ -493,22 +816,39 @@ export default function GenerateQuiz() {
     }
   };
 
-  const lectureTitle = lectures.find(l => String(l.id) === String(selectedLecture))?.title || "";
-  const sliderRange = MAX_QUESTIONS - MIN_QUESTIONS;
-  const sliderPct = sliderRange <= 0 ? 0 : ((questionCount - MIN_QUESTIONS) / sliderRange) * 100;
-
-  const updateQuestionCountFromClientX = (clientX) => {
-    const el = sliderTrackRef.current;
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-    const next = Math.round(MIN_QUESTIONS + pct * sliderRange);
-    setQuestionCount(next);
+  const handleSendFromPostSave = async () => {
+    if (!savedQuizId) return;
+    setSendBusy(true); setError("");
+    try {
+      await saveDraftToServer();
+      navigate("/teacher", { state: { openSendQuizId: savedQuizId } });
+    } catch (err) {
+      setError((err.message && err.message.includes("No saved")) ? "Save the quiz first." : "Could not prepare send: " + err.message);
+    } finally {
+      setSendBusy(false);
+    }
   };
+
+  const lectureTitle = lectures.find(l => String(l.id) === String(selectedLecture))?.title || "";
+  const reviewQuizTypeLabel = QUIZ_TYPES.find((t) => t.value === quizType)?.label ?? "";
 
   return (
     <>
       <Styles />
+
+      {editLoading && (
+        <div className="gq-loading-overlay" style={{ zIndex: 52 }}>
+          <div className="gq-orb-wrap">
+            <div className="gq-orb-ring" />
+            <div className="gq-orb-ring gq-orb-ring-2" />
+            <div className="gq-orb-core">{BrainIcon}</div>
+          </div>
+          <div style={{ textAlign: "center" }}>
+            <div className="gq-loading-title">Loading quiz…</div>
+            <div className="gq-loading-sub">Opening your saved questions for editing</div>
+          </div>
+        </div>
+      )}
 
       {/* Loading overlay */}
       {generating && (
@@ -550,8 +890,8 @@ export default function GenerateQuiz() {
         <div className="gq-success-overlay">
           <div className="gq-success-ring">{CheckIcon}</div>
           <div style={{ textAlign: "center" }}>
-            <div className="gq-success-title">Quiz Saved! 🎉</div>
-            <div className="gq-success-sub">Redirecting to dashboard…</div>
+            <div className="gq-success-title">Quiz saved</div>
+            <div className="gq-success-sub">Use Draft to update, Send to schedule for students, or Edit to change wording.</div>
           </div>
         </div>
       )}
@@ -582,7 +922,7 @@ export default function GenerateQuiz() {
                 <span className="gq-welcome-tag-dot" /> AI Quiz Generation
               </div>
               <h1 className="gq-title">Generate a Quiz<br/>in Seconds</h1>
-              <p className="gq-sub">Pick a lecture, set your question count, and let AI do the heavy lifting</p>
+              <p className="gq-sub">Choose lecture, quiz type, difficulty, and question count — then let AI build it</p>
             </div>
           )}
 
@@ -608,6 +948,42 @@ export default function GenerateQuiz() {
                 ))}
               </select>
 
+              <div className="gq-seg-block">
+                <span className="gq-field-label" style={{ marginBottom: ".55rem" }}>Quiz type</span>
+                <div className="gq-seg-row" role="radiogroup" aria-label="Quiz type">
+                  {QUIZ_TYPES.map((t) => (
+                    <button
+                      key={t.value}
+                      type="button"
+                      role="radio"
+                      aria-checked={quizType === t.value}
+                      className={`gq-seg-btn${quizType === t.value ? " active" : ""}`}
+                      onClick={() => { setQuizType(t.value); setError(""); }}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="gq-seg-block">
+                <span className="gq-field-label" style={{ marginBottom: ".55rem" }}>Difficulty</span>
+                <div className="gq-seg-row" role="radiogroup" aria-label="Difficulty">
+                  {DIFFICULTIES.map((d) => (
+                    <button
+                      key={d.value}
+                      type="button"
+                      role="radio"
+                      aria-checked={difficulty === d.value}
+                      className={`gq-seg-btn${difficulty === d.value ? " active" : ""}`}
+                      onClick={() => { setDifficulty(d.value); setError(""); }}
+                    >
+                      {d.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <label className="gq-field-label">Quiz Title</label>
               <input
                 className="gq-text-input"
@@ -618,43 +994,8 @@ export default function GenerateQuiz() {
               />
 
               <div className="gq-slider-block">
-                <div className="gq-slider-row" style={{ marginBottom: 0 }}>
-                  <span className="gq-slider-label">Questions</span>
-                  <div
-                    ref={sliderTrackRef}
-                    className="gq-slider-track"
-                    role="slider"
-                    aria-valuemin={MIN_QUESTIONS}
-                    aria-valuemax={MAX_QUESTIONS}
-                    aria-valuenow={questionCount}
-                    aria-label="Number of AI questions to generate"
-                    onPointerDown={(e) => {
-                      e.currentTarget.setPointerCapture(e.pointerId);
-                      updateQuestionCountFromClientX(e.clientX);
-                    }}
-                    onPointerMove={(e) => {
-                      if (e.currentTarget.hasPointerCapture(e.pointerId)) {
-                        updateQuestionCountFromClientX(e.clientX);
-                      }
-                    }}
-                    onPointerUp={(e) => {
-                      if (e.currentTarget.hasPointerCapture(e.pointerId)) {
-                        e.currentTarget.releasePointerCapture(e.pointerId);
-                      }
-                    }}
-                    onPointerCancel={(e) => {
-                      if (e.currentTarget.hasPointerCapture(e.pointerId)) {
-                        e.currentTarget.releasePointerCapture(e.pointerId);
-                      }
-                    }}
-                  >
-                    <div className="gq-slider-fill" style={{ width: `${sliderPct}%` }} />
-                    <div className="gq-slider-thumb" style={{ left: `${sliderPct}%` }} />
-                  </div>
-                  <span className="gq-slider-val">{questionCount}</span>
-                </div>
-                <p className="gq-slider-hint">
-                  Drag along the track to choose {MIN_QUESTIONS}–{MAX_QUESTIONS} questions (maximum {MAX_QUESTIONS}).
+                <p className="gq-slider-hint" style={{ marginBottom: 0 }}>
+                  Each AI quiz has exactly <strong style={{ color: "#e8c878" }}>{MIN_QUESTIONS}</strong> questions.
                 </p>
               </div>
 
@@ -682,63 +1023,201 @@ export default function GenerateQuiz() {
                   placeholder="Name your quiz"
                   value={quizTitle}
                   onChange={e => setQuizTitle(e.target.value)}
+                  readOnly={Boolean(savedQuizId && !postSaveEditing)}
                   style={{ marginBottom: 0 }}
                 />
               </div>
 
               <div className="gq-section-heading">
-                <h2 className="gq-section-title">Review & Edit</h2>
-                <span className="gq-count-chip">{questions.length} questions</span>
+                <h2 className="gq-section-title">{savedQuizId ? "Saved quiz" : "Review & Edit"}</h2>
+                <span className="gq-count-chip">
+                  {questions.length} questions{reviewQuizTypeLabel ? ` · ${reviewQuizTypeLabel}` : ""}
+                </span>
               </div>
 
-              {questions.map((q, idx) => (
-                <div key={idx} className="glass-card gq-q-card" style={{ animationDelay: `${idx * 0.04}s` }}>
+              {questions.map((q, idx) => {
+                const locked = Boolean(savedQuizId && !postSaveEditing);
+                return (
+                <div key={q.id != null ? String(q.id) : `q-${idx}`} className="glass-card gq-q-card" style={{ animationDelay: `${idx * 0.04}s` }}>
                   <div className="gq-q-num">{idx + 1}</div>
                   <input
                     className="gq-q-text-input"
                     value={q.question}
-                    onChange={e => updateQ(idx, "question", e.target.value)}
-                    placeholder="Question text"
+                    readOnly={locked}
+                    onChange={(e) => updateQ(idx, "question", e.target.value)}
+                    placeholder={
+                      quizType === "true-false"
+                        ? "Statement (quiz taker marks True or False)"
+                        : "Question text"
+                    }
                   />
-                  <div className="gq-q-options">
-                    {["A", "B", "C", "D"].map((letter, oi) => (
+
+                  {quizType === "true-false" && (
+                    <>
+                      <div className="gq-tf-row" role="group" aria-label="Correct response">
+                        <button
+                          type="button"
+                          className={`gq-tf-btn${q.correct_answer === "A" ? " active" : ""}`}
+                          disabled={locked}
+                          onClick={() => setTrueFalseKey(idx, "A")}
+                        >
+                          True
+                        </button>
+                        <button
+                          type="button"
+                          className={`gq-tf-btn${q.correct_answer === "B" ? " active-false" : ""}`}
+                          disabled={locked}
+                          onClick={() => setTrueFalseKey(idx, "B")}
+                        >
+                          False
+                        </button>
+                      </div>
+                      <p className="gq-id-hint" style={{ marginBottom: ".85rem" }}>
+                        Choose whether the statement above should be answered True or False for the answer key.
+                      </p>
+                    </>
+                  )}
+
+                  {quizType === "matching" && (
+                    <>
+                      <div className="gq-mc-list" role="list" aria-label="Choices A through D">
+                        {OPTION_LETTERS.map((letter, oi) => (
+                          <div key={letter} className="gq-mc-row" role="listitem">
+                            <span className="gq-mc-letter">{letter}</span>
+                            <input
+                              className="gq-mc-row-input"
+                              value={q.options[oi] || ""}
+                              readOnly={locked}
+                              onChange={(e) => updateQ(idx, `opt${oi}`, e.target.value)}
+                              placeholder={`Choice ${letter}`}
+                              aria-label={`Choice ${letter}`}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                      <div className="gq-q-answer-row">
+                        <span className="gq-answer-label">Correct choice</span>
+                        <select
+                          className="gq-answer-select"
+                          value={q.correct_answer}
+                          disabled={locked}
+                          onChange={(e) => updateQ(idx, "correct_answer", e.target.value)}
+                        >
+                          {OPTION_LETTERS.map((l) => (
+                            <option key={l} value={l}>
+                              {l}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </>
+                  )}
+
+                  {quizType === "identification" && (
+                    <div className="gq-id-block">
+                      <label className="gq-field-label">Correct answer</label>
                       <input
-                        key={letter}
-                        className="gq-q-opt-input"
-                        value={q.options[oi] || ""}
-                        onChange={e => updateQ(idx, `opt${oi}`, e.target.value)}
-                        placeholder={`Option ${letter}`}
+                        className="gq-q-text-input"
+                        value={q.options[0] || ""}
+                        readOnly={locked}
+                        onChange={(e) => updateQ(idx, "opt0", e.target.value)}
+                        placeholder="The answer students should identify or supply"
                       />
-                    ))}
-                  </div>
-                  <div className="gq-q-answer-row">
-                    <span className="gq-answer-label">Correct answer</span>
-                    <select
-                      className="gq-answer-select"
-                      value={q.correct_answer}
-                      onChange={e => updateQ(idx, "correct_answer", e.target.value)}
-                    >
-                      {["A", "B", "C", "D"].map(l => <option key={l}>{l}</option>)}
-                    </select>
+                      <span className="gq-id-wrong-label">Other choices (distractors)</span>
+                      <div className="gq-id-wrong-list">
+                        {[1, 2, 3].map((oi) => (
+                          <input
+                            key={oi}
+                            className="gq-q-text-input"
+                            style={{ marginBottom: 0 }}
+                            value={q.options[oi] || ""}
+                            readOnly={locked}
+                            onChange={(e) => updateQ(idx, `opt${oi}`, e.target.value)}
+                            placeholder={`Distractor ${oi}`}
+                          />
+                        ))}
+                      </div>
+                      <p className="gq-id-hint">
+                        The quiz still presents four phrases; the first field is always the correct answer in the answer key (choice A).
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="gq-points-row">
+                    <span className="gq-points-label">Points (weight)</span>
+                    <input
+                      type="number"
+                      min={1}
+                      step={1}
+                      className="gq-points-input"
+                      value={q.points ?? 1}
+                      readOnly={locked}
+                      onChange={(e) => updateQ(idx, "points", e.target.value)}
+                    />
                   </div>
                 </div>
-              ))}
+              );
+              })}
 
-              <div className="gq-save-row">
-                <button
-                  className="gq-btn-discard"
-                  onClick={() => { setQuestions([]); setError(""); }}
-                >
-                  Discard
-                </button>
-                <button
-                  className="gq-btn-save"
-                  onClick={handleSave}
-                  disabled={saving}
-                >
-                  {saving ? <><span className="gq-spinner" /> Saving…</> : "✓ Save Quiz to Dashboard"}
-                </button>
+              <div className="gq-save-row" style={{ flexWrap: "wrap" }}>
+                {!savedQuizId ? (
+                  <>
+                    <button
+                      className="gq-btn-discard"
+                      type="button"
+                      onClick={() => { setQuestions([]); setError(""); setSavedQuizId(null); setPostSaveEditing(false); }}
+                    >
+                      Discard
+                    </button>
+                    <button
+                      className="gq-btn-save"
+                      type="button"
+                      onClick={handleSave}
+                      disabled={saving}
+                    >
+                      {saving ? <><span className="gq-spinner" /> Saving…</> : "Save quiz"}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      className="gq-btn-draft"
+                      type="button"
+                      onClick={handleDraftSave}
+                      disabled={draftSaving || sendBusy}
+                    >
+                      {draftSaving ? <><span className="gq-spinner" /> Saving…</> : "Draft"}
+                    </button>
+                    <button
+                      className="gq-btn-send-dash"
+                      type="button"
+                      onClick={handleSendFromPostSave}
+                      disabled={sendBusy || draftSaving}
+                    >
+                      {sendBusy ? <><span className="gq-spinner" /> Preparing…</> : "Send"}
+                    </button>
+                    <button
+                      type="button"
+                      className="gq-btn-edit"
+                      onClick={() => setPostSaveEditing((e) => !e)}
+                    >
+                      {postSaveEditing ? "Done editing" : "Edit"}
+                    </button>
+                    <button
+                      className="gq-btn-discard"
+                      type="button"
+                      onClick={() => navigate("/teacher")}
+                    >
+                      Dashboard
+                    </button>
+                  </>
+                )}
               </div>
+              {savedQuizId && (
+                <p className="gq-postsave-hint">
+                  Students need <strong style={{ color: "rgba(232,200,120,.85)" }}>75%</strong> of weighted points to pass. Draft saves your edits; Send opens scheduling on your teacher dashboard.
+                </p>
+              )}
             </div>
           )}
         </div>

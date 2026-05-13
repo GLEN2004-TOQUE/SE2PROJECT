@@ -88,7 +88,13 @@ const authHeaders = (extra = {}) => {
 
 // ─── Core fetch helpers ───────────────────────────────────────────────────────
 
-const withTimeout = async (url, opts = {}, timeoutMs = 15000) => {
+/** Default HTTP timeout; slow routes pass a larger `timeoutMs` in `api()` options. */
+const DEFAULT_API_TIMEOUT_MS = 15000;
+
+/** AI generation can exceed default timeout (LLM + cold backend). */
+const AI_GENERATE_TIMEOUT_MS = 180000;
+
+const withTimeout = async (url, opts = {}, timeoutMs = DEFAULT_API_TIMEOUT_MS) => {
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -102,14 +108,26 @@ export const api = async (endpoint, options = {}) => {
   if (typeof endpoint !== "string" || !endpoint.startsWith("/")) {
     throw new Error("Invalid API endpoint");
   }
-  const res = await withTimeout(`${BASE_URL}${endpoint}`, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...authHeaders(),
-      ...(options.headers || {}),
-    },
-  });
+  const { timeoutMs, ...restOptions } = options;
+  let res;
+  try {
+    res = await withTimeout(`${BASE_URL}${endpoint}`, {
+      ...restOptions,
+      headers: {
+        'Content-Type': 'application/json',
+        ...authHeaders(),
+        ...(restOptions.headers || {}),
+      },
+    }, timeoutMs ?? DEFAULT_API_TIMEOUT_MS);
+  } catch (e) {
+    const isAbort =
+      e?.name === "AbortError" ||
+      (typeof e?.message === "string" && e.message.toLowerCase().includes("aborted"));
+    if (isAbort) {
+      throw new Error(HTTP_FRIENDLY[408]);
+    }
+    throw e;
+  }
   let data = null;
   try { data = await res.json(); } catch { data = {}; }
   if (!res.ok) {
@@ -148,11 +166,22 @@ export const deleteLecture  = (id) => api(`/lectures/${id}`, { method: 'DELETE' 
 
 // ─── Quiz ─────────────────────────────────────────────────────────────────────
 
-export const generateQuiz = (lectureId, type, count) =>
-  api('/api/quiz/generate', { method: 'POST', body: JSON.stringify({ lectureId, type, count }) });
+export const generateQuiz = (lectureId, type, count, difficulty) =>
+  api('/api/quiz/generate', {
+    method: 'POST',
+    body: JSON.stringify({ lectureId, type, count, difficulty }),
+    timeoutMs: AI_GENERATE_TIMEOUT_MS,
+  });
 
 export const saveQuiz = (lectureId, quizTitle, questions, courseId) =>
   api('/api/quiz/save', { method: 'POST', body: JSON.stringify({ lectureId, quizTitle, questions, courseId }) });
+
+export const getTeacherQuiz = (quizId) => api(`/api/quiz/teacher/${quizId}`);
+
+export const updateTeacherQuiz = (quizId, payload) =>
+  api(`/api/quiz/teacher/${quizId}`, { method: 'PATCH', body: JSON.stringify(payload) });
+
+export const getTeacherQuizResults = (quizId) => api(`/api/quiz/teacher/${quizId}/results`);
 
 export const getQuiz   = (quizId) => api(`/api/quiz/${quizId}`);
 

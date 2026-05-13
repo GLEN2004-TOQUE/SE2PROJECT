@@ -11,12 +11,20 @@ const {
   getTeacherAttendanceTimeline,
   getQuizzesForStudent,
   getTeacherQuizzes,
+  getTeacherQuizDetail,
+  getTeacherQuizResults,
+  patchTeacherQuiz,
   scheduleQuiz,
   deleteQuiz,
 } = require("../controllers/quizController");
 const { verifyToken, authorizeRole, requireActiveUser } = require("../middleware/roleMiddleware");
 const { supabaseAdmin } = require("../supabaseClient");
 const aiService = require("../services/aiService");
+
+// Teacher quiz-by-id routes registered first (stable match for GET /teacher/:quizId).
+router.get("/teacher/:quizId/results", verifyToken, requireActiveUser, authorizeRole("teacher"), getTeacherQuizResults);
+router.get("/teacher/:quizId", verifyToken, requireActiveUser, authorizeRole("teacher"), getTeacherQuizDetail);
+router.patch("/teacher/:quizId", verifyToken, requireActiveUser, authorizeRole("teacher"), patchTeacherQuiz);
 
 // ── Student routes ─────────────────────────────────────────────────────────────
 router.post("/submit",     verifyToken, requireActiveUser, authorizeRole("student"), submitQuiz);
@@ -51,19 +59,19 @@ router.delete("/:quizId",  verifyToken, requireActiveUser, authorizeRole("teache
 // ── Generate from text ────────────────────────────────────────────────────────
 router.post("/generate-from-text", verifyToken, requireActiveUser, authorizeRole("teacher"), async (req, res) => {
   try {
-    const { text, type = "multiple-choice", count = 5 } = req.body;
+    const { text, type = "multiple-choice", count = 5, difficulty = "medium" } = req.body;
     if (!text || text.trim().length === 0) {
       return res.status(400).json({ success: false, error: "Lecture text is required" });
     }
     if (count < 1 || count > 10) {
       return res.status(400).json({ success: false, error: "Count must be between 1 and 10" });
     }
-    const questions = await aiService.generateQuestions(text, type, count);
+    const questions = await aiService.generateQuestions(text, type, count, difficulty);
     res.json({
       success: true,
       questions,
       generatedAt: new Date().toISOString(),
-      metadata: { count: questions.length, type }
+      metadata: { count: questions.length, type, difficulty }
     });
   } catch (error) {
     const isRateLimit = error.message.includes('quota') || error.message.includes('429');

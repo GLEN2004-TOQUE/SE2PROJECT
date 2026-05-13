@@ -79,12 +79,178 @@ class AIService {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
+  /** Normalize model output to { question, options[4], correct_answer } for DB / student UI. */
+  normalizeQuestions(items, quizType) {
+    if (!Array.isArray(items)) throw new Error("Response is not an array");
+    const letters = ["A", "B", "C", "D"];
+    return items.map((raw) => {
+      const question = String(raw.question ?? raw.prompt ?? raw.stem ?? "").trim();
+      let options = Array.isArray(raw.options)
+        ? raw.options.map((o) => (o == null ? "" : String(o).trim()))
+        : [];
+
+      if (quizType === "true-false") {
+        if (options.filter(Boolean).length < 2) {
+          options = ["True", "False", "", ""];
+        } else {
+          options = [
+            options[0] || "True",
+            options[1] || "False",
+            options[2] || "",
+            options[3] || "",
+          ];
+        }
+      }
+
+      while (options.length < 4) options.push("");
+      options = options.slice(0, 4);
+
+      let correct = raw.correct_answer;
+      if (typeof correct === "boolean") {
+        correct = correct ? "A" : "B";
+      } else {
+        correct = correct == null ? "A" : String(correct).trim();
+      }
+
+      const lower = correct.toLowerCase();
+      if (quizType === "true-false") {
+        if (lower === "true" || lower === "t") correct = "A";
+        else if (lower === "false" || lower === "f") correct = "B";
+      }
+
+      if (!letters.includes(correct)) {
+        const idx = options.findIndex(
+          (o) => o && o.toLowerCase() === lower
+        );
+        correct = idx >= 0 ? letters[idx] : "A";
+      }
+
+      if (!letters.includes(correct)) correct = "A";
+
+      return {
+        question,
+        options,
+        correct_answer: correct,
+      };
+    });
+  }
+
+  buildQuizPrompt(textSnippet, quizType, difficulty, count) {
+    const diffLine =
+      difficulty === "easy"
+        ? "Difficulty EASY: direct recall from the text; distractors should be clearly weaker."
+        : difficulty === "hard"
+          ? "Difficulty HARD: subtle distinctions, application, or synthesis; distractors must be highly plausible."
+          : "Difficulty MEDIUM: solid understanding of concepts; distractors are plausible but distinguishable.";
+
+    const base = `Based on the following lecture text:
+"""
+${textSnippet}
+"""
+
+${diffLine}
+
+Generate exactly ${count} questions. Return ONLY a valid JSON array, no markdown fences, no commentary.`;
+
+    if (quizType === "true-false") {
+      return `${base}
+
+Quiz type: TRUE OR FALSE.
+Each item must be a clear declarative statement grounded in the lecture.
+JSON shape (array of objects):
+[
+  {
+    "question": "Statement the student marks as true or false.",
+    "options": ["True", "False"],
+    "correct_answer": "A"
+  }
+]
+Rules:
+- correct_answer must be letter A if the statement is true, or B if false (options[0] is True, options[1] is False).
+- options must be exactly ["True", "False"] for every item.
+- Do not include options C or D in the JSON; the system will pad them.`;
+    }
+
+    if (quizType === "identification") {
+      return `${base}
+
+Quiz type: IDENTIFICATION.
+Each question asks the student to identify a term, name, concept, or fill-in style answer using four short phrase choices (only one is fully correct).
+JSON shape:
+[
+  {
+    "question": "...",
+    "options": ["Option A", "Option B", "Option C", "Option D"],
+    "correct_answer": "A"
+  }
+]
+Rules:
+- Always exactly 4 non-empty options (concise phrases).
+- correct_answer is exactly one of: A, B, C, D.`;
+    }
+
+    if (quizType === "matching") {
+      return `${base}
+
+Quiz type: MATCHING (implemented as term–definition pairing).
+Each question presents a term, label, or short scenario from the lecture and asks which of four choices is the correct match (e.g. correct definition, counterpart, or classification).
+JSON shape:
+[
+  {
+    "question": "...",
+    "options": ["Option A", "Option B", "Option C", "Option D"],
+    "correct_answer": "A"
+  }
+]
+Rules:
+- Always exactly 4 non-empty options.
+- correct_answer is exactly one of: A, B, C, D.
+- Wrong options should be related to the topic but clearly incorrect as a pair for the prompt.`;
+    }
+
+    // multiple-choice (default / legacy)
+    return `${base}
+
+Quiz type: MULTIPLE CHOICE.
+JSON shape:
+[
+  {
+    "question": "...",
+    "options": ["Option A", "Option B", "Option C", "Option D"],
+    "correct_answer": "A"
+  }
+]
+Rules:
+- Always 4 options.
+- correct_answer is A, B, C, or D.
+- Make questions educational and relevant to the lecture.`;
+  }
+
   // Main function to generate questions with auto model switching
-  async generateQuestions(text, type = "multiple-choice", count = 5) {
+  async generateQuestions(
+    text,
+    type = "multiple-choice",
+    count = 5,
+    difficulty = "medium"
+  ) {
     let attempts = 0;
     const maxAttempts = this.models.length * 2; // Try each model twice
 
-    console.log(`🎯 Generating ${count} ${type} questions...`);
+    const quizType =
+      type === "matching" ||
+      type === "identification" ||
+      type === "true-false"
+        ? type
+        : "multiple-choice";
+    const diffRaw = String(difficulty || "medium").toLowerCase();
+    const diff =
+      diffRaw === "easy" || diffRaw === "hard" ? diffRaw : "medium";
+
+    console.log(
+      `🎯 Generating ${count} ${quizType} questions (${diff} difficulty)...`
+    );
+
+    const textSnippet = (text || "").substring(0, 3000);
 
     while (attempts < maxAttempts) {
       // Get next available model
@@ -103,29 +269,7 @@ class AIService {
       try {
         const model = this.genAI.getGenerativeModel({ model: modelName });
         
-        const prompt = `
-Based on the following lecture text:
-"""
-${text.substring(0, 3000)}
-"""
-
-Generate ${count} ${type} questions.
-
-Return ONLY valid JSON in this exact format:
-[
-  {
-    "question": "...",
-    "options": ["Option A", "Option B", "Option C", "Option D"],
-    "correct_answer": "A"
-  }
-]
-
-Rules:
-- Always 4 options
-- Use A, B, C, D for correct_answer
-- No explanation, JSON only
-- Make questions educational and relevant
-`;
+        const prompt = this.buildQuizPrompt(textSnippet, quizType, diff, count);
 
         const result = await model.generateContent(prompt);
         const response = await result.response;
@@ -145,14 +289,16 @@ Rules:
         }
         
         const parsed = JSON.parse(cleanJson);
-        
-        // Validate response
-        if (!Array.isArray(parsed)) {
-          throw new Error("Response is not an array");
+        const normalized = this.normalizeQuestions(parsed, quizType);
+        const valid = normalized.filter((q) => q.question.length > 0);
+        if (valid.length === 0) {
+          throw new Error("No valid questions in model response");
         }
-        
-        console.log(`✅ Success with ${modelName} (${parsed.length} questions generated)`);
-        return parsed;
+
+        console.log(
+          `✅ Success with ${modelName} (${valid.length} questions generated)`
+        );
+        return valid;
 
       } catch (error) {
         console.error(`❌ ${modelName} failed:`, error.message);
