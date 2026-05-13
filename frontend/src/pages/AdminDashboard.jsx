@@ -687,6 +687,28 @@ const Styles = () => (
     }
     .ad-lb-tab.on { background: var(--msoft); border-color: rgba(212,160,23,.35); color: var(--mustard); }
 
+    .ad-scope-row {
+      display: flex; flex-wrap: wrap; align-items: center; gap: .5rem;
+      margin-top: 1rem;
+    }
+    .ad-scope-label {
+      font-size: .65rem; letter-spacing: .12em; text-transform: uppercase;
+      color: rgba(212,160,23,.55); font-family: 'DM Mono', monospace;
+      width: 100%;
+    }
+    .ad-scope-tabs { display: flex; flex-wrap: wrap; gap: .4rem; }
+    .ad-scope-tab {
+      padding: .38rem .95rem; border-radius: 9px; cursor: pointer;
+      font-size: .78rem; font-weight: 600;
+      border: 1px solid var(--border); background: rgba(255,255,255,.03);
+      color: var(--muted); transition: all .18s;
+      font-family: 'DM Sans', sans-serif;
+    }
+    .ad-scope-tab:hover { border-color: rgba(212,160,23,.35); color: var(--text); }
+    .ad-scope-tab.on {
+      background: var(--msoft); border-color: rgba(212,160,23,.45); color: var(--mustard);
+    }
+
     /* ══════════════════════════════
        CERTIFICATE
     ══════════════════════════════ */
@@ -789,6 +811,16 @@ const SUBJECT_OPTIONS = [
 ];
 const subjectLabelByCode = SUBJECT_OPTIONS.reduce((acc,item)=>{ acc[item.value]=item.label; return acc; }, {});
 
+/** Course lists align with `Register.jsx` — students have no separate level column in DB. */
+const COLLEGE_COURSES = new Set(["BSCS", "BSOA", "BTVTED"]);
+const SHS_COURSES = new Set(["HE", "HUMSS", "GAS", "ICT", "ABM"]);
+function inferStudentProgram(course) {
+  const c = (course || "").trim().toUpperCase();
+  if (COLLEGE_COURSES.has(c)) return "college";
+  if (SHS_COURSES.has(c)) return "seniorhigh";
+  return "unknown";
+}
+
 /* ══════════════════════════════
    MAIN COMPONENT
 ══════════════════════════════ */
@@ -797,6 +829,8 @@ export default function AdminDashboard() {
   const user = getUser();
 
   const [tab, setTab]               = useState(()=>localStorage.getItem("admin_tab")||"overview");
+  const [overviewScope, setOverviewScope] = useState(()=>localStorage.getItem("admin_overview_scope")||"all");
+  const [leaderboardScope, setLeaderboardScope] = useState(()=>localStorage.getItem("admin_leaderboard_scope")||"all");
   const [students, setStudents]     = useState([]);
   const [teachers, setTeachers]     = useState([]);
   const [assignments, setAssignments] = useState([]);
@@ -814,7 +848,9 @@ export default function AdminDashboard() {
   const [selectedTeacher, setSelectedTeacher]   = useState("");
   const [confirming, setConfirming]             = useState(false);
   const [createTeacherModal, setCreateTeacherModal] = useState(false);
-  const [newTeacher, setNewTeacher]             = useState({ fullName:"", email:"", subject:"SE2", customSubject:"" });
+  const [newTeacher, setNewTeacher]             = useState({
+    firstName:"", middleName:"", lastName:"", email:"", subject:"SE2", customSubject:"",
+  });
   const [creating, setCreating]                 = useState(false);
   const [deleteModal, setDeleteModal]           = useState(null);
   const [deleting, setDeleting]                 = useState(false);
@@ -864,6 +900,19 @@ export default function AdminDashboard() {
   useEffect(()=>{ loadData(); },[loadData]);
   useEffect(()=>{ if(tab==="leaderboard") loadLeaderboard(); },[tab,loadLeaderboard]);
   useEffect(()=>{ localStorage.setItem("admin_tab",tab); },[tab]);
+  useEffect(()=>{ localStorage.setItem("admin_overview_scope",overviewScope); },[overviewScope]);
+  useEffect(()=>{ localStorage.setItem("admin_leaderboard_scope",leaderboardScope); },[leaderboardScope]);
+  useEffect(() => {
+    if (lbFilter === "all") return;
+    const byProg = leaderboard.filter((u) => {
+      if (leaderboardScope === "all") return true;
+      const p = inferStudentProgram(u.course);
+      if (leaderboardScope === "college") return p === "college";
+      if (leaderboardScope === "seniorhigh") return p === "seniorhigh";
+      return true;
+    });
+    if (!byProg.some((u) => u.section === lbFilter)) setLbFilter("all");
+  }, [leaderboardScope, leaderboard, lbFilter]);
 
   const sidKey = (id) => String(id);
   const assignMap = {};
@@ -874,7 +923,6 @@ export default function AdminDashboard() {
     const tid = a.teacher.id;
     if(tid!=null && !assignMap[k].some((t)=>String(t.id)===String(tid))) assignMap[k].push(a.teacher);
   });
-  const assignedCount = Object.keys(assignMap).length;
 
   const openAssign = (student)=>{ setSelectedTeacher(""); setAssignModal({student}); };
   const confirmAssign = async()=>{
@@ -908,11 +956,25 @@ export default function AdminDashboard() {
     try {
       const finalSubject = newTeacher.subject==="__custom__"?newTeacher.customSubject.trim():newTeacher.subject;
       if(!finalSubject) throw new Error("Please provide a subject");
-      const r = await apiFetch("/api/admin/teachers/create",{method:"POST",body:JSON.stringify({fullName:newTeacher.fullName,email:newTeacher.email,subject:finalSubject})});
+      const fn = newTeacher.firstName.trim();
+      const mn = newTeacher.middleName.trim();
+      const ln = newTeacher.lastName.trim();
+      const fullName = [fn, mn, ln].filter(Boolean).join(" ");
+      const r = await apiFetch("/api/admin/teachers/create",{
+        method:"POST",
+        body:JSON.stringify({
+          firstName: fn,
+          middleName: mn,
+          lastName: ln,
+          fullName,
+          email:newTeacher.email.trim(),
+          subject:finalSubject,
+        }),
+      });
       showToast(r.message,"ok");
       if(!r.emailSent&&r.tempPassword) setTimeout(()=>showToast(`Temp password: ${r.tempPassword}`,"ok"),3700);
       setCreateTeacherModal(false);
-      setNewTeacher({fullName:"",email:"",subject:"SE2",customSubject:""});
+      setNewTeacher({ firstName:"", middleName:"", lastName:"", email:"", subject:"SE2", customSubject:"" });
       loadData();
     } catch(e){ showToast(e.message,"err"); }
     finally { setCreating(false); }
@@ -935,32 +997,67 @@ export default function AdminDashboard() {
     finally { setDeleting(false); }
   };
 
-  const filteredLb = lbFilter==="all" ? leaderboard : leaderboard.filter(u=>u.section===lbFilter);
-  const sections = [...new Set(leaderboard.map(u=>u.section).filter(Boolean))];
+  const leaderboardByProgram = leaderboard.filter((u) => {
+    if (leaderboardScope === "all") return true;
+    const p = inferStudentProgram(u.course);
+    if (leaderboardScope === "college") return p === "college";
+    if (leaderboardScope === "seniorhigh") return p === "seniorhigh";
+    return true;
+  });
+  const sections = [...new Set(leaderboardByProgram.map((u) => u.section).filter(Boolean))];
+  const filteredLb =
+    lbFilter === "all"
+      ? leaderboardByProgram
+      : leaderboardByProgram.filter((u) => u.section === lbFilter);
 
   const filterBySearch = arr => arr.filter(u=>
     u.full_name?.toLowerCase().includes(search.toLowerCase())||
     u.email?.toLowerCase().includes(search.toLowerCase())
   );
 
-  const activeStudents   = students.filter(s=>s.status).length;
   const activeTeachers   = teachers.filter(t=>t.status).length;
-  const lowCount         = students.filter(s=>(s.points??0)<80&&(s.streak??0)<2).length;
-  const increasingCount  = students.filter(s=>(s.points??0)>=80||(s.streak??0)>=2).length;
-  const highCount        = students.filter(s=>(s.points??0)>=180||(s.streak??0)>=4).length;
+
+  const collegeStudents = students.filter((s) => inferStudentProgram(s.course) === "college");
+  const shsStudents     = students.filter((s) => inferStudentProgram(s.course) === "seniorhigh");
+  const otherProgramCount = students.length - collegeStudents.length - shsStudents.length;
+
+  const scopeStudents =
+    overviewScope === "college" ? collegeStudents
+    : overviewScope === "seniorhigh" ? shsStudents
+    : students;
+  const scopeLabel =
+    overviewScope === "college" ? "College"
+    : overviewScope === "seniorhigh" ? "Senior High School"
+    : "All (College + Senior High)";
+
+  const cohortMetrics = (cohort) => {
+    const active = cohort.filter((s) => s.status).length;
+    const assigned = cohort.filter((s) => (assignMap[sidKey(s.id)] || []).length > 0).length;
+    const improving = cohort.filter((s) => (s.points ?? 0) >= 80 || (s.streak ?? 0) >= 2).length;
+    const needAttention = cohort.filter((s) => (s.points ?? 0) < 80 && (s.streak ?? 0) < 2).length;
+    return { active, assigned, improving, needAttention };
+  };
+  const collegeStats = cohortMetrics(collegeStudents);
+  const shsStats = cohortMetrics(shsStudents);
+
+  const activeScopeStudents = scopeStudents.filter((s) => s.status).length;
+  const assignedScopeCount = scopeStudents.filter((s) => (assignMap[sidKey(s.id)] || []).length > 0).length;
+  const lowScope = scopeStudents.filter((s) => (s.points ?? 0) < 80 && (s.streak ?? 0) < 2).length;
+  const increasingScope = scopeStudents.filter((s) => (s.points ?? 0) >= 80 || (s.streak ?? 0) >= 2).length;
+  const highScope = scopeStudents.filter((s) => (s.points ?? 0) >= 180 || (s.streak ?? 0) >= 4).length;
 
   const improvementBandData = [
-    {label:"Needs Attention",value:lowCount},
-    {label:"Progressing",value:Math.max(increasingCount-highCount,0)},
-    {label:"High Achiever",value:highCount},
+    {label:"Needs Attention",value:lowScope},
+    {label:"Progressing",value:Math.max(increasingScope - highScope, 0)},
+    {label:"High Achiever",value:highScope},
   ];
 
   const accountSparkline = [
-    Math.max(Math.round(activeStudents*.58),0),
-    Math.max(Math.round(activeStudents*.68),0),
-    Math.max(Math.round(activeStudents*.77),0),
-    Math.max(Math.round(activeStudents*.85),0),
-    activeStudents,
+    Math.max(Math.round(activeScopeStudents * 0.58), 0),
+    Math.max(Math.round(activeScopeStudents * 0.68), 0),
+    Math.max(Math.round(activeScopeStudents * 0.77), 0),
+    Math.max(Math.round(activeScopeStudents * 0.85), 0),
+    activeScopeStudents,
   ];
   const accountDates = Array.from({length:5},(_,idx)=>{
     const d = new Date(); d.setDate(d.getDate()-(4-idx));
@@ -975,15 +1072,94 @@ export default function AdminDashboard() {
     return acc;
   },{});
 
+  const scopeSectionImprovementMap = scopeStudents.reduce((acc,s)=>{
+    const key = s.section||"Unspecified";
+    if(!acc[key]) acc[key]={increasing:0,low:0};
+    if((s.points??0)>=80||(s.streak??0)>=2) acc[key].increasing+=1;
+    else acc[key].low+=1;
+    return acc;
+  },{});
+
   const sectionLabels    = Object.keys(sectionImprovementMap);
   const stackedIncreasing = sectionLabels.map(l=>sectionImprovementMap[l].increasing);
   const stackedLow        = sectionLabels.map(l=>sectionImprovementMap[l].low);
 
-  const teacherLoadBuckets = students.reduce((acc,s)=>{
+  const scopeSectionLabels = Object.keys(scopeSectionImprovementMap);
+  const scopeStackedIncreasing = scopeSectionLabels.map((l) => scopeSectionImprovementMap[l].increasing);
+  const scopeStackedLow = scopeSectionLabels.map((l) => scopeSectionImprovementMap[l].low);
+
+  const teacherLoadBuckets = scopeStudents.reduce((acc,s)=>{
     const c=(assignMap[sidKey(s.id)]||[]).length;
     if(c===0) acc.none+=1; else if(c===1) acc.one+=1; else acc.multi+=1;
     return acc;
   },{none:0,one:0,multi:0});
+
+  const scopeStudentIdSet = new Set(scopeStudents.map((s) => sidKey(s.id)));
+  const scopedAssignments = assignments.filter((a) => a.student?.id != null && scopeStudentIdSet.has(sidKey(a.student.id)));
+
+  const liveMomentumScope = scopeStudents.filter(
+    (st) => (st.points ?? 0) >= 80 || (st.streak ?? 0) >= 2
+  ).length;
+  const momentumLineData =
+    overviewScope === "all" && Array.isArray(momentumCheckpoints) && momentumCheckpoints.length === 5
+      ? momentumCheckpoints
+      : [
+          Math.max(Math.round(liveMomentumScope * 0.58), 0),
+          Math.max(Math.round(liveMomentumScope * 0.68), 0),
+          Math.max(Math.round(liveMomentumScope * 0.77), 0),
+          Math.max(Math.round(liveMomentumScope * 0.85), 0),
+          liveMomentumScope,
+        ];
+
+  const lbScopeStudents =
+    leaderboardScope === "college" ? collegeStudents
+    : leaderboardScope === "seniorhigh" ? shsStudents
+    : students;
+  const lbScopeLabel =
+    leaderboardScope === "college" ? "College"
+    : leaderboardScope === "seniorhigh" ? "Senior High School"
+    : "All (College + Senior High)";
+
+  const lbScopeSectionImprovementMap = lbScopeStudents.reduce((acc, s) => {
+    const key = s.section || "Unspecified";
+    if (!acc[key]) acc[key] = { increasing: 0, low: 0 };
+    if ((s.points ?? 0) >= 80 || (s.streak ?? 0) >= 2) acc[key].increasing += 1;
+    else acc[key].low += 1;
+    return acc;
+  }, {});
+  const lbScopeSectionLabels = Object.keys(lbScopeSectionImprovementMap);
+  const lbScopeStackedIncreasing = lbScopeSectionLabels.map((l) => lbScopeSectionImprovementMap[l].increasing);
+  const lbScopeStackedLow = lbScopeSectionLabels.map((l) => lbScopeSectionImprovementMap[l].low);
+
+  const liveLbScopeMomentum = lbScopeStudents.filter(
+    (st) => (st.points ?? 0) >= 80 || (st.streak ?? 0) >= 2
+  ).length;
+  const lbMomentumLineData =
+    leaderboardScope === "all" && Array.isArray(momentumCheckpoints) && momentumCheckpoints.length === 5
+      ? momentumCheckpoints
+      : [
+          Math.max(Math.round(liveLbScopeMomentum * 0.58), 0),
+          Math.max(Math.round(liveLbScopeMomentum * 0.68), 0),
+          Math.max(Math.round(liveLbScopeMomentum * 0.77), 0),
+          Math.max(Math.round(liveLbScopeMomentum * 0.85), 0),
+          liveLbScopeMomentum,
+        ];
+
+  const programPieSlices = [
+    { id: 0, value: collegeStudents.length, label: "College", color: "#d4a017" },
+    { id: 1, value: shsStudents.length, label: "Senior High", color: "#22c55e" },
+    ...(otherProgramCount > 0
+      ? [{ id: 2, value: otherProgramCount, label: "Other / unclassified", color: "rgba(184,122,128,.55)" }]
+      : []),
+  ];
+  const performancePieSlices = improvementBandData
+    .filter((d) => d.value > 0)
+    .map((d, i) => ({
+      id: i,
+      value: d.value,
+      label: d.label,
+      color: d.label === "Needs Attention" ? "rgba(248,113,113,.75)" : d.label === "High Achiever" ? "#60a5fa" : "#d4a017",
+    }));
 
   const SkeletonRows = ({cols=4,rows=3}) => (
     <>{Array.from({length:rows}).map((_,i)=>(
@@ -1027,9 +1203,9 @@ export default function AdminDashboard() {
             </div>
             <h2 className="ad-modal-title">Assign Teacher</h2>
             <p className="ad-modal-sub">
-              Add a teacher under <strong>{assignModal.student.full_name}</strong>.
+              Assign or change the teacher for <strong>{assignModal.student.full_name}</strong>.
               {(assignMap[sidKey(assignModal.student.id)]||[]).length>0 && (
-                <> Current: <strong>{assignMap[sidKey(assignModal.student.id)].map(t=>t.full_name).join(", ")}</strong>.</>
+                <> Current: <strong>{assignMap[sidKey(assignModal.student.id)].map(t=>t.full_name).join(", ")}</strong>. Choosing another teacher replaces this assignment.</>
               )}
             </p>
             <div className="ad-field">
@@ -1044,7 +1220,7 @@ export default function AdminDashboard() {
             <div className="ad-modal-btns">
               <button className="ad-btn-cancel" onClick={()=>setAssignModal(null)}>Cancel</button>
               <button className="ad-btn-primary" onClick={confirmAssign} disabled={!selectedTeacher||confirming}>
-                {confirming?<span className="spinner"/>:"Confirm Assignment"}
+                {confirming?<span className="spinner"/>:"Save assignment"}
               </button>
             </div>
           </div>
@@ -1062,8 +1238,16 @@ export default function AdminDashboard() {
             <p className="ad-modal-sub">A temporary password will be <strong>auto-generated</strong> and sent to the teacher's email. They can change it after first login.</p>
             <form onSubmit={handleCreateTeacher}>
               <div className="ad-field">
-                <label>Full Name</label>
-                <input type="text" placeholder="e.g., Maria Santos" required value={newTeacher.fullName} onChange={e=>setNewTeacher(p=>({...p,fullName:e.target.value}))}/>
+                <label>First name <span style={{ color: "var(--red)" }}>*</span></label>
+                <input type="text" placeholder="e.g., Maria" required value={newTeacher.firstName} onChange={e=>setNewTeacher(p=>({...p,firstName:e.target.value}))}/>
+              </div>
+              <div className="ad-field">
+                <label>Middle name <span style={{ color: "var(--red)" }}>*</span></label>
+                <input type="text" placeholder="e.g., Cruz" required value={newTeacher.middleName} onChange={e=>setNewTeacher(p=>({...p,middleName:e.target.value}))}/>
+              </div>
+              <div className="ad-field">
+                <label>Last name <span style={{ color: "var(--red)" }}>*</span></label>
+                <input type="text" placeholder="e.g., Santos" required value={newTeacher.lastName} onChange={e=>setNewTeacher(p=>({...p,lastName:e.target.value}))}/>
               </div>
               <div className="ad-field">
                 <label>Email Address</label>
@@ -1181,7 +1365,35 @@ export default function AdminDashboard() {
                   <div className="ad-page-head-text">
                     <div className="ad-page-eyebrow">Admin Console</div>
                     <h1 className="ad-page-title">Analytics</h1>
-                    <p className="ad-page-sub">System-wide summary and performance insights</p>
+                    <p className="ad-page-sub">
+                      {scopeLabel} — student counts reflect this filter; teacher totals are school-wide (teachers are not split by program in the database).
+                    </p>
+                    <div className="ad-scope-row">
+                      <span className="ad-scope-label">Overview filter</span>
+                      <div className="ad-scope-tabs">
+                        <button
+                          type="button"
+                          className={`ad-scope-tab${overviewScope === "all" ? " on" : ""}`}
+                          onClick={() => setOverviewScope("all")}
+                        >
+                          All
+                        </button>
+                        <button
+                          type="button"
+                          className={`ad-scope-tab${overviewScope === "college" ? " on" : ""}`}
+                          onClick={() => setOverviewScope("college")}
+                        >
+                          College
+                        </button>
+                        <button
+                          type="button"
+                          className={`ad-scope-tab${overviewScope === "seniorhigh" ? " on" : ""}`}
+                          onClick={() => setOverviewScope("seniorhigh")}
+                        >
+                          Senior High School
+                        </button>
+                      </div>
+                    </div>
                   </div>
 
                 </div>
@@ -1193,11 +1405,11 @@ export default function AdminDashboard() {
                     <div className="ad-spark-row">
                       <div>
                         <div className="ad-chart-title">Active Student Accounts</div>
-                        <div className="ad-chart-sub">Trend over the last 5 days</div>
+                        <div className="ad-chart-sub">Trend over the last 5 days · {scopeLabel}</div>
                       </div>
                       <div style={{textAlign:"right"}}>
-                        <div className="ad-spark-val">{activeStudents}</div>
-                        <div className="ad-spark-lbl">active accounts</div>
+                        <div className="ad-spark-val">{activeScopeStudents}</div>
+                        <div className="ad-spark-lbl">active in scope</div>
                       </div>
                     </div>
                     <SparkLineChart data={accountSparkline} height={80} showTooltip color="#d4a017"/>
@@ -1210,10 +1422,10 @@ export default function AdminDashboard() {
                 {/* Stat cards — DataNest gradient style */}
                 <div className="ad-stat-row">
                   {[
-                    {icon:I.Users,   label:"Students",  value:students.length, hint:`${activeStudents} active accounts`,   grad:"grad-gold"},
-                    {icon:I.Teacher, label:"Teachers",  value:teachers.length, hint:`${activeTeachers} active`,            grad:"grad-green"},
-                    {icon:I.Link,    label:"Assigned",  value:assignedCount,   hint:`${students.length-assignedCount} unassigned`, grad:"grad-blue"},
-                    {icon:I.Chart,   label:"Improving", value:increasingCount, hint:`${lowCount} need attention`,          grad:"grad-red"},
+                    {icon:I.Users,   label:"Students",  value:scopeStudents.length, hint:`${activeScopeStudents} active in scope`,   grad:"grad-gold"},
+                    {icon:I.Teacher, label:"Teachers",  value:teachers.length, hint:`${activeTeachers} active (all faculty)`,            grad:"grad-green"},
+                    {icon:I.Link,    label:"Assigned",  value:assignedScopeCount,   hint:`${scopeStudents.length - assignedScopeCount} unassigned in scope`, grad:"grad-blue"},
+                    {icon:I.Chart,   label:"Improving", value:increasingScope, hint:`${lowScope} need attention in scope`,          grad:"grad-red"},
                   ].map((s,i)=>(
                     <div key={i} className={`ad-stat-card ${s.grad}`} style={{animationDelay:`${i*.08}s`}}>
                       <div className="ad-stat-icon">{s.icon}</div>
@@ -1224,25 +1436,72 @@ export default function AdminDashboard() {
                   ))}
                 </div>
 
-                {/* Charts */}
+                {/* Program-level stats (course-based, same lists as student registration) */}
+                {!loading && students.length > 0 && overviewScope === "all" && (
+                  <div style={{ marginBottom: "1.6rem" }}>
+                    <div className="ad-chart-eyebrow" style={{ marginBottom: "0.65rem" }}>
+                      Program summary
+                    </div>
+                    <div className="ad-stat-row" style={{ gridTemplateColumns: "repeat(2, 1fr)" }}>
+                      <div className="ad-stat-card grad-gold" style={{ animationDelay: "0.05s" }}>
+                        <div className="ad-stat-icon">{I.Users}</div>
+                        <p className="ad-stat-label">College</p>
+                        <p className="ad-stat-val">{collegeStudents.length}</p>
+                        <p className="ad-stat-hint">
+                          {collegeStats.active} active · {collegeStats.assigned} assigned · {collegeStats.improving} improving
+                        </p>
+                        <p className="ad-stat-hint" style={{ marginTop: "0.35rem", fontSize: "0.68rem" }}>
+                          {collegeStats.needAttention} need attention
+                        </p>
+                      </div>
+                      <div className="ad-stat-card grad-green" style={{ animationDelay: "0.1s" }}>
+                        <div className="ad-stat-icon">{I.Users}</div>
+                        <p className="ad-stat-label">Senior High School</p>
+                        <p className="ad-stat-val">{shsStudents.length}</p>
+                        <p className="ad-stat-hint">
+                          {shsStats.active} active · {shsStats.assigned} assigned · {shsStats.improving} improving
+                        </p>
+                        <p className="ad-stat-hint" style={{ marginTop: "0.35rem", fontSize: "0.68rem" }}>
+                          {shsStats.needAttention} need attention
+                        </p>
+                      </div>
+                    </div>
+                    {otherProgramCount > 0 && (
+                      <p style={{ fontSize: "0.72rem", color: "var(--muted)", marginTop: "0.5rem" }}>
+                        {otherProgramCount} student(s) have a course outside the College/SHS lists (not counted above).
+                      </p>
+                    )}
+                  </div>
+                )}
+                {!loading && students.length > 0 && overviewScope !== "all" && (
+                  <p style={{ fontSize: "0.78rem", color: "var(--muted)", marginBottom: "1.2rem", lineHeight: 1.5 }}>
+                    Showing <strong style={{ color: "var(--mustard)" }}>{scopeLabel}</strong> only. Charts and counts below apply to students in this program.
+                  </p>
+                )}
+
+                {/* Charts row 1 */}
                 {!loading && (
                   <div className="ad-chart-grid">
                     <div className="ad-chart-card">
                       <div className="ad-chart-eyebrow">Momentum Trend</div>
-  <div className="ad-chart-title">Improving Students Over Time</div>
-  <div className="ad-chart-sub">Students with ≥80 pts or ≥2-day streak. C1–C4 from quiz history; Now uses live totals.</div>
-  <LineChart
-    xAxis={[{scaleType:"point",data:["C1","C2","C3","C4","Now"],tickLabelStyle:{fill:"#b87a80",fontSize:11}}]}
-    series={[{data:momentumCheckpoints,curve:"natural",color:"#d4a017",label:"Students",area:true,showMark:true}]}
-    height={230}
-    margin={{top:16,right:16,bottom:44,left:36}}
-    sx={chartSx}
+                      <div className="ad-chart-title">Improving Students Over Time</div>
+                      <div className="ad-chart-sub">
+                        {overviewScope === "all"
+                          ? "Students with ≥80 pts or ≥2-day streak. C1–C4 from quiz history; Now uses live totals."
+                          : "Estimated trend from the current improving-student count for this program (no separate checkpoint history per program)."}
+                      </div>
+                      <LineChart
+                        xAxis={[{scaleType:"point",data:["C1","C2","C3","C4","Now"],tickLabelStyle:{fill:"#b87a80",fontSize:11}}]}
+                        series={[{data:momentumLineData,curve:"natural",color:"#d4a017",label:"Students",area:true,showMark:true}]}
+                        height={230}
+                        margin={{top:16,right:16,bottom:44,left:36}}
+                        sx={chartSx}
                       />
                     </div>
                     <div className="ad-chart-card">
                       <div className="ad-chart-eyebrow">Teacher Load</div>
                       <div className="ad-chart-title">Teacher Assignment Distribution</div>
-                      <div className="ad-chart-sub">How many teachers each student currently has assigned</div>
+                      <div className="ad-chart-sub">Per student in scope: how many teachers are assigned</div>
                       <PieChart
                         series={[{
                           innerRadius:45,outerRadius:90,cornerRadius:4,
@@ -1262,12 +1521,78 @@ export default function AdminDashboard() {
                   </div>
                 )}
 
+                {/* Charts row 2 — program or performance pie + section line */}
+                {!loading && scopeStudents.length > 0 && (
+                  <div className="ad-chart-grid" style={{ marginTop: "1.2rem" }}>
+                    <div className="ad-chart-card">
+                      {overviewScope === "all" ? (
+                        <>
+                          <div className="ad-chart-eyebrow">Population</div>
+                          <div className="ad-chart-title">College vs Senior High (students)</div>
+                          <div className="ad-chart-sub">Student counts by course (same rules as registration)</div>
+                          {programPieSlices.some((s) => s.value > 0) ? (
+                            <PieChart
+                              series={[{
+                                innerRadius:40,outerRadius:88,cornerRadius:4,
+                                paddingAngle:2,startAngle:-90,endAngle:270,
+                                data: programPieSlices,
+                              }]}
+                              height={230}
+                              margin={{top:8,right:120,bottom:8,left:16}}
+                              slotProps={{legend:{direction:"column",position:{vertical:"middle",horizontal:"right"},itemMarkWidth:10,itemMarkHeight:10,markGap:6,itemGap:10,labelStyle:{fill:"#b87a80",fontSize:11}}}}
+                              sx={chartSx}
+                            />
+                          ) : (
+                            <p className="ad-empty" style={{ padding: "2rem" }}>No students</p>
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          <div className="ad-chart-eyebrow">Performance</div>
+                          <div className="ad-chart-title">Improvement Bands</div>
+                          <div className="ad-chart-sub">Needs attention · progressing · high achiever (selected program)</div>
+                          {performancePieSlices.length > 0 ? (
+                            <PieChart
+                              series={[{
+                                innerRadius:40,outerRadius:88,cornerRadius:4,
+                                paddingAngle:2,startAngle:-90,endAngle:270,
+                                data: performancePieSlices,
+                              }]}
+                              height={230}
+                              margin={{top:8,right:130,bottom:8,left:16}}
+                              slotProps={{legend:{direction:"column",position:{vertical:"middle",horizontal:"right"},itemMarkWidth:10,itemMarkHeight:10,markGap:6,itemGap:10,labelStyle:{fill:"#b87a80",fontSize:11}}}}
+                              sx={chartSx}
+                            />
+                          ) : (
+                            <p className="ad-empty" style={{ padding: "2rem" }}>No data</p>
+                          )}
+                        </>
+                      )}
+                    </div>
+                    <div className="ad-chart-card">
+                      <div className="ad-chart-eyebrow">By Section</div>
+                      <div className="ad-chart-title">Improvement by Section</div>
+                      <div className="ad-chart-sub">Progressing vs needs attention by section (scope: {scopeLabel})</div>
+                      <LineChart
+                        xAxis={[{scaleType:"point",data:scopeSectionLabels.length?scopeSectionLabels:["No section"],tickLabelStyle:{fill:"#b87a80",fontSize:11}}]}
+                        series={[
+                          {data:scopeStackedIncreasing.length?scopeStackedIncreasing:[0],area:true,stack:"total",label:"Progressing",color:"#22c55e",curve:"natural"},
+                          {data:scopeStackedLow.length?scopeStackedLow:[0],area:true,stack:"total",label:"Needs Attention",color:"#d4a017",curve:"natural"},
+                        ]}
+                        height={230}
+                        margin={{top:16,right:16,bottom:44,left:36}}
+                        sx={chartSx}
+                      />
+                    </div>
+                  </div>
+                )}
+
                 {/* Unassigned warning */}
-                {!loading && students.length-assignedCount>0 && (
+                {!loading && scopeStudents.length - assignedScopeCount > 0 && (
                   <div className="ad-panel" style={{border:"1px solid rgba(212,160,23,.3)",marginBottom:"1.4rem"}}>
                     <div className="ad-panel-head" style={{background:"rgba(212,160,23,.04)"}}>
                       <span style={{fontSize:".85rem",fontWeight:600,color:"var(--mustard)"}}>
-                        ⚠ {students.length-assignedCount} student(s) without a teacher assigned
+                        ⚠ {scopeStudents.length - assignedScopeCount} student(s) in scope have no teacher assigned
                       </span>
                       <button className="ad-panel-action" onClick={()=>setTab("students")}>Assign Now →</button>
                     </div>
@@ -1277,14 +1602,14 @@ export default function AdminDashboard() {
                 {/* Recent assignments */}
                 <div className="ad-panel">
                   <div className="ad-panel-head">
-                    <span className="ad-panel-title">Recent Assignments</span>
+                    <span className="ad-panel-title">Recent Assignments{overviewScope !== "all" ? ` (${scopeLabel})` : ""}</span>
                   </div>
                   <table className="ad-table">
                     <thead><tr><th>Student</th><th>Teacher</th><th>Assigned</th></tr></thead>
                     <tbody>
-                      {loading ? <SkeletonRows cols={3}/> : assignments.length===0
+                      {loading ? <SkeletonRows cols={3}/> : scopedAssignments.length===0
                         ? <tr><td colSpan={3} className="ad-empty">No assignments yet</td></tr>
-                        : assignments.slice(0,5).map(a=>(
+                        : scopedAssignments.slice(0,5).map(a=>(
                           <tr key={a.id}>
                             <td><div className="ad-cell-user"><div className="ad-av av-student">{initials(a.student?.full_name)}</div><div><div className="ad-user-name">{a.student?.full_name}</div><div className="ad-user-email">{a.student?.email}</div></div></div></td>
                             <td><div className="ad-cell-user"><div className="ad-av av-teacher">{initials(a.teacher?.full_name)}</div><span className="ad-user-name">{a.teacher?.full_name}</span></div></td>
@@ -1295,32 +1620,7 @@ export default function AdminDashboard() {
                   </table>
                 </div>
 
-                {/* Certificate requests */}
-                <div className="ad-panel">
-                  <div className="ad-panel-head"><span className="ad-panel-title">Pending Certificate Requests</span></div>
-                  <table className="ad-table">
-                    <thead><tr><th>Student</th><th>Requested By</th><th>Status</th><th>Actions</th></tr></thead>
-                    <tbody>
-                      {loading ? <SkeletonRows cols={4}/> : certRequests.length===0
-                        ? <tr><td colSpan={4} className="ad-empty">No certificate requests yet</td></tr>
-                        : certRequests.map(r=>(
-                          <tr key={r.id}>
-                            <td><div className="ad-cell-user"><div className="ad-av av-student">{initials(r.student?.full_name)}</div><div><div className="ad-user-name">{r.student?.full_name}</div><div className="ad-user-email">{r.student?.email}</div></div></div></td>
-                            <td>{r.teacher?.full_name||"—"}</td>
-                            <td style={{textTransform:"capitalize"}}>{r.status}</td>
-                            <td>
-                              {r.status==="pending" ? (
-                                <div className="ad-btn-row">
-                                  <button className="btn-sm btn-act" onClick={()=>updateCertStatus(r.id,"approved")}>Approve</button>
-                                  <button className="btn-sm btn-del" onClick={()=>updateCertStatus(r.id,"rejected")}>{I.Trash}</button>
-                                </div>
-                              ) : <span style={{color:"var(--muted)",fontSize:".75rem"}}>Processed</span>}
-                            </td>
-                          </tr>
-                        ))}
-                    </tbody>
-                  </table>
-                </div>
+              
               </>
             )}
 
@@ -1459,14 +1759,42 @@ export default function AdminDashboard() {
                   <div className="ad-page-head-text">
                     <div className="ad-page-eyebrow">Rankings</div>
                     <h1 className="ad-page-title">Student Leaderboard</h1>
-                    <p className="ad-page-sub">All-time rankings — click any student to generate a certificate</p>
+                    <p className="ad-page-sub">
+                      {lbScopeLabel} — all-time rankings by points; click a student to generate a certificate. Section tabs filter within this program.
+                    </p>
+                    <div className="ad-scope-row">
+                      <span className="ad-scope-label">Leaderboard filter</span>
+                      <div className="ad-scope-tabs">
+                        <button
+                          type="button"
+                          className={`ad-scope-tab${leaderboardScope === "all" ? " on" : ""}`}
+                          onClick={() => setLeaderboardScope("all")}
+                        >
+                          All
+                        </button>
+                        <button
+                          type="button"
+                          className={`ad-scope-tab${leaderboardScope === "college" ? " on" : ""}`}
+                          onClick={() => setLeaderboardScope("college")}
+                        >
+                          College
+                        </button>
+                        <button
+                          type="button"
+                          className={`ad-scope-tab${leaderboardScope === "seniorhigh" ? " on" : ""}`}
+                          onClick={() => setLeaderboardScope("seniorhigh")}
+                        >
+                          Senior High School
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
                 <div className="ad-stat-row" style={{gridTemplateColumns:"repeat(3,1fr)"}}>
                   {[
-                    {icon:I.Users,  label:"Total Students", value:leaderboard.length,                        grad:"grad-gold"},
-                    {icon:I.Trophy, label:"Top Score",       value:leaderboard[0]?.points?.toLocaleString()||"—", grad:"grad-green"},
+                    {icon:I.Users,  label:"Total Students", value:leaderboardByProgram.length,                        grad:"grad-gold"},
+                    {icon:I.Trophy, label:"Top Score",       value:leaderboardByProgram[0]?.points?.toLocaleString()||"—", grad:"grad-green"},
                     {icon:I.Chart,  label:"Sections",        value:sections.length,                           grad:"grad-blue"},
                   ].map((s,i)=>(
                     <div key={i} className={`ad-stat-card ${s.grad}`}>
@@ -1482,10 +1810,16 @@ export default function AdminDashboard() {
                     <div className="ad-chart-card">
                       <div className="ad-chart-eyebrow">Momentum Trend</div>
                       <div className="ad-chart-title">Improving Students Over Time</div>
-                      <div className="ad-chart-sub">Students with ≥80 pts or ≥2-day streak, tracked across checkpoints</div>
+                      <div className="ad-chart-sub">
+                        {leaderboardScope === "all"
+                          ? "Students with ≥80 pts or ≥2-day streak. C1–C4 from quiz history; Now uses live totals."
+                          : "Estimated trend from the current improving-student count for this program (same approach as Overview)."}
+                        {" "}
+                        <span style={{ color: "var(--muted)" }}>({lbScopeLabel})</span>
+                      </div>
                       <LineChart
                         xAxis={[{scaleType:"point",data:["C1","C2","C3","C4","Now"],tickLabelStyle:{fill:"#b87a80",fontSize:11}}]}
-                        series={[{data:momentumCheckpoints,curve:"natural",color:"#d4a017",label:"Students",area:true,showMark:true}]}
+                        series={[{data:lbMomentumLineData,curve:"natural",color:"#d4a017",label:"Students",area:true,showMark:true}]}
                         height={230}
                         margin={{top:16,right:16,bottom:44,left:36}}
                         sx={chartSx}
@@ -1494,12 +1828,12 @@ export default function AdminDashboard() {
                     <div className="ad-chart-card">
                       <div className="ad-chart-eyebrow">Section Breakdown</div>
                       <div className="ad-chart-title">Improvement by Section</div>
-                      <div className="ad-chart-sub">Progressing vs. needs-attention count per section</div>
+                      <div className="ad-chart-sub">Progressing vs. needs-attention count per section · {lbScopeLabel}</div>
                       <LineChart
-                        xAxis={[{scaleType:"point",data:sectionLabels.length?sectionLabels:["No section"],tickLabelStyle:{fill:"#b87a80",fontSize:11}}]}
+                        xAxis={[{scaleType:"point",data:lbScopeSectionLabels.length?lbScopeSectionLabels:["No section"],tickLabelStyle:{fill:"#b87a80",fontSize:11}}]}
                         series={[
-                          {data:stackedIncreasing.length?stackedIncreasing:[0],area:true,stack:"total",label:"Progressing",color:"#22c55e",curve:"natural"},
-                          {data:stackedLow.length?stackedLow:[0],area:true,stack:"total",label:"Needs Attention",color:"#d4a017",curve:"natural"},
+                          {data:lbScopeStackedIncreasing.length?lbScopeStackedIncreasing:[0],area:true,stack:"total",label:"Progressing",color:"#22c55e",curve:"natural"},
+                          {data:lbScopeStackedLow.length?lbScopeStackedLow:[0],area:true,stack:"total",label:"Needs Attention",color:"#d4a017",curve:"natural"},
                         ]}
                         height={230}
                         margin={{top:16,right:16,bottom:44,left:36}}
@@ -1512,7 +1846,7 @@ export default function AdminDashboard() {
                 <div className="ad-panel">
                   <div className="ad-panel-head">
                     <div style={{display:"flex",alignItems:"center",gap:".85rem",flexWrap:"wrap"}}>
-                      <span className="ad-panel-title">Rankings</span>
+                      <span className="ad-panel-title">Rankings{leaderboardScope !== "all" ? ` (${lbScopeLabel})` : ""}</span>
                       <div className="ad-lb-tabs">
                         <button className={`ad-lb-tab${lbFilter==="all"?" on":""}`} onClick={()=>setLbFilter("all")}>All</button>
                         {sections.map(s=>(

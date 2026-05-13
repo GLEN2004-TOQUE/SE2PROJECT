@@ -1,7 +1,47 @@
 const pdfParse = require("pdf-parse");
 const mammoth = require("mammoth");
+const JSZip = require("jszip");
+const WordExtractor = require("word-extractor");
 const path = require("path");
-const { supabase, supabaseAdmin } = require("../supabaseClient");
+const { supabaseAdmin } = require("../supabaseClient");
+
+const wordExtractor = new WordExtractor();
+
+async function extractPptxText(buffer) {
+  const zip = await JSZip.loadAsync(buffer);
+  const slidePaths = Object.keys(zip.files)
+    .filter((n) => /^ppt\/slides\/slide\d+\.xml$/i.test(n))
+    .sort((a, b) => {
+      const na = parseInt(String(a.match(/slide(\d+)/i)?.[1] || "0"), 10);
+      const nb = parseInt(String(b.match(/slide(\d+)/i)?.[1] || "0"), 10);
+      return na - nb;
+    });
+
+  const parts = [];
+  for (const slidePath of slidePaths) {
+    const entry = zip.file(slidePath);
+    if (!entry) continue;
+    const xml = await entry.async("string");
+    const texts = [];
+    for (const m of xml.matchAll(/<a:t[^>]*>([^<]*)<\/a:t>/gi)) {
+      if (m[1]) texts.push(m[1]);
+    }
+    if (texts.length === 0) {
+      for (const m of xml.matchAll(/<p:t[^>]*>([^<]*)<\/p:t>/gi)) {
+        if (m[1]) texts.push(m[1]);
+      }
+    }
+    parts.push(texts.join(" "));
+  }
+  return parts.join("\n\n").trim();
+}
+
+async function extractWordBinaryBuffer(buffer) {
+  const doc = await wordExtractor.extract(buffer);
+  return [doc.getBody(), doc.getFootnotes(), doc.getEndnotes()]
+    .filter((s) => s && String(s).trim())
+    .join("\n");
+}
 
 const uploadLecture = async (req, res) => {
   try {
@@ -15,7 +55,6 @@ const uploadLecture = async (req, res) => {
     let extractedText = "";
     const ext = path.extname(file.originalname).toLowerCase();
 
-    // Extract text based on file type
     if (ext === ".pdf") {
       const data = await pdfParse(file.buffer);
       extractedText = data.text;
@@ -23,9 +62,35 @@ const uploadLecture = async (req, res) => {
       const result = await mammoth.extractRawText({ buffer: file.buffer });
       extractedText = result.value;
     } else if (ext === ".pptx") {
-      // PPTX uploads are currently not supported for text extraction.
-      // Reject the request instead of storing placeholder content that would break AI generation.
-      return res.status(400).json({ message: "PPTX text extraction not supported yet. Please upload a PDF or DOCX file instead." });
+      extractedText = await extractPptxText(file.buffer);
+    } else if (ext === ".dot") {
+      extractedText = await extractWordBinaryBuffer(file.buffer);
+    } else if (ext === ".wps") {
+      let fromMammoth = "";
+      try {
+        const result = await mammoth.extractRawText({ buffer: file.buffer });
+        fromMammoth = (result.value || "").trim();
+      } catch {
+        fromMammoth = "";
+      }
+      if (fromMammoth.length > 0) {
+        extractedText = fromMammoth;
+      } else {
+        try {
+          extractedText = await extractWordBinaryBuffer(file.buffer);
+        } catch {
+          return res.status(400).json({
+            message:
+              "Could not read text from this WPS file. Save as DOCX or PDF in WPS Office and upload again.",
+          });
+        }
+        if (!extractedText || !String(extractedText).trim()) {
+          return res.status(400).json({
+            message:
+              "Could not read text from this WPS file. Save as DOCX or PDF in WPS Office and upload again.",
+          });
+        }
+      }
     } else {
       return res.status(400).json({ message: "Unsupported file type" });
     }
@@ -58,9 +123,9 @@ const uploadLecture = async (req, res) => {
         file_url: fileUrl,
         extracted_text: extractedText,
         teacher_id: teacherId,
-        file_path: storagePath,           // the path used in storage
-        file_size: file.size,             // bytes
-        file_type: file.mimetype,         // e.g., application/pdf
+        file_path: storagePath, // the path used in storage
+        file_size: file.size, // bytes
+        file_type: file.mimetype, // e.g., application/pdf
       },
     ]);
 
@@ -80,10 +145,10 @@ const uploadLecture = async (req, res) => {
 const getLectures = async (req, res) => {
   try {
     const { data: lectures, error } = await supabaseAdmin
-      .from('lectures')
-      .select('*')
-      .eq('teacher_id', req.user.id)
-      .order('created_at', { ascending: false });
+      .from("lectures")
+      .select("*")
+      .eq("teacher_id", req.user.id)
+      .order("created_at", { ascending: false });
 
     if (error) return res.status(400).json({ message: error.message });
 
@@ -100,36 +165,33 @@ const deleteLecture = async (req, res) => {
 
     // Fetch lecture to ensure ownership and get file_path
     const { data: lecture, error: fetchError } = await supabaseAdmin
-      .from('lectures')
-      .select('file_path, teacher_id')
-      .eq('id', id)
-      .eq('teacher_id', req.user.id)
+      .from("lectures")
+      .select("file_path, teacher_id")
+      .eq("id", id)
+      .eq("teacher_id", req.user.id)
       .single();
 
     if (fetchError || !lecture) {
-      return res.status(404).json({ message: 'Lecture not found or unauthorized' });
+      return res.status(404).json({ message: "Lecture not found or unauthorized" });
     }
 
     // Delete file from storage
     const { error: deleteStorageError } = await supabaseAdmin.storage
-      .from('lectures')
+      .from("lectures")
       .remove([lecture.file_path]);
 
     if (deleteStorageError) {
-      console.error('Storage delete error:', deleteStorageError);
+      console.error("Storage delete error:", deleteStorageError);
       // Continue to delete from DB even if storage delete fails? Usually we want to delete both.
       // We'll still try to delete from DB but inform user.
     }
 
     // Delete from DB
-    const { error: dbError } = await supabaseAdmin
-      .from('lectures')
-      .delete()
-      .eq('id', id);
+    const { error: dbError } = await supabaseAdmin.from("lectures").delete().eq("id", id);
 
     if (dbError) return res.status(400).json({ message: dbError.message });
 
-    res.json({ message: 'Lecture deleted successfully' });
+    res.json({ message: "Lecture deleted successfully" });
   } catch (err) {
     console.error("Delete lecture error:", err);
     res.status(500).json({ message: err.message });

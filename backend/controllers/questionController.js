@@ -2,9 +2,9 @@ const aiService = require('../services/aiService');
 
 async function generateQuestionsHandler(req, res) {
   try {
-    const { text, type = "multiple-choice", count = 5 } = req.body;
+    const { text, type = "multiple-choice", count = 5, difficulty = "medium" } = req.body;
     
-    const questions = await aiService.generateQuestions(text, type, count);
+    const questions = await aiService.generateQuestions(text, type, count, difficulty);
     
     const status = aiService.getStatus();
     console.log('Current model status:', status);

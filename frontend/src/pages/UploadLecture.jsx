@@ -283,11 +283,19 @@ export default function UploadLecture() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
 
+  const allowedName = (name) =>
+    /\.(pdf|docx|pptx|wps|dot)$/i.test(name || "");
+
   const handleDrop = (e) => {
     e.preventDefault();
     setDragOver(false);
     const dropped = e.dataTransfer.files[0];
-    if (dropped) setFile(dropped);
+    if (!dropped) return;
+    if (!allowedName(dropped.name)) {
+      setError("Please use a PDF, DOCX, PPTX, WPS, or DOT file.");
+      return;
+    }
+    setFile(dropped);
   };
 
   const handleSubmit = async (e) => {
@@ -311,9 +319,11 @@ export default function UploadLecture() {
 
   const fileEmoji = (f) => {
     if (!f) return null;
-    if (f.name.endsWith(".pdf")) return "📕";
-    if (f.name.endsWith(".docx")) return "📘";
-    if (f.name.endsWith(".pptx")) return "📊";
+    const n = f.name.toLowerCase();
+    if (n.endsWith(".pdf")) return "📕";
+    if (n.endsWith(".docx") || n.endsWith(".dot")) return "📘";
+    if (n.endsWith(".pptx")) return "📊";
+    if (n.endsWith(".wps")) return "📝";
     return "📄";
   };
 
@@ -357,7 +367,7 @@ export default function UploadLecture() {
               <span className="ul-welcome-tag-dot" /> Lecture Management
             </div>
             <h1 className="ul-title">Upload Lecture</h1>
-            <p className="ul-sub">Share your materials — PDF, DOCX, or PPTX</p>
+            <p className="ul-sub">Share your materials — PDF, DOCX, PPTX, WPS, or DOT</p>
           </div>
 
           {/* Form card */}
@@ -388,8 +398,17 @@ export default function UploadLecture() {
               >
                 <input
                   type="file"
-                  accept=".pdf,.docx,.pptx"
-                  onChange={e => { setFile(e.target.files[0]); setError(""); }}
+                  accept=".pdf,.docx,.pptx,.wps,.dot"
+                  onChange={e => {
+                    const f = e.target.files[0];
+                    if (f && !allowedName(f.name)) {
+                      setError("Please use a PDF, DOCX, PPTX, WPS, or DOT file.");
+                      e.target.value = "";
+                      return;
+                    }
+                    setFile(f || null);
+                    setError("");
+                  }}
                   required={!file}
                 />
                 <div className={`ul-drop-icon ${file ? "has-file" : ""}`}>
@@ -411,6 +430,8 @@ export default function UploadLecture() {
                       <span className="ul-type-chip">PDF</span>
                       <span className="ul-type-chip">DOCX</span>
                       <span className="ul-type-chip">PPTX</span>
+                      <span className="ul-type-chip">WPS</span>
+                      <span className="ul-type-chip">DOT</span>
                     </div>
                   </>
                 )}
