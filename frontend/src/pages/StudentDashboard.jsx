@@ -75,8 +75,8 @@ const Styles = () => (
       padding: 0 2rem; height:62px;
       background: rgba(26,10,10,.82);
       backdrop-filter: blur(18px) saturate(1.4);
-      border-bottom: 1px solid rgba(200,160,50,.12);
-      box-shadow: 0 1px 0 rgba(200,160,50,.06) inset, 0 4px 20px rgba(0,0,0,.4);
+      border-bottom: 1px solid rgba(var(--tier-rgb),.18);
+      box-shadow: 0 1px 0 rgba(var(--tier-rgb),.08) inset, 0 4px 20px rgba(0,0,0,.4);
       animation: slideDown .4s ease both;
     }
     .sd-logo {
@@ -119,20 +119,30 @@ const Styles = () => (
     /* ── Layout ── */
     .sd-layout {
       position:relative; z-index:1;
-      display:grid; grid-template-columns:210px 1fr;
-      gap:1.2rem; max-width:1280px; margin:0 auto; padding:1.4rem;
+      max-width:1280px; margin:0 auto; padding:1.2rem 1.2rem 3rem;
     }
-
-    /* ── Sidebar ── */
-    .sd-side {
-      background: rgba(255,255,255,.04);
-      backdrop-filter: blur(18px) saturate(1.4);
-      border: 1px solid rgba(200,160,50,.12);
-      border-radius: 16px;
-      padding: 1rem .75rem;
-      height: fit-content;
-      position: sticky; top:76px;
-      box-shadow: 0 8px 32px rgba(0,0,0,.3);
+    .sd-topbar-left {
+      display:flex; align-items:center; gap:1rem; flex-wrap:wrap;
+    }
+    .sd-topnav {
+      display:flex; gap:.65rem; flex-wrap:wrap; align-items:center;
+    }
+    .sd-topnav-item {
+      padding:.45rem .9rem; border-radius:999px;
+      border:1px solid rgba(255,255,255,.12);
+      background:rgba(255,255,255,.05);
+      color:#f5e6c8; font-size:.82rem; font-weight:500;
+      transition:all .15s;
+      cursor:pointer;
+    }
+    .sd-topnav-item:hover,
+    .sd-topnav-item.active {
+      background:rgba(var(--tier-rgb),.22);
+      border-color:rgba(var(--tier-rgb),.35);
+      color:#fff;
+    }
+    .sd-section-subject {
+      display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:1rem; margin-bottom:1.5rem;
     }
     .sd-side-label {
       font-size:.62rem; letter-spacing:.14em; text-transform:uppercase;
@@ -186,6 +196,175 @@ const Styles = () => (
       display:inline-flex; align-items:center; gap:.3rem;
       padding:.22rem .75rem; border-radius:7px; font-size:.7rem; font-weight:500;
     }
+    .sd-hero-grid {
+      display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:1rem; margin-bottom:1.75rem;
+    }
+    .sd-hero-card {
+      position:relative; overflow:hidden;
+      padding:1.35rem; border-radius:20px;
+      background: linear-gradient(180deg, rgba(var(--tier-rgb),.12), rgba(255,255,255,.03));
+      border: 1px solid rgba(var(--tier-rgb),.16);
+      box-shadow: 0 14px 40px rgba(0,0,0,.18);
+    }
+    .sd-player-rank-card {
+      margin-bottom:1.5rem;
+      padding:1.45rem 1.5rem;
+    }
+    .sd-player-rank-title {
+      display:flex; justify-content:space-between; align-items:flex-start; gap:1rem;
+      flex-wrap:wrap;
+      margin-bottom:1.15rem;
+    }
+    .sd-player-rank-title h3 {
+      margin:0; font-size:1.1rem; color:#f5e6c8;
+    }
+    .sd-player-rank-title p {
+      margin:0; color:rgba(240,220,155,.78); line-height:1.6;
+      max-width:520px;
+    }
+    .sd-player-rank-body {
+      display:flex; flex-direction:column; gap:1rem;
+    }
+    .sd-player-rank-main {
+      display:flex; flex-direction:column; gap:.75rem;
+    }
+    .sd-player-rank-summary {
+      display:flex; align-items:center; justify-content:space-between; gap:.75rem;
+      flex-wrap:wrap;
+    }
+    .sd-player-rank-summary .rank-info {
+      display:flex; align-items:center; gap:.6rem;
+      flex-wrap:wrap;
+    }
+    .sd-player-rank-summary .rank-info div {
+      color:#f5e6c8;
+    }
+    .sd-player-rank-summary .rank-info strong {
+      font-size:1.7rem; font-weight:700;
+    }
+    .sd-hero-card::after {
+      content:''; position:absolute; inset:0;
+      background: radial-gradient(circle at top right, rgba(200,160,70,.14), transparent 40%);
+      pointer-events:none;
+    }
+    .sd-hero-card h3 {
+      margin:0 0 .55rem; font-size:1rem; color:#f5e6c8;
+    }
+    .sd-hero-card p {
+      margin:0; color:rgba(240,220,155,.82);
+      line-height:1.6;
+    }
+    .sd-progress-meter {
+      margin-top:1rem; height:12px; border-radius:999px;
+      background: rgba(255,255,255,.08); overflow:hidden;
+      border:1px solid rgba(200,160,50,.18);
+    }
+    .sd-progress-bar {
+      height:100%; border-radius:999px;
+      background: linear-gradient(90deg, #f3dc6d 0%, #d18d0f 100%);
+      box-shadow: 0 0 15px rgba(200,160,40,.25);
+      transition: width .4s ease;
+    }
+    .sd-quest-banner {
+      padding:.95rem 1rem; border-radius:16px;
+      background: linear-gradient(135deg, rgba(var(--tier-rgb),.18), rgba(120,20,20,.1));
+      border:1px dashed rgba(var(--tier-rgb),.18);
+      color:#f5e6c8; font-size:.85rem; font-weight:500;
+      display:flex; align-items:center; gap:.75rem;
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.03);
+    }
+    .sd-quest-pill {
+      display:inline-flex; align-items:center; gap:.35rem;
+      padding:.28rem .65rem; border-radius:999px;
+      background:rgba(255,255,255,.08); color:#f5e6c8;
+      font-size:.74rem; font-weight:600;
+    }
+    .sd-hero-badge {
+      display:inline-flex; align-items:center; gap:.3rem;
+      padding:.28rem .75rem; border-radius:14px;
+      background:rgba(200,160,40,.16); color:#f5e6c8;
+      font-size:.78rem; font-weight:600;
+    }
+    .sd-tier-system {
+      padding:1.35rem 1.25rem 1.2rem;
+      border-radius:22px;
+      background: linear-gradient(135deg, rgba(var(--tier-rgb),.12), rgba(255,255,255,.03));
+      border: 1px solid rgba(var(--tier-rgb),.18);
+      box-shadow: 0 18px 55px rgba(0,0,0,.2);
+      margin-bottom:1.5rem;
+    }
+    .sd-tier-header {
+      display:flex; align-items:flex-start; justify-content:space-between; gap:1rem;
+      flex-wrap:wrap;
+    }
+    .sd-tier-header h2 { margin:0; }
+    .sd-tier-row {
+      display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:1rem; margin-top:1rem;
+    }
+    .sd-tier-card {
+      padding:1rem; border-radius:18px;
+      background: rgba(255,255,255,.06);
+      border:1px solid rgba(255,255,255,.08);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.02);
+      transition: transform .25s ease, border-color .25s ease, box-shadow .25s ease;
+    }
+    .sd-tier-card.current {
+      border-color: rgba(var(--tier-rgb),.45);
+      background: rgba(var(--tier-rgb),.18);
+      box-shadow: 0 16px 45px rgba(0,0,0,.18);
+      transform: translateY(-1px);
+    }
+    .sd-tier-card h4 {
+      margin:0; font-size:1rem; color:#f5e6c8; display:flex; align-items:center; gap:.5rem;
+    }
+    .sd-tier-card p {
+      margin:.75rem 0 0; color:rgba(240,220,155,.82); line-height:1.6; font-size:.84rem;
+    }
+    .sd-tier-card .sd-tier-req {
+      margin-top:.75rem; font-size:.78rem; color:rgba(200,170,100,.8);
+    }
+    .sd-tier-card .sd-tier-reward {
+      margin-top:.35rem; font-size:.82rem; color:rgba(255,255,255,.85);
+    }
+    .sd-section-subject {
+      display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-bottom:1.5rem;
+    }
+    .sd-section-card {
+      padding:1rem 1.15rem; border-radius:18px;
+      background: rgba(255,255,255,.045);
+      border:1px solid rgba(var(--tier-rgb),.14);
+      box-shadow: 0 12px 30px rgba(0,0,0,.15);
+    }
+    .sd-section-card h4 {
+      margin:0 0 .55rem; font-size:.92rem; color:#f5e6c8;
+    }
+    .sd-section-card p {
+      margin:0; color:rgba(240,220,155,.82); font-size:.84rem; line-height:1.6;
+    }
+    .sd-section-card span {
+      display:inline-flex; align-items:center; gap:.45rem;
+      color:#f5e6c8; font-weight:600; margin-top:.85rem; font-size:.84rem;
+    }
+    .sd-tier-chip {
+      display:inline-flex; align-items:center; gap:.3rem;
+      padding:.32rem .75rem; border-radius:999px;
+      border:1px solid rgba(200,160,50,.15);
+      background:rgba(255,255,255,.05); color:#f5e6c8;
+      font-size:.78rem; font-weight:600;
+    }
+    .sd-reward-note {
+      display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:.75rem;
+      margin-top:1rem; color:rgba(240,220,155,.82); font-size:.9rem;
+    }
+    .sd-reward-note strong { color:#fff; }
+    .sd-reward-pill {
+      display:inline-flex; align-items:center; gap:.35rem;
+      padding:.35rem .75rem; border-radius:999px;
+      background:rgba(255,255,255,.08); border:1px solid rgba(var(--tier-rgb),.25);
+      color:#f5e6c8; font-weight:600; font-size:.82rem;
+    }
+    }
+    .sd-tier-chip svg { display:block; }
     .sd-badge-course  { background:rgba(147,130,200,.1); color:#c4b5fd; border:1px solid rgba(147,130,200,.2); }
     .sd-badge-section { background:rgba(200,160,40,.1); color:#e8c878; border:1px solid rgba(200,160,40,.22); }
 
@@ -214,6 +393,32 @@ const Styles = () => (
     .sd-teacher-name  { font-family:'Playfair Display',serif; font-size:1.05rem; font-weight:600; color:#f5e6c8; }
     .sd-teacher-email { font-size:.74rem; color:rgba(200,170,100,.4); font-family:'DM Mono',monospace; margin-top:.12rem; }
     .sd-teacher-tier  {
+    .sd-teacher-header {
+      display:flex; align-items:center; justify-content:space-between; gap:.85rem; flex-wrap:wrap;
+    }
+    .sd-teacher-pagination {
+      display:flex; align-items:center; gap:.55rem; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.08);
+      border-radius:999px; padding:.35rem .55rem;
+      color:#f5e6c8; font-size:.78rem;
+    }
+    .sd-teacher-page-btn {
+      border:none; background:transparent; color:#f5e6c8; padding:.4rem .7rem; border-radius:999px;
+      cursor:pointer; transition:all .15s;
+    }
+    .sd-teacher-page-btn:hover:not(:disabled) { background:rgba(255,255,255,.08); }
+    .sd-teacher-page-btn:disabled { opacity:.35; cursor:not-allowed; }
+    .sd-popup-alert {
+      display:flex; align-items:center; justify-content:space-between; gap:1rem;
+      background:rgba(255,255,255,.08); border:1px solid rgba(200,160,50,.2);
+      color:#f5e6c8; padding:1rem 1.2rem; border-radius:14px;
+      box-shadow:0 8px 24px rgba(0,0,0,.18); margin-bottom:1rem;
+    }
+    .sd-popup-close {
+      border:none; color:#fff; background:rgba(200,160,50,.18);
+      padding:.45rem .85rem; border-radius:999px; cursor:pointer;
+      font-size:.78rem; font-weight:600;
+    }
+    .sd-popup-close:hover { background:rgba(200,160,50,.28); }
       margin-left:auto; font-size:.72rem; font-weight:500;
       padding:.22rem .7rem; border-radius:8px;
       background:rgba(147,130,200,.1); color:#c4b5fd; border:1px solid rgba(147,130,200,.2);
@@ -415,13 +620,22 @@ const Styles = () => (
     }
 
     /* ── Responsive ── */
+    @media(max-width:1024px){
+      .sd-hero-grid { grid-template-columns:1fr; }
+    }
     @media(max-width:760px){
-      .sd-layout { grid-template-columns:1fr; padding:.85rem; }
-      .sd-side { position:static; }
+      .sd-layout { padding:.85rem; }
       .sd-stats { grid-template-columns:1fr 1fr; }
       .sd-analytics-grid { grid-template-columns:1fr; }
       .sd-settings-grid { grid-template-columns:1fr; }
-      .sd-topbar { padding:0 1rem; }
+      .sd-topbar {
+        padding:0 1rem; flex-direction:column; align-items:flex-start;
+        height:auto; gap:.85rem;
+      }
+      .sd-topbar-left { width:100%; justify-content:space-between; }
+      .sd-topbar-right { width:100%; justify-content:space-between; flex-wrap:wrap; }
+      .sd-topnav { width:100%; }
+      .sd-topnav-item { flex:1 1 auto; min-width:120px; }
       .sd-name { font-size:1.65rem; }
     }
   `}</style>
@@ -431,6 +645,61 @@ const initials = (name = "") =>
   name.split(" ").slice(0, 2).map(n => n[0]).join("").toUpperCase() || "?";
 const rankClass = (i) => i === 0 ? "top1" : i === 1 ? "top2" : i === 2 ? "top3" : "";
 const rankEmoji = (i) => i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `#${i + 1}`;
+
+const TIER_DEFINITIONS = [
+  { id:"bronze", label:"Bronze", min:0, color:"#b36a2b", reward:"Classic Arcade Theme" },
+  { id:"silver", label:"Silver", min:500, color:"#c0c0c0", reward:"Silver Circuit Theme" },
+  { id:"gold",   label:"Gold",   min:1200, color:"#d4af37", reward:"Golden Arena Theme" },
+  { id:"platinum", label:"Platinum", min:2200, color:"#8bc5ff", reward:"Platinum Pulse Theme" },
+  { id:"diamond", label:"Diamond", min:3600, color:"#8ce6f2", reward:"Diamond Vault Theme" },
+];
+
+const findTierByLabel = (label) => {
+  if (!label) return TIER_DEFINITIONS[0];
+  return TIER_DEFINITIONS.find((tier) => tier.label.toLowerCase() === String(label).trim().toLowerCase()) || TIER_DEFINITIONS[0];
+};
+
+const hexToRgb = (hex) => {
+  const normalized = String(hex || "#f5e6c8").replace('#', '');
+  const r = parseInt(normalized.slice(0, 2), 16);
+  const g = parseInt(normalized.slice(2, 4), 16);
+  const b = parseInt(normalized.slice(4, 6), 16);
+  return `${r},${g},${b}`;
+};
+
+const TierIcon = ({ tier, size = 24 }) => {
+  const color = tier?.color || "#f5e6c8";
+  if (!tier) return null;
+
+  const shape = tier.id;
+  return (
+    <svg width={size} height={size} viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id={`tier-grad-${tier.id}`} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity="0.95" />
+          <stop offset="100%" stopColor="#1a0a0a" stopOpacity="0.2" />
+        </linearGradient>
+      </defs>
+      <circle cx="32" cy="32" r="28" fill={`url(#tier-grad-${tier.id})`} />
+      {shape === 'bronze' && (
+        <path d="M20 36l7-14 7 14 15-3-12 10 4 15-13-8-13 8 4-15-12-10 15 3Z" fill="rgba(255,255,255,0.92)" />
+      )}
+      {shape === 'silver' && (
+        <path d="M32 16l14 8v14l-14 10-14-10V24l14-8Zm0 6.5L22.75 28v8l9.25 6.5 9.25-6.5v-8L32 22.5Z" fill="rgba(255,255,255,0.92)" />
+      )}
+      {shape === 'gold' && (
+        <path d="M32 14l12.5 25H36l3.5 15L32 44l-7.5 10L28 39.5H19.5L32 14Z" fill="rgba(255,255,255,0.92)" />
+      )}
+      {shape === 'platinum' && (
+        <path d="M32 12 52 26 44 50 20 50 12 26 32 12Zm0 5.5L16 26l8 18h24l8-18-16-8.5Z" fill="rgba(255,255,255,0.92)" />
+      )}
+      {shape === 'diamond' && (
+        <path d="M20 22 32 12l12 10 8 22H12L20 22Zm6 3 6-5 6 5 5 14H21l5-14Z" fill="rgba(255,255,255,0.92)" />
+      )}
+    </svg>
+  );
+};
+
 const STUDENT_VIEW_STORAGE_KEY = "student_dashboard_view";
 
 const readStoredStudentView = () => {
@@ -460,18 +729,6 @@ const quizSubjectDisplay = (quiz) => {
 };
 
 /* ── Icons ── */
-const IconGrid = () => (
-  <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6">
-    <rect x="2" y="2" width="7" height="7" rx="1.5"/><rect x="11" y="2" width="7" height="7" rx="1.5"/>
-    <rect x="2" y="11" width="7" height="7" rx="1.5"/><rect x="11" y="11" width="7" height="7" rx="1.5"/>
-  </svg>
-);
-const IconSettings = () => (
-  <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6">
-    <circle cx="10" cy="10" r="2.5"/>
-    <path d="M10 2v2M10 16v2M2 10h2M16 10h2M4.22 4.22l1.42 1.42M14.36 14.36l1.42 1.42M4.22 15.78l1.42-1.42M14.36 5.64l1.42-1.42"/>
-  </svg>
-);
 const IconUser = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
     <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
@@ -490,6 +747,12 @@ export default function StudentDashboard() {
   const [quizzes, setQuizzes]           = useState([]);
   const [quizResults, setQuizResults]   = useState({});
   const [attendanceMap, setAttendanceMap] = useState({});
+  const [itemAnalysis, setItemAnalysis] = useState(null);
+  const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [analysisError, setAnalysisError] = useState("");
+  const [cachedAiAnalysis, setCachedAiAnalysis] = useState(null);
+  const [showAiExpiredPopup, setShowAiExpiredPopup] = useState(false);
+  const [teacherPage, setTeacherPage] = useState(0);
   /** Start true so overview does not flash "No teacher" while quizzes may still supply teacher fallback. */
   const [loadingQuizzes, setLoadingQuizzes] = useState(true);
   const [quizError, setQuizError]       = useState("");
@@ -499,6 +762,38 @@ export default function StudentDashboard() {
   const [pwMsg, setPwMsg] = useState("");
 
   const tokenUser = getUser();
+  const studentId = tokenUser?.id;
+  const isStudent = tokenUser?.role === "student";
+  const AI_RECOMMENDATION_TTL = 24 * 60 * 60 * 1000;
+  const aiAnalysisStorageKey = studentId ? `student_ai_recs_${studentId}` : null;
+
+  const getStoredAiAnalysisState = useCallback(() => {
+    if (!aiAnalysisStorageKey) return { itemAnalysis: null, expired: false };
+    try {
+      const raw = localStorage.getItem(aiAnalysisStorageKey);
+      if (!raw) return { itemAnalysis: null, expired: false };
+      const parsed = JSON.parse(raw);
+      if (!parsed?.timestamp || !parsed?.itemAnalysis) return { itemAnalysis: null, expired: false };
+      const age = Date.now() - parsed.timestamp;
+      if (age < AI_RECOMMENDATION_TTL) return { itemAnalysis: parsed.itemAnalysis, expired: false };
+      return { itemAnalysis: null, expired: true };
+    } catch {
+      return { itemAnalysis: null, expired: false };
+    }
+  }, [aiAnalysisStorageKey, AI_RECOMMENDATION_TTL]);
+
+  const storeAiAnalysisCache = useCallback((analysis) => {
+    if (!aiAnalysisStorageKey) return;
+    try {
+      localStorage.setItem(aiAnalysisStorageKey, JSON.stringify({ timestamp: Date.now(), itemAnalysis: analysis }));
+    } catch {}
+  }, [aiAnalysisStorageKey]);
+
+  const clearAiAnalysisCache = useCallback(() => {
+    if (!aiAnalysisStorageKey) return;
+    localStorage.removeItem(aiAnalysisStorageKey);
+    setCachedAiAnalysis(null);
+  }, [aiAnalysisStorageKey]);
 
   const loadLeaderboard = useCallback(async (type) => {
     setLbLoading(true);
@@ -544,6 +839,41 @@ export default function StudentDashboard() {
     } catch { setAttendanceMap({}); }
   }, []);
 
+  const loadItemAnalysis = useCallback(async () => {
+    setAnalysisLoading(true);
+    setAnalysisError("");
+    setShowAiExpiredPopup(false);
+    try {
+      const data = await apiFetch("/api/quiz/analysis");
+      const hasRecs = Array.isArray(data?.recommendations) && data.recommendations.length > 0;
+      const stored = getStoredAiAnalysisState();
+
+      if (hasRecs) {
+        setItemAnalysis(data || null);
+        setCachedAiAnalysis(data || null);
+        storeAiAnalysisCache(data);
+      } else {
+        if (stored.itemAnalysis) {
+          setCachedAiAnalysis(stored.itemAnalysis);
+        } else if (stored.expired) {
+          clearAiAnalysisCache();
+          setShowAiExpiredPopup(true);
+        }
+        setItemAnalysis(data || null);
+      }
+    } catch (err) {
+      setAnalysisError(err.message);
+      setItemAnalysis(null);
+    } finally {
+      setAnalysisLoading(false);
+    }
+  }, [clearAiAnalysisCache, getStoredAiAnalysisState, storeAiAnalysisCache]);
+
+  const displayedAiAnalysis = useMemo(() => {
+    if (itemAnalysis?.recommendations?.length) return itemAnalysis;
+    return cachedAiAnalysis || itemAnalysis;
+  }, [cachedAiAnalysis, itemAnalysis]);
+
   useEffect(() => {
     localStorage.setItem(STUDENT_VIEW_STORAGE_KEY, activeView);
   }, [activeView]);
@@ -568,8 +898,6 @@ export default function StudentDashboard() {
 
   useEffect(() => { loadLeaderboard(lbType); }, [lbType, loadLeaderboard]);
 
-  const studentId = tokenUser?.id;
-  const isStudent = tokenUser?.role === "student";
   useEffect(() => {
     if (!studentId || !isStudent) {
       setLoadingQuizzes(false);
@@ -578,7 +906,8 @@ export default function StudentDashboard() {
     loadQuizzes();
     loadResults();
     loadAttendance();
-  }, [studentId, isStudent, loadQuizzes, loadResults, loadAttendance]);
+    loadItemAnalysis();
+  }, [studentId, isStudent, loadQuizzes, loadResults, loadAttendance, loadItemAnalysis]);
 
   /** Prefer /api/admin/my-teacher; if empty (e.g. id type mismatch), derive teachers from assigned quizzes. */
   const teachersForOverview = useMemo(() => {
@@ -608,18 +937,32 @@ export default function StudentDashboard() {
   const teacherOverviewLoading =
     pageLoading || (myTeachers.length === 0 && loadingQuizzes);
 
-  const handleRefreshQuizzes = async () => { await loadQuizzes(); await loadResults(); await loadAttendance(); };
-  const handlePhotoPick = (e) => {
-    const file = e.target.files?.[0];
-    if (!file || !tokenUser?.id) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const src = String(reader.result || "");
-      setProfilePhoto(src);
-      localStorage.setItem(`student_photo_${tokenUser.id}`, src);
-    };
-    reader.readAsDataURL(file);
-  };
+  const TEACHERS_PER_PAGE = 4;
+  const teacherPageCount = Math.max(1, Math.ceil(teachersForOverview.length / TEACHERS_PER_PAGE));
+  const pagedTeachers = useMemo(
+    () => teachersForOverview.slice(teacherPage * TEACHERS_PER_PAGE, (teacherPage + 1) * TEACHERS_PER_PAGE),
+    [teacherPage, teachersForOverview]
+  );
+
+  useEffect(() => {
+    if (teacherPage >= teacherPageCount) {
+      setTeacherPage(0);
+    }
+  }, [teacherPage, teacherPageCount]);
+
+  const handleRefreshQuizzes = async () => { await loadQuizzes(); await loadResults(); await loadAttendance(); await loadItemAnalysis(); };
+
+  useEffect(() => {
+    if (!studentId) return;
+    const stored = getStoredAiAnalysisState();
+    if (stored.itemAnalysis) {
+      setCachedAiAnalysis(stored.itemAnalysis);
+    } else if (stored.expired) {
+      clearAiAnalysisCache();
+      setShowAiExpiredPopup(true);
+    }
+  }, [studentId, getStoredAiAnalysisState, clearAiAnalysisCache]);
+
   const handleChangePassword = async (e) => {
     e.preventDefault(); setPwMsg("");
     if (pwForm.next.length < 6) return setPwMsg("New password must be at least 6 characters.");
@@ -646,13 +989,25 @@ export default function StudentDashboard() {
   };
 
   const displayName   = profile?.full_name || "Student";
-  const firstName     = displayName.split(" ")[0];
   const avatarText    = initials(displayName);
   const currentUserId = tokenUser?.id;
   const mySection     = profile?.section || "";
   const myCourse      = profile?.course  || "";
   const completedQuizzes = quizzes.filter(q => !!quizResults[q.id]);
   const completionRate = quizzes.length ? Math.round((completedQuizzes.length / quizzes.length) * 100) : 0;
+  const currentPoints = Number(profile?.points || 0);
+  const currentTier = [...TIER_DEFINITIONS].reverse().find((tier) => currentPoints >= tier.min) || TIER_DEFINITIONS[0];
+  const nextTier = TIER_DEFINITIONS.find((tier) => tier.min > currentTier.min) || null;
+  const pointsToNextTier = nextTier ? Math.max(0, nextTier.min - currentPoints) : 0;
+  const tierProgress = nextTier ? Math.round(((currentPoints - currentTier.min) / (nextTier.min - currentTier.min)) * 100) : 100;
+  const levelNumber = Math.max(1, TIER_DEFINITIONS.indexOf(currentTier) + 1);
+  const currentReward = currentTier.reward;
+  const nextRewardText = nextTier ? `${nextTier.reward} theme at ${nextTier.min.toLocaleString()} XP` : "Max tier reached";
+  const currentTierRgb = hexToRgb(currentTier.color);
+  const rootStyle = {
+    "--tier-primary": currentTier.color,
+    "--tier-rgb": currentTierRgb,
+  };
   const scores = completedQuizzes.map(q => {
     const r = quizResults[q.id];
     return r?.total ? Math.round((r.score / r.total) * 100) : 0;
@@ -671,19 +1026,25 @@ export default function StudentDashboard() {
   return (
     <>
       <Styles />
-      <div className="sd-root">
+      <div className="sd-root" style={rootStyle}>
         <div className="deco-ring" />
         <div className="deco-ring deco-ring-2" />
 
         {/* ── Topbar ── */}
         <header className="sd-topbar">
-          <div className="sd-logo">
-            <div className="sd-logo-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.87L12 18.07 5.82 22 7 14.14 2 9.27l6.91-1.01z"/>
-              </svg>
+          <div className="sd-topbar-left">
+            <div className="sd-logo">
+              <div className="sd-logo-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.87L12 18.07 5.82 22 7 14.14 2 9.27l6.91-1.01z"/>
+                </svg>
+              </div>
+              QuizSystem
             </div>
-            QuizSystem
+            <div className="sd-topnav">
+              <button className={`sd-topnav-item ${activeView==="overview"?"active":""}`} onClick={()=>setActiveView("overview")}>Overview</button>
+              <button className={`sd-topnav-item ${activeView==="settings"?"active":""}`} onClick={()=>setActiveView("settings")}>Settings</button>
+            </div>
           </div>
           <div className="sd-topbar-right">
             <div className="sd-user-chip">
@@ -699,36 +1060,114 @@ export default function StudentDashboard() {
         </header>
 
         <div className="sd-layout">
-          {/* ── Sidebar ── */}
-          <aside className="sd-side">
-            <div className="sd-side-label">Navigation</div>
-            <div className={`sd-side-item ${activeView==="overview"?"active":""}`} onClick={()=>setActiveView("overview")}>
-              <IconGrid /> Overview
+          {showAiExpiredPopup && (
+            <div className="sd-popup-alert">
+              <span>⚠️ AI-generated recommendations have expired after 24 hours. New suggestions will appear after fresh quiz activity.</span>
+              <button className="sd-popup-close" onClick={() => setShowAiExpiredPopup(false)}>Dismiss</button>
             </div>
-            <div className={`sd-side-item ${activeView==="settings"?"active":""}`} onClick={()=>setActiveView("settings")}>
-              <IconSettings /> Settings
-            </div>
-          </aside>
-
-          {/* ── Main ── */}
-          <div className="sd-body">
+          )}
 
             {/* ══ OVERVIEW ══ */}
             {activeView === "overview" && (
               <>
-                {/* Welcome */}
-                <div className="sd-welcome">
-                  <div className="sd-welcome-tag">
-                    <span className="sd-welcome-tag-dot" /> Student Dashboard
+              
+                <div className="sd-section-subject">
+                  <div className="sd-section-card">
+                    <h4>Section</h4>
+                    <p>{mySection || "No section assigned yet."}</p>
+                    <span>📍 Class zone</span>
                   </div>
-                  <h1 className="sd-name">Hello, {firstName}! 👋</h1>
-                  <p className="sd-sub">Track your progress and compete with your classmates</p>
-                  {(myCourse || mySection) && (
-                    <div className="sd-badge-row">
-                      {myCourse  && <span className="sd-badge sd-badge-course">📚 {myCourse}</span>}
-                      {mySection && <span className="sd-badge sd-badge-section">🏫 {mySection}</span>}
+                  <div className="sd-section-card">
+                    <h4>Subject</h4>
+                    <p>{myCourse || "No subject info available."}</p>
+                    <span>🧠 Learning track</span>
+                  </div>
+                </div>
+
+                <div className="sd-tier-system glass-card">
+                  <div className="sd-tier-header">
+                    <div>
+                      <div className="sd-welcome-tag">
+                        <span className="sd-welcome-tag-dot" /> Tier Path
+                      </div>
+                      <h2 className="sd-section-title">See every tier and what it takes to unlock the next theme</h2>
+                      <p style={{margin:"0.75rem 0 0", color:"rgba(240,220,155,.82)", maxWidth:560}}>
+                        Track your current rank, compare every unlocked badge, and watch the dashboard style evolve as you level up.
+                      </p>
                     </div>
-                  )}
+                    <div className="sd-tier-chip">
+                      <TierIcon tier={currentTier} size={22} />
+                      {currentTier.label} • {currentPoints.toLocaleString()} XP
+                    </div>
+                  </div>
+                  <div className="sd-tier-row">
+                    {TIER_DEFINITIONS.map((tier) => {
+                      const isCurrent = tier.id === currentTier.id;
+                      const needed = tier.min <= currentPoints ? "Unlocked" : `${Math.max(0, tier.min - currentPoints).toLocaleString()} XP to unlock`;
+                      return (
+                        <div key={tier.id} className={`sd-tier-card ${isCurrent ? "current" : ""}`}>
+                          <h4><TierIcon tier={tier} size={18} /> {tier.label}</h4>
+                          <div className="sd-tier-req">{tier.min.toLocaleString()} XP tier threshold</div>
+                          <div className="sd-tier-reward">Unlocks: {tier.reward}</div>
+                          <p>{isCurrent ? "Current tier. Your dashboard theme is active." : needed}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="glass-card sd-hero-card sd-player-rank-card">
+                  <div className="sd-player-rank-title">
+                    <div>
+                      <h3>Player Rank</h3>
+                      <p>See your current tier, XP balance, and how close you are to the next unlock.</p>
+                    </div>
+                    <div className="sd-tier-chip">
+                      <TierIcon tier={currentTier} size={22} />
+                      {currentTier.label} • {currentPoints.toLocaleString()} XP
+                    </div>
+                  </div>
+                  <div className="sd-player-rank-body">
+                    <div className="sd-player-rank-summary">
+                      <div className="rank-info">
+                        <TierIcon tier={currentTier} size={30} />
+                        <div>
+                          <strong>{currentTier.label}</strong>
+                          <div style={{color:"rgba(200,170,100,.7)", marginTop:"0.2rem"}}>{currentPoints.toLocaleString()} XP</div>
+                        </div>
+                      </div>
+                      <div className="sd-tier-chip">Level {levelNumber}</div>
+                    </div>
+                    <div className="sd-progress-meter">
+                      <div className="sd-progress-bar" style={{width:`${tierProgress}%`}} />
+                    </div>
+                    <p style={{marginTop:"0.85rem",color:"rgba(240,220,155,.65)"}}>
+                      {nextTier ? `${pointsToNextTier.toLocaleString()} XP to reach ${nextTier.label}` : "You have reached the highest tier!"}
+                    </p>
+                    <div className="sd-reward-note">
+                      <span>Reward unlocked: <strong>{currentReward}</strong></span>
+                      <span className="sd-reward-pill">Next theme: {nextRewardText}</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="sd-hero-grid">
+                  <div className="glass-card sd-hero-card">
+                    <h3>Daily Quest</h3>
+                    <p>{completedQuizzes.length > 0 ? "Great work — keep stacking streaks and bonus points today." : "Start your first quiz quest to unlock your progress streak."}</p>
+                    <div className="sd-quest-banner">
+                      <span>🎯</span>
+                      <span>{completedQuizzes.length > 0 ? "Momentum is on your side. Keep going!" : "Take your first quiz to begin your journey."}</span>
+                    </div>
+                  </div>
+                  <div className="glass-card sd-hero-card">
+                    <h3>Achievement Hub</h3>
+                    <p>Earn badges for streaks, top scores, and on-time quiz completion.</p>
+                    <div style={{display:"flex",gap:"0.65rem",flexWrap:"wrap",marginTop:"1rem"}}>
+                      <span className="sd-quest-pill">🔥 {profile?.streak??0}-day streak</span>
+                      <span className="sd-quest-pill">🏆 {completedQuizzes.length} completed quests</span>
+                      <span className="sd-quest-pill">🌟 {completionRate}% completion</span>
+                    </div>
+                  </div>
                 </div>
 
                 {/* Teacher */}
@@ -745,10 +1184,31 @@ export default function StudentDashboard() {
                   </div>
                 ) : teachersForOverview.length > 0 ? (
                   <div style={{ display:"flex", flexDirection:"column", gap:"1rem", marginBottom:"1.75rem" }}>
-                    <div className="sd-teacher-label" style={{ marginBottom:0 }}>
-                      <span className="sd-teacher-label-dot" /> Your Teachers &amp; subjects
+                    <div className="sd-teacher-header">
+                      <div className="sd-teacher-label">
+                        <span className="sd-teacher-label-dot" /> Your Teachers &amp; subjects
+                      </div>
+                      {teacherPageCount > 1 && (
+                        <div className="sd-teacher-pagination">
+                          <button
+                            className="sd-teacher-page-btn"
+                            disabled={teacherPage === 0}
+                            onClick={() => setTeacherPage((page) => Math.max(0, page - 1))}
+                          >
+                            Prev
+                          </button>
+                          <span>{teacherPage + 1} / {teacherPageCount}</span>
+                          <button
+                            className="sd-teacher-page-btn"
+                            disabled={teacherPage + 1 >= teacherPageCount}
+                            onClick={() => setTeacherPage((page) => Math.min(teacherPageCount - 1, page + 1))}
+                          >
+                            Next
+                          </button>
+                        </div>
+                      )}
                     </div>
-                    {teachersForOverview.map((t) => {
+                    {pagedTeachers.map((t) => {
                       const fromTeacher = (t.subject && String(t.subject).trim())
                         ? String(t.subject).split("|").map((x) => x.trim()).filter(Boolean)
                         : [];
@@ -850,12 +1310,46 @@ export default function StudentDashboard() {
                   </div>
                 </div>
 
+                <div className="glass-card sd-stat" style={{ gridColumn: "1 / -1", animation: "floatUp .5s .15s ease both" }}>
+                  <p className="sd-stat-label">AI Study Recommendations</p>
+                  {analysisLoading ? (
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, color: "rgba(200,170,100,.65)", padding: "1.2rem 0" }}>
+                      <span className="sd-spinner" /> Analyzing your weak quiz areas…
+                    </div>
+                  ) : analysisError ? (
+                    <div className="sd-error">⚠ {analysisError}</div>
+                  ) : displayedAiAnalysis?.recommendations?.length ? (
+                    <div style={{ display: "grid", gap: ".95rem" }}>
+                      <p style={{ color: "rgba(200,170,100,.55)", fontSize: ".82rem", margin: 0 }}>
+                        {displayedAiAnalysis.weakItems?.length
+                          ? `Found ${displayedAiAnalysis.weakItems.length} weak quiz item${displayedAiAnalysis.weakItems.length === 1 ? "" : "s"}. Review these recommended topics.`
+                          : "Study recommendations from your lecture materials."}
+                      </p>
+                      {(displayedAiAnalysis.recommendations || []).map((rec, idx) => (
+                        <div key={idx} style={{ padding: "1rem", borderRadius: 14, background: "rgba(255,255,255,.04)", border: "1px solid rgba(200,160,50,.12)" }}>
+                          <div style={{ fontWeight: 600, color: "#f5e6c8", marginBottom: ".35rem" }}>{rec.topic}</div>
+                          <div style={{ fontSize: ".85rem", color: "rgba(200,170,100,.78)", lineHeight: 1.65 }}>{rec.reason}</div>
+                        </div>
+                      ))}
+                      {displayedAiAnalysis.analysisNote && (
+                        <div style={{ color: "rgba(200,170,100,.55)", fontSize: ".8rem" }}>
+                          {displayedAiAnalysis.analysisNote}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div style={{ color: "rgba(200,170,100,.55)", fontSize: ".9rem", padding: "1rem 0" }}>
+                      {displayedAiAnalysis?.message || itemAnalysis?.message || "No study suggestions available yet. Complete more quizzes to generate personalized recommendations."}
+                    </div>
+                  )}
+                </div>
+
                 <hr className="sd-divider" />
 
                 {/* Quizzes */}
                 <div style={{marginBottom:"1.75rem",animation:"floatUp .5s .15s ease both"}}>
                   <div className="sd-section-heading">
-                    <h2 className="sd-section-title">My Quizzes</h2>
+                    <h2 className="sd-section-title">My Quests</h2>
                     <div style={{display:"flex",alignItems:"center",gap:".65rem"}}>
                       <span className="sd-count-chip">{quizzes.length}</span>
                       <button className="sd-refresh-btn" onClick={handleRefreshQuizzes}>↻ Refresh</button>
@@ -903,7 +1397,7 @@ export default function StudentDashboard() {
                               </div>
                               <div className="sd-quiz-meta">
                                 <span className={`sd-status-badge ${quiz.status}`}>
-                                  {isActive ? "● Live Now" : quiz.status==="upcoming" ? "⏰ Upcoming" : "Ended"}
+                                  {isActive ? "● Live Now" : quiz.status==="upcoming" ? "⏰ Upcoming" : "🏁 Completed"}
                                 </span>
                                 {quiz.start_time && (
                                   <span className="sd-quiz-time">
@@ -937,7 +1431,7 @@ export default function StudentDashboard() {
                                 onClick={() => isActive && navigate(`/quiz/${quiz.id}`)}
                                 disabled={!isActive}
                               >
-                                {isActive ? "Take Quiz →" : quiz.status==="upcoming" ? "Not Yet Open" : "Closed"}
+                                {isActive ? "Start Quest →" : quiz.status==="upcoming" ? "Locked" : "Closed"}
                               </button>
                             )}
                           </div>
@@ -953,7 +1447,7 @@ export default function StudentDashboard() {
                 <div className="sd-lb">
                   <div className="sd-section-heading">
                     <div style={{display:"flex",alignItems:"center",gap:".65rem"}}>
-                      <h2 className="sd-section-title">Section Leaderboard</h2>
+                      <h2 className="sd-section-title">Hall of Fame</h2>
                       {mySection && <span className="sd-lb-section-chip">🏫 {mySection}</span>}
                     </div>
                     <div className="sd-lb-tabs">
@@ -996,7 +1490,10 @@ export default function StudentDashboard() {
                           </div>
                           <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:".15rem",flexShrink:0}}>
                             <span className="sd-lb-pts">{(u.points??0).toLocaleString()} pts</span>
-                            <span className="sd-lb-tier">{u.tier||"Beginner"}</span>
+                            <div style={{display:"inline-flex",alignItems:"center",gap:".3rem",justifyContent:"flex-end"}}>
+                              <TierIcon tier={findTierByLabel(u.tier)} size={16} />
+                              <span className="sd-lb-tier">{findTierByLabel(u.tier).label}</span>
+                            </div>
                           </div>
                         </div>
                       ))
@@ -1041,7 +1538,6 @@ export default function StudentDashboard() {
 
           </div>
         </div>
-      </div>
     </>
   );
 }

@@ -1512,7 +1512,7 @@ export default function AdminDashboard() {
                         }]}
                         height={230}
                         margin={{top:8,right:100,bottom:8,left:16}}
-                        slotProps={{legend:{direction:"column",position:{vertical:"middle",horizontal:"right"},itemMarkWidth:10,itemMarkHeight:10,markGap:6,itemGap:10,labelStyle:{fill:"#b87a80",fontSize:11}}}}
+                        slotProps={{legend:{direction:"vertical",position:{vertical:"middle",horizontal:"end"},itemMarkWidth:10,itemMarkHeight:10,markGap:6,itemGap:10,labelStyle:{fill:"#b87a80",fontSize:11}}}}
                         sx={chartSx}
                       />
                     </div>
@@ -1537,7 +1537,7 @@ export default function AdminDashboard() {
                               }]}
                               height={230}
                               margin={{top:8,right:120,bottom:8,left:16}}
-                              slotProps={{legend:{direction:"column",position:{vertical:"middle",horizontal:"right"},itemMarkWidth:10,itemMarkHeight:10,markGap:6,itemGap:10,labelStyle:{fill:"#b87a80",fontSize:11}}}}
+                              slotProps={{legend:{direction:"vertical",position:{vertical:"middle",horizontal:"end"},itemMarkWidth:10,itemMarkHeight:10,markGap:6,itemGap:10,labelStyle:{fill:"#b87a80",fontSize:11}}}}
                               sx={chartSx}
                             />
                           ) : (
@@ -1558,7 +1558,7 @@ export default function AdminDashboard() {
                               }]}
                               height={230}
                               margin={{top:8,right:130,bottom:8,left:16}}
-                              slotProps={{legend:{direction:"column",position:{vertical:"middle",horizontal:"right"},itemMarkWidth:10,itemMarkHeight:10,markGap:6,itemGap:10,labelStyle:{fill:"#b87a80",fontSize:11}}}}
+                              slotProps={{legend:{direction:"vertical",position:{vertical:"middle",horizontal:"end"},itemMarkWidth:10,itemMarkHeight:10,markGap:6,itemGap:10,labelStyle:{fill:"#b87a80",fontSize:11}}}}
                               sx={chartSx}
                             />
                           ) : (

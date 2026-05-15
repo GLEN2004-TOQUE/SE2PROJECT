@@ -1134,6 +1134,7 @@ export default function TeacherDashboard() {
   const [quizzesLoading, setQuizzesLoading] = useState(true);
   const [certLoading, setCertLoading] = useState(true);
   const [attendanceTimeline, setAttendanceTimeline] = useState([]);
+  const [attendanceRecords, setAttendanceRecords] = useState([]);
   const [deletingQuizId, setDeletingQuizId] = useState(null);
   const [requestingCertId, setRequestingCertId] = useState(null);
   const [assigningSubjectStudentId, setAssigningSubjectStudentId] = useState(null);
@@ -1245,9 +1246,16 @@ export default function TeacherDashboard() {
 
   const loadAttendanceTimeline = useCallback(async () => {
     try {
-      const data = await apiFetch("/api/quiz/attendance/teacher/timeline");
-      setAttendanceTimeline(Array.isArray(data) ? data : []);
-    } catch { setAttendanceTimeline([]); }
+      const [timeline, records] = await Promise.all([
+        apiFetch("/api/quiz/attendance/teacher/timeline"),
+        apiFetch("/api/quiz/attendance/teacher/records"),
+      ]);
+      setAttendanceTimeline(Array.isArray(timeline) ? timeline : []);
+      setAttendanceRecords(Array.isArray(records) ? records : []);
+    } catch {
+      setAttendanceTimeline([]);
+      setAttendanceRecords([]);
+    }
   }, []);
 
   const requestCertificate = async (studentId) => {
@@ -1776,6 +1784,41 @@ export default function TeacherDashboard() {
                         height={220}
                         sx={chartSx}
                       />
+                    </div>
+                    <div style={{ marginTop: 16 }}>
+                      <p className="td-stat-label" style={{ marginBottom: 8 }}>Recent Attendance</p>
+                      {attendanceRecords.length > 0 ? (
+                        <div style={{ maxHeight: 220, overflowY: "auto" }}>
+                          <table className="td-results-table" style={{ width: "100%" }}>
+                            <thead>
+                              <tr>
+                                <th style={{ width: "22%" }}>Date</th>
+                                <th style={{ width: "32%" }}>Quiz</th>
+                                <th style={{ width: "30%" }}>Student</th>
+                                <th style={{ width: "16%" }}>Status</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {attendanceRecords.slice(0, 8).map((record, idx) => (
+                                <tr key={`${String(record.timestamp)}-${idx}`}>
+                                  <td style={{ fontFamily: "'DM Mono', monospace" }}>
+                                    {new Date(record.timestamp).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                                  </td>
+                                  <td>{record.quizTitle}</td>
+                                  <td>{record.studentName}</td>
+                                  <td>
+                                    <span className={`td-pill ${record.status === "present" ? "td-pass-pill" : "td-fail-pill"}`} style={{ margin: 0 }}>
+                                      {record.status === "present" ? "Present" : "Absent"}
+                                    </span>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      ) : (
+                        <div style={{ color: "rgba(200,170,100,.6)", fontSize: ".9rem" }}>No attendance records yet.</div>
+                      )}
                     </div>
                   </div>
                   <div className="glass-card td-stat">

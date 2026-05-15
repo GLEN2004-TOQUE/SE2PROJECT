@@ -515,29 +515,50 @@ exports.getQuiz = async (req, res) => {
     console.log(`🔍 Student ${studentId} requesting quiz ${quizId}`);
 
     // 1. Check assignment (student_id type may differ from JWT id)
+    //    If the column type in Supabase doesn't match the provided id type,
+    //    `.eq("student_id", sid)` can error. We try a safe set of candidates,
+    //    and we only fail hard if *all* candidates error.
     let assignment = null;
-    let assignErr = null;
-    for (const sid of userIdCandidates(studentId)) {
+    let lastAssignErr = null;
+    const sidCandidates = authUserIdsNormalized({
+      user: { id: studentId },
+      dbUser: { id: studentId },
+    });
+
+    for (const sid of sidCandidates) {
       const { data, error } = await supabaseAdmin
         .from("quiz_assignments")
         .select("quiz_id")
         .eq("quiz_id", quizId)
         .eq("student_id", sid)
         .maybeSingle();
+
       if (error) {
-        assignErr = error;
-        break;
+        lastAssignErr = error;
+        continue;
       }
+
       if (data) {
         assignment = data;
         break;
       }
     }
 
-    if (assignErr) {
-      console.error("❌ Assignment check error:", assignErr);
-      return res.status(500).json({ error: "Failed to verify quiz assignment", details: assignErr.message });
+    // If we couldn't find an assignment but also didn't succeed in any lookup,
+    // return a clear verification failure.
+    if (!assignment && lastAssignErr) {
+      console.error("❌ Assignment check error:", {
+        studentId,
+        quizId,
+        sidCandidates,
+        lastAssignErr: lastAssignErr.message,
+      });
+      return res.status(500).json({
+        error: "Failed to verify quiz assignment",
+        details: lastAssignErr.message,
+      });
     }
+
 
     if (!assignment) {
       console.warn(`⚠️ No assignment found for student ${studentId} on quiz ${quizId}`);
@@ -833,18 +854,154 @@ exports.getAttendanceStats = async (req, res) => {
 exports.getMyAttendance = async (req, res) => {
   try {
     const userId = req.user.id;
-    const ids = userIdCandidates(userId);
-    if (!ids.length) return res.json([]);
+
+    // Be defensive about ID shapes (uuid/int/text).
+    // Also avoid sending totally weird values to `.in()`.
+    const ids = userIdCandidates(userId)
+      .filter((v) => v !== null && v !== "" && v !== undefined)
+      .slice(0, 5);
+
+    if (!ids.length) return res.status(200).json([]);
 
     const { data, error } = await supabaseAdmin
       .from("attendance")
       .select("quiz_id, status, timestamp")
       .in("user_id", ids)
       .order("timestamp", { ascending: false });
-    if (error) return res.status(400).json({ error: error.message });
-    res.json(data || []);
+
+    // Frontend expects this endpoint to be reliable.
+    // If the query fails (most commonly due to type mismatch), return empty list.
+    if (error) {
+      console.warn("getMyAttendance Supabase error:", error.message);
+      return res.status(200).json([]);
+    }
+
+    return res.status(200).json(data || []);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("getMyAttendance error:", err);
+    // Fail soft.
+    return res.status(200).json([]);
+  }
+};
+
+exports.getMyItemAnalysis = async (req, res) => {
+  try {
+    const studentId = req.user.id;
+    const { data: results, error: resultsError } = await supabaseAdmin
+      .from("results")
+      .select("quiz_id, score, total, submitted_at")
+      .eq("user_id", studentId)
+      .order("submitted_at", { ascending: false });
+
+    if (resultsError) {
+      // Fail soft: analysis endpoint should not hard-fail UI.
+      console.warn("getMyItemAnalysis results query error:", resultsError.message);
+      return res.status(200).json({
+        weakItems: [],
+        recommendations: [],
+        message: "No completed quizzes yet. Take a quiz to get personalized study suggestions.",
+      });
+    }
+
+    if (!results || results.length === 0) {
+      return res.json({
+        weakItems: [],
+        recommendations: [],
+        message: "No completed quizzes yet. Take a quiz to get personalized study suggestions.",
+      });
+    }
+
+    const weakItems = (results || [])
+      .map((r) => ({
+        quiz_id: r.quiz_id,
+        score: Number(r.score || 0),
+        total: Number(r.total || 0),
+        percentage: r.total > 0 ? Math.round((Number(r.score || 0) / Number(r.total || 0)) * 100) : 0,
+      }))
+      .filter((item) => item.total > 0 && item.percentage < 75)
+      .sort((a, b) => a.percentage - b.percentage);
+
+    if (!weakItems.length) {
+      return res.json({
+        weakItems: [],
+        recommendations: [],
+        message: "Nice work! Your quiz performance looks strong. Keep reviewing your course materials.",
+      });
+    }
+
+    const quizIds = [...new Set(weakItems.map((item) => item.quiz_id).filter(Boolean))];
+    const { data: quizzes, error: quizzesError } = await supabaseAdmin
+      .from("quizzes")
+      .select("id, title, lecture_id")
+      .in("id", quizIds);
+
+    if (quizzesError) {
+      console.warn("getMyItemAnalysis quizzes query error:", quizzesError.message);
+      return res.status(200).json({
+        weakItems: [],
+        recommendations: [],
+        message: "Unable to load study recommendations right now. Please try again later.",
+      });
+    }
+
+    const lectureIds = [...new Set((quizzes || []).map((q) => q.lecture_id).filter(Boolean))];
+    const lectureById = {};
+    let lectureData = [];
+
+    if (lectureIds.length) {
+      const { data: lectures, error: lectureError } = await supabaseAdmin
+        .from("lectures")
+        .select("id, title, extracted_text")
+        .in("id", lectureIds);
+      if (lectureError) {
+        console.error("Lecture fetch error:", lectureError);
+      } else if (Array.isArray(lectures)) {
+        lectures.forEach((lecture) => {
+          lectureById[lecture.id] = lecture;
+        });
+        lectureData = lectures;
+      }
+    }
+
+    const annotatedWeakItems = weakItems.map((item) => {
+      const quiz = (quizzes || []).find((q) => q.id === item.quiz_id) || {};
+      const lecture = lectureById[quiz.lecture_id] || {};
+      return {
+        quizId: item.quiz_id,
+        quizTitle: quiz.title || "Untitled quiz",
+        lectureTitle: lecture.title || null,
+        percentage: item.percentage,
+        score: item.score,
+        total: item.total,
+      };
+    });
+
+    let recommendations = [];
+    let analysisNote = null;
+
+    if (lectureData.length > 0) {
+      try {
+        recommendations = await aiService.generateStudyRecommendations({
+          lectures: lectureData,
+          weakItems: annotatedWeakItems,
+          maxTopics: 5,
+        });
+      } catch (analysisError) {
+        console.error("Study recommendation error:", analysisError);
+        analysisNote = "AI recommendations are temporarily unavailable.";
+      }
+    } else {
+      analysisNote = "No lecture materials were found for your weak quizzes.";
+    }
+
+    res.json({ weakItems: annotatedWeakItems, recommendations, analysisNote });
+  } catch (err) {
+    console.error("getMyItemAnalysis error:", err);
+    return res.status(200).json({
+      weakItems: [],
+      recommendations: [],
+      message: "AI recommendations are temporarily unavailable. Please try again later.",
+    });
   }
 };
 
@@ -876,6 +1033,43 @@ exports.getTeacherAttendanceTimeline = async (req, res) => {
       else byDate[key].absent += 1;
     });
     res.json(Object.values(byDate));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+exports.getTeacherAttendanceRecords = async (req, res) => {
+  try {
+    const teacherIds = authUserIds(req);
+    if (!teacherIds.length) return res.json([]);
+
+    const { data: quizzes, error: qErr } = await supabaseAdmin
+      .from("quizzes")
+      .select("id")
+      .in("teacher_id", teacherIds);
+    if (qErr) return res.status(400).json({ error: qErr.message });
+
+    const quizIds = (quizzes || []).map((q) => q.id);
+    if (!quizIds.length) return res.json([]);
+
+    const { data, error } = await supabaseAdmin
+      .from("attendance")
+      .select("status, timestamp, users:user_id(full_name,email), quizzes:quiz_id(title)")
+      .in("quiz_id", quizIds)
+      .order("timestamp", { ascending: false })
+      .limit(20);
+
+    if (error) return res.status(400).json({ error: error.message });
+
+    const records = (data || []).map((record) => ({
+      quizTitle: record.quizzes?.title || "Unknown quiz",
+      studentName: record.users?.full_name || "Unknown student",
+      studentEmail: record.users?.email || "",
+      status: record.status,
+      timestamp: record.timestamp,
+    }));
+
+    res.json(records);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

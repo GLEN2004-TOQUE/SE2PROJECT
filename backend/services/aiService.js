@@ -339,6 +339,106 @@ Rules:
     throw new Error(`Unable to generate questions after ${maxAttempts} attempts`);
   }
 
+  buildStudyRecommendationsPrompt(lectures, weakItems, maxTopics) {
+    const lectureBlocks = (lectures || []).map((lecture, index) => {
+      const title = lecture.title ? String(lecture.title).trim() : `Lecture ${index + 1}`;
+      const text = String(lecture.extracted_text || "").trim().replace(/\s+/g, " ").slice(0, 2400);
+      return `Lecture ${index + 1}: ${title}\n${text}`;
+    });
+
+    const weakDescriptions = (weakItems || []).map((item) => {
+      const lectureLabel = item.lectureTitle ? ` — Lecture: ${item.lectureTitle}` : "";
+      return `- ${item.quizTitle} (${item.percentage}% correct, ${item.score}/${item.total})${lectureLabel}`;
+    });
+
+    return `You are an academic coach. A student has weak quiz performance on the following items:\n${weakDescriptions.join("\n")}\n\nUsing the lecture materials below, recommend up to ${maxTopics} topics or concepts the student should review. Focus on areas where the student can improve and keep recommendations precise and actionable.\n\nReturn ONLY a valid JSON array of objects with the keys \"topic\" and \"reason\". Do not include markdown fences, commentary, or any extra text.\n\nLecture materials:\n${lectureBlocks.join("\n\n")}`;
+  }
+
+  async generateStudyRecommendations({ lectures, weakItems, maxTopics = 4 }) {
+    let attempts = 0;
+    const maxAttempts = this.models.length * 2;
+    const prompt = this.buildStudyRecommendationsPrompt(lectures, weakItems, maxTopics);
+
+    while (attempts < maxAttempts) {
+      const modelConfig = this.getNextAvailableModel();
+      if (!modelConfig) {
+        const waitTime = Math.min(60000, Math.pow(2, this.consecutiveFailures) * 1000);
+        console.log(`💤 All models busy. Waiting ${waitTime / 1000} seconds...`);
+        await this.sleep(waitTime);
+        continue;
+      }
+
+      const modelName = modelConfig.name;
+      try {
+        const model = this.genAI.getGenerativeModel({ model: modelName });
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        const textOutput = await response.text();
+
+        this.incrementRequestCount(modelName);
+        this.consecutiveFailures = 0;
+
+        let cleanJson = textOutput.trim();
+        if (cleanJson.startsWith("```json")) {
+          cleanJson = cleanJson.replace(/```json\n?/, "").replace(/```\n?$/, "");
+        }
+        if (cleanJson.startsWith("```")) {
+          cleanJson = cleanJson.replace(/```\n?/, "").replace(/```\n?$/, "");
+        }
+
+        const firstBracket = cleanJson.indexOf("[");
+        const lastBracket = cleanJson.lastIndexOf("]");
+        if (firstBracket !== -1 && lastBracket !== -1 && lastBracket > firstBracket) {
+          cleanJson = cleanJson.slice(firstBracket, lastBracket + 1);
+        }
+
+        const parsed = JSON.parse(cleanJson);
+        if (!Array.isArray(parsed)) {
+          throw new Error("Model response was not an array");
+        }
+
+        const valid = parsed
+          .filter((item) => item && item.topic && item.reason)
+          .map((item) => ({
+            topic: String(item.topic).trim(),
+            reason: String(item.reason).trim(),
+          }));
+
+        if (valid.length === 0) {
+          throw new Error("No valid recommendation objects returned by the model");
+        }
+
+        console.log(`✅ Study recommendations generated with ${modelName}`);
+        return valid;
+      } catch (error) {
+        console.error(`❌ ${modelName} recommendation error:`, error.message);
+        if (error.message.includes("429") || error.message.includes("quota")) {
+          this.incrementRequestCount(modelName);
+          this.consecutiveFailures++;
+          const waitMatch = error.message.match(/retry in (\d+\.?\d*)s/);
+          if (waitMatch) {
+            const waitTime = parseFloat(waitMatch[1]) * 1000;
+            console.log(`⏳ Waiting ${waitTime / 1000} seconds as suggested...`);
+            await this.sleep(waitTime);
+          }
+        } else if (error.message.includes("404")) {
+          console.log(`⚠️ Model ${modelName} not found, skipping...`);
+        } else {
+          this.consecutiveFailures++;
+        }
+
+        attempts++;
+        if (attempts >= maxAttempts) {
+          throw new Error(`Failed to generate study recommendations after ${maxAttempts} attempts. Last error: ${error.message}`);
+        }
+
+        await this.sleep(1000);
+      }
+    }
+
+    throw new Error(`Unable to generate study recommendations after ${maxAttempts} attempts`);
+  }
+
   // Get current status of all models
   getStatus() {
     this.resetCountersIfNeeded();
