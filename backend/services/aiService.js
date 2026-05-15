@@ -46,6 +46,14 @@ class AIService {
     return isAvailable;
   }
 
+  getRequestIntervalMs() {
+    const rpms = (this.models || [])
+      .map((model) => Number.isFinite(Number(model.rpm)) ? Number(model.rpm) : 1)
+      .filter((rpm) => rpm > 0);
+    const effectiveRpm = rpms.length > 0 ? Math.min(...rpms) : 1;
+    return Math.max(1000, Math.ceil(60000 / effectiveRpm));
+  }
+
   // Get next available model
   getNextAvailableModel() {
     this.resetCountersIfNeeded();
@@ -234,7 +242,7 @@ Rules:
     difficulty = "medium"
   ) {
     let attempts = 0;
-    const maxAttempts = this.models.length * 2; // Try each model twice
+    const maxAttempts = Math.max(6, this.models.length * 4); // more retries for transient 429s
 
     const quizType =
       type === "matching" ||
@@ -257,7 +265,10 @@ Rules:
       const modelConfig = this.getNextAvailableModel();
       
       if (!modelConfig) {
-        const waitTime = Math.min(60000, Math.pow(2, this.consecutiveFailures) * 1000);
+        const waitTime = Math.min(
+          60000,
+          Math.max(this.getRequestIntervalMs(), Math.pow(2, this.consecutiveFailures) * 1000)
+        );
         console.log(`💤 All models busy. Waiting ${waitTime/1000} seconds...`);
         await this.sleep(waitTime);
         continue;
@@ -273,7 +284,7 @@ Rules:
 
         const result = await model.generateContent(prompt);
         const response = await result.response;
-        const textOutput = response.text();
+        const textOutput = await response.text();
         
         // Increment success count
         this.incrementRequestCount(modelName);
@@ -303,21 +314,21 @@ Rules:
       } catch (error) {
         console.error(`❌ ${modelName} failed:`, error.message);
         
-        // Handle rate limit errors
-        if (error.message.includes("429") || error.message.includes("quota")) {
+        const isRateLimitError = /(?:429|quota)/i.test(String(error?.message || "")) || error?.status === 429 || error?.statusCode === 429;
+        
+        if (isRateLimitError) {
           this.incrementRequestCount(modelName);
           this.consecutiveFailures++;
           
-          // Extract wait time from error if available
-          const waitMatch = error.message.match(/retry in (\d+\.?\d*)s/);
-          if (waitMatch) {
-            const waitTime = parseFloat(waitMatch[1]) * 1000;
-            console.log(`⏳ Waiting ${waitTime/1000} seconds as suggested...`);
-            await this.sleep(waitTime);
-          }
+          const waitMatch = String(error.message || "").match(/retry in (\d+\.?\d*)s/i);
+          const waitTime = waitMatch
+            ? parseFloat(waitMatch[1]) * 1000
+            : this.getRequestIntervalMs();
+          console.log(`⏳ Waiting ${waitTime/1000} seconds before retry...`);
+          await this.sleep(waitTime);
         } 
         // Handle model not found errors
-        else if (error.message.includes("404")) {
+        else if (/404/.test(String(error?.message || ""))) {
           console.log(`⚠️ Model ${modelName} not found, skipping...`);
         }
         // Handle other errors

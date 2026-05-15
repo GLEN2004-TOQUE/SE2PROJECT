@@ -373,8 +373,7 @@ export default function Register() {
   const [level, setLevel]           = useState("");
   const [course, setCourse]         = useState("");
   const [section, setSection]       = useState("");
-  const [securityQuestion, setSecurityQuestion] = useState("");
-  const [securityAnswer, setSecurityAnswer]     = useState("");
+  
 
   // OTP state
   const [otpDigits, setOtpDigits]   = useState(["","","","","",""]);
@@ -518,12 +517,7 @@ export default function Register() {
       setOtpShake(true); setTimeout(() => setOtpShake(false), 500);
       return;
     }
-    const sq = sanitizeText(securityQuestion);
-    const sa = sanitizeText(securityAnswer);
-    if ((sq && !sa) || (!sq && sa)) {
-      setError("Enter both a security question and answer, or leave both blank.");
-      return;
-    }
+    
     setError(""); setLoading(true);
     try {
       const res = await fetch(`${API_BASE_URL}/otp/verify-and-register`, {
@@ -532,8 +526,7 @@ export default function Register() {
         body: JSON.stringify({
           fullName: sanitizeText(fullName), email: sanitizeEmail(email), password,
           role: "student", course, section, otp,
-          securityQuestion: sanitizeText(securityQuestion),
-          securityAnswer: sanitizeText(securityAnswer),
+        
         }),
       });
       const data = await readResponseJson(res);
@@ -627,30 +620,7 @@ export default function Register() {
                     </div>
                   </div>
 
-                  <div className="field">
-                    <label>Security question <span style={{ fontWeight: 300, textTransform: "none", letterSpacing: "0", color: "rgba(200,170,100,.45)" }}>(optional)</span></label>
-                    <div className="input-wrap">
-                      <Ico.Book />
-                      <input
-                        type="text"
-                        placeholder="e.g. What is your favorite color?"
-                        value={securityQuestion}
-                        onChange={e => setSecurityQuestion(e.target.value)}
-                      />
-                    </div>
-                  </div>
-                  <div className="field">
-                    <label>Security answer <span style={{ fontWeight: 300, textTransform: "none", letterSpacing: "0", color: "rgba(200,170,100,.45)" }}>(optional)</span></label>
-                    <div className="input-wrap">
-                      <Ico.Lock />
-                      <input
-                        type="text"
-                        placeholder="Answer you will remember (not case-sensitive)"
-                        value={securityAnswer}
-                        onChange={e => setSecurityAnswer(e.target.value)}
-                      />
-                    </div>
-                  </div>
+                  
 
                   {/* Education Level */}
                   <div className="field">

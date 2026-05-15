@@ -24,11 +24,16 @@ async function emailExistsInUsers(emailLower) {
   if (error) throw error;
   if (sb) return true;
 
-  const r = await pool.query(
-    'SELECT 1 FROM users WHERE LOWER(TRIM(email)) = $1 LIMIT 1',
-    [lower]
-  );
-  return r.rowCount > 0;
+  try {
+    const r = await pool.query(
+      'SELECT 1 FROM users WHERE LOWER(TRIM(email)) = $1 LIMIT 1',
+      [lower]
+    );
+    return r.rowCount > 0;
+  } catch (dbErr) {
+    console.warn('⚠️ Local DB unavailable while checking email existence:', dbErr.message || dbErr);
+    return false;
+  }
 }
 
 /**
@@ -47,13 +52,18 @@ async function getUserAuthLocationByEmail(emailLower) {
   if (error) throw error;
   if (sb) return { source: 'supabase', id: sb.id, email: String(sb.email || lower) };
 
-  const r = await pool.query(
-    'SELECT id, email FROM users WHERE LOWER(TRIM(email)) = $1 LIMIT 1',
-    [lower]
-  );
-  const row = r.rows[0];
-  if (!row) return null;
-  return { source: 'postgres', id: row.id, email: String(row.email || lower) };
+  try {
+    const r = await pool.query(
+      'SELECT id, email FROM users WHERE LOWER(TRIM(email)) = $1 LIMIT 1',
+      [lower]
+    );
+    const row = r.rows[0];
+    if (!row) return null;
+    return { source: 'postgres', id: row.id, email: String(row.email || lower) };
+  } catch (dbErr) {
+    console.warn('⚠️ Local DB unavailable while locating auth email:', dbErr.message || dbErr);
+    return null;
+  }
 }
 
 module.exports = { escapeForILike, emailExistsInUsers, getUserAuthLocationByEmail };

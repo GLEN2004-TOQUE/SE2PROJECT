@@ -1,6 +1,14 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useNavigate } from "react-router-dom";
-import { API_BASE_URL, getUser, logout, getMyProfile, getFriendlyApiErrorMessage } from "../services/api";
+import {
+  API_BASE_URL,
+  getUser,
+  logout,
+  getMyProfile,
+  getFriendlyApiErrorMessage,
+  getStudentNotifications,
+  markNotificationRead,
+} from "../services/api";
 import { BarChart } from "@mui/x-charts/BarChart";
 import { LineChart } from "@mui/x-charts/LineChart";
 import { PieChart } from "@mui/x-charts/PieChart";
@@ -92,6 +100,57 @@ const Styles = () => (
     }
     .sd-logo-icon svg { width:16px; height:16px; color:#f5e6c8; }
     .sd-topbar-right { display:flex; align-items:center; gap:.85rem; }
+    .sd-notification-panel {
+      margin:1rem 0 1.25rem;
+      padding:1rem;
+      border-radius:18px;
+      background: rgba(255,255,255,.05);
+      border:1px solid rgba(200,160,50,.14);
+      box-shadow: 0 12px 35px rgba(0,0,0,.16);
+    }
+    .sd-notification-panel-header {
+      display:flex; align-items:center; justify-content:space-between; gap:.75rem;
+      margin-bottom:.9rem;
+    }
+    .sd-notification-panel-header h4 {
+      margin:0; color:#f5e6c8; font-size:1rem;
+    }
+    .sd-notification-panel-header button {
+      border:none; background:transparent; color:#f5e6c8;
+      font-size:.82rem; cursor:pointer; opacity:.78;
+    }
+    .sd-notification-panel-list { display:grid; gap:.75rem; }
+    .sd-notification-item {
+      padding:1rem; border-radius:16px;
+      background:rgba(255,255,255,.05);
+      border:1px solid rgba(255,255,255,.08);
+      transition:all .15s;
+      cursor:pointer;
+    }
+    .sd-notification-item:hover { background:rgba(255,255,255,.1); }
+    .sd-notification-item.unread {
+      border-color:rgba(233,145,77,.45);
+      background:linear-gradient(180deg,rgba(233,145,77,.12),rgba(255,255,255,.05));
+    }
+    .sd-notification-item-title {
+      display:flex; align-items:center; justify-content:space-between; gap:.75rem;
+      margin-bottom:.45rem; color:#f5e6c8; font-weight:600;
+    }
+    .sd-notification-item-title span {
+      font-size:.75rem; color:rgba(240,220,155,.8);
+    }
+    .sd-notification-item-message {
+      margin:0; color:rgba(240,220,155,.82); font-size:.85rem; line-height:1.55;
+    }
+    .sd-notification-empty {
+      padding:1.1rem 1rem; border-radius:14px;
+      background:rgba(255,255,255,.04); color:rgba(200,170,100,.7);
+      font-size:.88rem;
+    }
+    .sd-notification-error {
+      padding:1rem; border-radius:14px; background:rgba(239,68,68,.08);
+      color:#fca5a5; border:1px solid rgba(239,68,68,.2); margin-bottom:1rem;
+    }
     .sd-user-chip {
       display:flex; align-items:center; gap:.5rem;
       padding:.28rem .9rem .28rem .45rem; border-radius:999px;
@@ -105,6 +164,28 @@ const Styles = () => (
       display:flex; align-items:center; justify-content:center;
       font-size:.62rem; font-weight:700; color:#f5e6c8;
       flex-shrink:0; overflow:hidden;
+    }
+    .sd-notification-button {
+      position:relative;
+      display:inline-flex; align-items:center; justify-content:center;
+      width:42px; height:42px; border-radius:12px;
+      border:1px solid rgba(255,255,255,.12);
+      background:rgba(255,255,255,.05);
+      color:#f5e6c8; cursor:pointer;
+      transition: all .18s;
+    }
+    .sd-notification-button:hover {
+      background:rgba(255,255,255,.1);
+      transform:translateY(-1px);
+    }
+    .sd-notification-button svg { width:20px; height:20px; }
+    .sd-notification-badge {
+      position:absolute; top:6px; right:6px;
+      min-width:18px; height:18px; padding:.05rem .25rem;
+      border-radius:999px;
+      background:#e9914d; color:#fff;
+      font-size:.68rem; font-weight:700; display:flex;
+      align-items:center; justify-content:center;
     }
     .sd-logout {
       padding:.36rem .9rem; border-radius:8px; cursor:pointer;
@@ -735,6 +816,12 @@ const IconUser = () => (
   </svg>
 );
 
+const BellIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+    <path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0 1 18 14.158V11c0-3.07-1.64-5.64-4.5-6.32V4a1.5 1.5 0 0 0-3 0v.68C7.64 5.36 6 7.92 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0a3 3 0 1 1-6 0h6Z"/>
+  </svg>
+);
+
 export default function StudentDashboard() {
   const navigate = useNavigate();
   const [activeView, setActiveView] = useState(readStoredStudentView);
@@ -760,6 +847,11 @@ export default function StudentDashboard() {
   const [pwForm, setPwForm] = useState({ current:"", next:"", confirm:"" });
   const [pwLoading, setPwLoading] = useState(false);
   const [pwMsg, setPwMsg] = useState("");
+
+  const [notifications, setNotifications] = useState([]);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
+  const [notificationsError, setNotificationsError] = useState("");
 
   const tokenUser = getUser();
   const studentId = tokenUser?.id;
@@ -839,6 +931,35 @@ export default function StudentDashboard() {
     } catch { setAttendanceMap({}); }
   }, []);
 
+  const loadNotifications = useCallback(async () => {
+    setNotificationsLoading(true);
+    setNotificationsError("");
+    try {
+      const data = await getStudentNotifications();
+      const list = Array.isArray(data) ? data : [];
+      setNotifications(list);
+    } catch (err) {
+      setNotificationsError(err.message || "Unable to load notifications.");
+      setNotifications([]);
+    } finally {
+      setNotificationsLoading(false);
+    }
+  }, []);
+
+  const handleNotificationClick = async (notification) => {
+    if (!notification || notification.read) return;
+    try {
+      await markNotificationRead(notification.id);
+      setNotifications((prev) => prev.map((item) =>
+        item.id === notification.id ? { ...item, read: true } : item
+      ));
+    } catch (err) {
+      // ignore; user can still read the notification
+    }
+  };
+
+  const unreadCount = notifications.filter((n) => !n.read).length;
+
   const loadItemAnalysis = useCallback(async () => {
     setAnalysisLoading(true);
     setAnalysisError("");
@@ -871,7 +992,7 @@ export default function StudentDashboard() {
 
   const displayedAiAnalysis = useMemo(() => {
     if (itemAnalysis?.recommendations?.length) return itemAnalysis;
-    return cachedAiAnalysis || itemAnalysis;
+    return cachedAiAnalysis || itemAnalysis || {};
   }, [cachedAiAnalysis, itemAnalysis]);
 
   useEffect(() => {
@@ -895,6 +1016,12 @@ export default function StudentDashboard() {
       .finally(() => setPageLoading(false));
     if (tokenUser?.id) setProfilePhoto(localStorage.getItem(`student_photo_${tokenUser.id}`) || "");
   }, [navigate, tokenUser]);
+
+  useEffect(() => {
+    if (studentId && isStudent) {
+      loadNotifications();
+    }
+  }, [studentId, isStudent, loadNotifications]);
 
   useEffect(() => { loadLeaderboard(lbType); }, [lbType, loadLeaderboard]);
 
@@ -1047,6 +1174,19 @@ export default function StudentDashboard() {
             </div>
           </div>
           <div className="sd-topbar-right">
+            <button
+              className="sd-notification-button"
+              onClick={() => {
+                setNotificationsOpen((open) => !open);
+                if (!notificationsOpen) {
+                  loadNotifications();
+                }
+              }}
+              aria-label="Toggle notifications"
+            >
+              <BellIcon />
+              {unreadCount > 0 && <span className="sd-notification-badge">{unreadCount}</span>}
+            </button>
             <div className="sd-user-chip">
               <div className="sd-user-chip-avatar">
                 {profilePhoto
@@ -1064,6 +1204,39 @@ export default function StudentDashboard() {
             <div className="sd-popup-alert">
               <span>⚠️ AI-generated recommendations have expired after 24 hours. New suggestions will appear after fresh quiz activity.</span>
               <button className="sd-popup-close" onClick={() => setShowAiExpiredPopup(false)}>Dismiss</button>
+            </div>
+          )}
+
+          {notificationsOpen && (
+            <div className="sd-notification-panel">
+              <div className="sd-notification-panel-header">
+                <h4>Teacher messages</h4>
+                <button type="button" onClick={() => setNotificationsOpen(false)}>Close</button>
+              </div>
+              {notificationsError ? (
+                <div className="sd-notification-error">{notificationsError}</div>
+              ) : null}
+              {notificationsLoading ? (
+                <div className="sd-notification-empty">Loading messages...</div>
+              ) : notifications.length === 0 ? (
+                <div className="sd-notification-empty">You have no messages from your teacher yet.</div>
+              ) : (
+                <div className="sd-notification-panel-list">
+                  {notifications.map((notification) => (
+                    <div
+                      key={notification.id}
+                      className={`sd-notification-item ${notification.read ? "" : "unread"}`}
+                      onClick={() => handleNotificationClick(notification)}
+                    >
+                      <div className="sd-notification-item-title">
+                        <span>{notification.title || "Message from teacher"}</span>
+                        <span>{formatTime(notification.createdAt)}</span>
+                      </div>
+                      <p className="sd-notification-item-message">{notification.message}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
@@ -1321,25 +1494,29 @@ export default function StudentDashboard() {
                   ) : displayedAiAnalysis?.recommendations?.length ? (
                     <div style={{ display: "grid", gap: ".95rem" }}>
                       <p style={{ color: "rgba(200,170,100,.55)", fontSize: ".82rem", margin: 0 }}>
-                        {displayedAiAnalysis.weakItems?.length
+                        {displayedAiAnalysis?.weakItems?.length
                           ? `Found ${displayedAiAnalysis.weakItems.length} weak quiz item${displayedAiAnalysis.weakItems.length === 1 ? "" : "s"}. Review these recommended topics.`
                           : "Study recommendations from your lecture materials."}
                       </p>
-                      {(displayedAiAnalysis.recommendations || []).map((rec, idx) => (
+                      {(displayedAiAnalysis?.recommendations || []).map((rec, idx) => (
                         <div key={idx} style={{ padding: "1rem", borderRadius: 14, background: "rgba(255,255,255,.04)", border: "1px solid rgba(200,160,50,.12)" }}>
                           <div style={{ fontWeight: 600, color: "#f5e6c8", marginBottom: ".35rem" }}>{rec.topic}</div>
                           <div style={{ fontSize: ".85rem", color: "rgba(200,170,100,.78)", lineHeight: 1.65 }}>{rec.reason}</div>
                         </div>
                       ))}
-                      {displayedAiAnalysis.analysisNote && (
+                      {displayedAiAnalysis?.analysisNote && (
                         <div style={{ color: "rgba(200,170,100,.55)", fontSize: ".8rem" }}>
                           {displayedAiAnalysis.analysisNote}
                         </div>
                       )}
                     </div>
                   ) : (
-                    <div style={{ color: "rgba(200,170,100,.55)", fontSize: ".9rem", padding: "1rem 0" }}>
-                      {displayedAiAnalysis?.message || itemAnalysis?.message || "No study suggestions available yet. Complete more quizzes to generate personalized recommendations."}
+                    <div style={{ display: "grid", gap: ".75rem", color: "rgba(200,170,100,.55)", fontSize: ".9rem", padding: "1rem 0" }}>
+                      {displayedAiAnalysis?.analysisNote ? (
+                        <div>{displayedAiAnalysis.analysisNote}</div>
+                      ) : (
+                        <div>{displayedAiAnalysis?.message || itemAnalysis?.message || "No study suggestions available yet. Complete more quizzes to generate personalized recommendations."}</div>
+                      )}
                     </div>
                   )}
                 </div>

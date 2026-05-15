@@ -1,6 +1,7 @@
+const path = require('path');
 const express = require('express');
 const cors = require('cors');
-require('dotenv').config();
+require('dotenv').config({ path: path.resolve(__dirname, '.env') });
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const sanitizeHtml = require('sanitize-html');

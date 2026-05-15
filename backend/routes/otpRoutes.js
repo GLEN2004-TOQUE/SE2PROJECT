@@ -45,7 +45,13 @@ router.post('/send', async (req, res) => {
     }
 
     await sendOTP(email);
-    await debugStore();
+    if (process.env.DEBUG_OTP === '1') {
+      try {
+        await debugStore();
+      } catch (debugErr) {
+        console.warn('⚠️ OTP debugStore failed:', debugErr.message || debugErr);
+      }
+    }
 
     res.json({ message: `OTP sent to ${email}. Please check your inbox and spam folder.` });
   } catch (err) {
@@ -70,13 +76,10 @@ router.post('/verify-and-register', async (req, res) => {
       course,
       section,
       otp,
-      securityQuestion: rawSq,
-      securityAnswer: rawSa,
+    
     } = req.body;
     const email = (rawEmail || '').toLowerCase().trim();
-    const sq = String(rawSq || '').trim();
-    const sa = String(rawSa || '').trim().toLowerCase();
-    const useSecurity = sq.length > 0 && sa.length > 0;
+    
 
     if (!fullName || !email || !password || !course || !section || !otp) {
       return res.status(400).json({ message: 'All fields are required' });
@@ -84,9 +87,7 @@ router.post('/verify-and-register', async (req, res) => {
     if (password.length < 6) {
       return res.status(400).json({ message: 'Password must be at least 6 characters' });
     }
-    if ((sq && !sa) || (!sq && sa)) {
-      return res.status(400).json({ message: 'Enter both a security question and answer, or leave both blank.' });
-    }
+    
 
     const result = await verifyOTP(email, otp);
     if (!result.valid) return res.status(400).json({ message: result.message });
@@ -97,35 +98,58 @@ router.post('/verify-and-register', async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    let newUser;
-    if (useSecurity) {
-      newUser = await pool.query(
-        `INSERT INTO users (full_name, email, password, password_plain, role, course, section, status, security_question, security_answer)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, true, $8, $9)
-         RETURNING id, full_name, email, role, course, section`,
-        [fullName.trim(), email, hashedPassword, String(password), 'student', course, section, sq, sa]
-      );
-    } else {
+    let newUser = null;
+    try {
       newUser = await pool.query(
         `INSERT INTO users (full_name, email, password, password_plain, role, course, section, status)
          VALUES ($1, $2, $3, $4, $5, $6, $7, true)
          RETURNING id, full_name, email, role, course, section`,
         [fullName.trim(), email, hashedPassword, String(password), 'student', course, section]
       );
+      newUser = newUser.rows[0];
+      console.log(`✅ Registered in Postgres: ${email} | Course: ${course} | Section: ${section}`);
+    } catch (dbErr) {
+      console.warn('⚠️ Postgres registration failed, trying Supabase fallback:', dbErr.message || dbErr);
+      if (dbErr.code === 'ECONNREFUSED' || String(dbErr.message).includes('connect ECONNREFUSED')) {
+        const { data, error } = await supabaseAdmin
+          .from('users')
+          .insert([
+            {
+              full_name: fullName.trim(),
+              email,
+              password: hashedPassword,
+              role: 'student',
+              course,
+              section,
+              status: true,
+            },
+          ])
+          .select('id, full_name, email, role, course, section');
+
+        if (error) {
+          console.error('❌ Supabase fallback registration failed:', error.message || error);
+          throw error;
+        }
+        newUser = data?.[0] || null;
+        console.log(`✅ Registered in Supabase fallback: ${email} | Course: ${course} | Section: ${section}`);
+      } else {
+        throw dbErr;
+      }
     }
 
-    console.log(`✅ Registered: ${email} | Course: ${course} | Section: ${section}`);
+    if (!newUser) {
+      throw new Error('Registration failed: could not create user record.');
+    }
 
     res.status(201).json({
       message: 'Registration successful! You can now log in.',
-      user: newUser.rows[0],
+      user: newUser,
     });
   } catch (err) {
     console.error('❌ Register error:', err.message);
     if (err.code === '42703') {
       return res.status(503).json({
-        message:
-          'Registration cannot save security recovery fields until the database is updated. Ask an administrator to run backend/sql/add_security_recovery.sql, or clear the security question fields and try again.',
+        message: 'Registration failed due to database schema mismatch. Contact an administrator.',
       });
     }
     res.status(500).json({ message: 'Internal server error: ' + err.message });

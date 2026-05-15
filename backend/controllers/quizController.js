@@ -1,5 +1,6 @@
 // controllers/quizController.js
 const aiService = require("../services/aiService");
+const aiQueue = require("../services/queueSevice");
 const { supabaseAdmin } = require("../supabaseClient");
 const { updateGamification } = require("../services/scoringServices");
 
@@ -106,7 +107,7 @@ exports.generateQuiz = async (req, res) => {
     console.log(
       `📝 Generating ${safeCount} ${quizType} (${diff}) questions for lecture: ${lecture.title}`
     );
-    const generated = await aiService.generateQuestions(
+    const generated = await aiQueue.addToQueue(
       lecture.extracted_text,
       quizType,
       safeCount,
@@ -887,10 +888,11 @@ exports.getMyAttendance = async (req, res) => {
 exports.getMyItemAnalysis = async (req, res) => {
   try {
     const studentId = req.user.id;
+    const userIds = userIdCandidates(studentId);
     const { data: results, error: resultsError } = await supabaseAdmin
       .from("results")
       .select("quiz_id, score, total, submitted_at")
-      .eq("user_id", studentId)
+      .in("user_id", userIds)
       .order("submitted_at", { ascending: false });
 
     if (resultsError) {
@@ -911,7 +913,7 @@ exports.getMyItemAnalysis = async (req, res) => {
       });
     }
 
-    const weakItems = (results || [])
+    let weakItems = (results || [])
       .map((r) => ({
         quiz_id: r.quiz_id,
         score: Number(r.score || 0),
@@ -920,6 +922,18 @@ exports.getMyItemAnalysis = async (req, res) => {
       }))
       .filter((item) => item.total > 0 && item.percentage < 75)
       .sort((a, b) => a.percentage - b.percentage);
+
+    if (!weakItems.length && results.length > 0) {
+      const fallback = results.find((r) => r.quiz_id != null && r.total > 0);
+      if (fallback) {
+        weakItems = [{
+          quiz_id: fallback.quiz_id,
+          score: Number(fallback.score || 0),
+          total: Number(fallback.total || 0),
+          percentage: Math.round((Number(fallback.score || 0) / Number(fallback.total || 0)) * 100),
+        }];
+      }
+    }
 
     if (!weakItems.length) {
       return res.json({
@@ -1351,7 +1365,7 @@ exports.generateQuizFromText = async (req, res) => {
     if (!text || text.trim().length === 0) {
       return res.status(400).json({ error: "Text content is required" });
     }
-    const questions = await aiService.generateQuestions(
+    const questions = await aiQueue.addToQueue(
       text,
       type,
       safeCount,
@@ -1359,7 +1373,7 @@ exports.generateQuizFromText = async (req, res) => {
     );
     res.json({ success: true, questions, generatedAt: new Date().toISOString() });
   } catch (err) {
-    const isRateLimit = err.message.includes('quota') || err.message.includes('429');
+    const isRateLimit = /(?:429|quota)/i.test(String(err?.message || ""));
     res.status(isRateLimit ? 429 : 500).json({ error: err.message, isRateLimit });
   }
 };

@@ -278,6 +278,8 @@ export const getQuiz   = (quizId) => api(`/api/quiz/${quizId}`);
 export const submitQuiz = (quizId, answers) =>
   api('/api/quiz/submit', { method: 'POST', body: JSON.stringify({ quizId, answers }) });
 
+export const getQuizAnalysis = () => api('/api/quiz/analysis');
+
 // ─── Gamification ─────────────────────────────────────────────────────────────
 
 export const getLeaderboard = (type = 'overall') =>
@@ -306,3 +308,6 @@ export const getMyStudents = () => api('/api/admin/my-students');
 // ─── Student ──────────────────────────────────────────────────────────────────
 
 export const getMyTeacher = () => api('/api/admin/my-teacher');
+export const getStudentNotifications = () => api('/api/admin/my-notifications');
+export const markNotificationRead = (notificationId) => api(`/api/admin/my-notifications/${notificationId}/read`, { method: 'PATCH' });
+export const sendTeacherNotification = (payload) => api('/api/admin/teacher-notifications', { method: 'POST', body: JSON.stringify(payload) });

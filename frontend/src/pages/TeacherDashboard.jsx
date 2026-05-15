@@ -695,6 +695,12 @@ const Ico = {
       <path d="M22 2L11 13"/><path d="M22 2L15 22l-4-9-9-4 20-7z"/>
     </svg>
   ),
+  Message: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M4 4h16v12H5.17L4 17.17V4z" />
+      <path d="M22 4l-10 7L2 4" />
+    </svg>
+  ),
   Upload: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
       <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
@@ -749,6 +755,31 @@ const Ico = {
 const chartAxisStyle = {
   tickLabelStyle: { fill: "rgba(200,170,100,.6)", fontSize: 11, fontFamily: "DM Mono" },
 };
+
+const TEACHER_MESSAGE_TEMPLATES = [
+  {
+    id: "praise",
+    label: "Praise & reward",
+    title: "Outstanding quiz performance!",
+    message: "You did a great job on the recent quiz. Keep reviewing the lecture material and maintain the momentum!",
+    reward: "Gold star badge",
+  },
+  {
+    id: "encourage",
+    label: "Encouragement",
+    title: "Keep going — improvement ahead",
+    message: "Review your weak areas and stay focused on the next lesson. I’m here to help you succeed.",
+    reward: "Extra practice points",
+  },
+  {
+    id: "announcement",
+    label: "Class announcement",
+    title: "Important class update",
+    message: "Please check the latest lecture notes and complete the next quiz on time. Good work everyone!",
+    reward: "Participation credit",
+  },
+];
+
 const chartSx = {
   "& .MuiChartsAxis-line": { stroke: "rgba(200,160,50,.15)" },
   "& .MuiChartsAxis-tick": { stroke: "rgba(200,160,50,.15)" },
@@ -1108,6 +1139,129 @@ function SendQuizModal({
   );
 }
 
+function TeacherNotificationModal({ myStudents, open, onClose, onSend, sending, form, setForm }) {
+  const selectedStudents = myStudents.filter((s) => form.studentIds.includes(String(s.id)));
+  const availableStudents = myStudents.filter((s) => !form.studentIds.includes(String(s.id)));
+  const toggleStudent = (studentId) => {
+    setForm((prev) => {
+      const idStr = String(studentId);
+      const nextIds = prev.studentIds.includes(idStr)
+        ? prev.studentIds.filter((id) => id !== idStr)
+        : [...prev.studentIds, idStr];
+      return { ...prev, studentIds: nextIds };
+    });
+  };
+
+  return open ? (
+    <div className="td-modal-overlay" onClick={() => !sending && onClose()}>
+      <div className="td-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="td-modal-icon">{Ico.Message || Ico.Warning}</div>
+        <h2 className="td-modal-title">Send Reward Message</h2>
+        <p className="td-modal-sub">
+          Share a reward note, announcement, or encouragement with your assigned students. Customize the title, message, and reward details.
+        </p>
+        <label className="td-modal-label">Choose a template</label>
+        <div style={{ display: 'grid', gap: '0.75rem', marginBottom: '1rem' }}>
+          {TEACHER_MESSAGE_TEMPLATES.map((template) => (
+            <button
+              key={template.id}
+              type="button"
+              className="td-outline-btn"
+              style={{ textAlign: 'left', background: form.templateId === template.id ? 'rgba(200,160,50,.12)' : undefined }}
+              onClick={() => setForm((prev) => ({
+                ...prev,
+                templateId: template.id,
+                title: template.title,
+                message: template.message,
+                reward: template.reward,
+              }))}
+            >
+              <strong>{template.label}</strong>
+              <div style={{ fontSize: '.78rem', color: 'rgba(200,170,100,.65)', marginTop: '.25rem' }}>{template.message}</div>
+            </button>
+          ))}
+        </div>
+
+        <label className="td-modal-label">Message Title</label>
+        <input
+          className="td-modal-input"
+          type="text"
+          value={form.title}
+          onChange={(e) => setForm((prev) => ({ ...prev, title: e.target.value }))}
+          placeholder="e.g. Great job on the recent quiz"
+        />
+
+        <label className="td-modal-label">Reward / Announcement</label>
+        <input
+          className="td-modal-input"
+          type="text"
+          value={form.reward}
+          onChange={(e) => setForm((prev) => ({ ...prev, reward: e.target.value }))}
+          placeholder="e.g. Reward points, badge, participation credit"
+        />
+
+        <label className="td-modal-label">Message</label>
+        <textarea
+          className="td-modal-input"
+          rows="5"
+          value={form.message}
+          onChange={(e) => setForm((prev) => ({ ...prev, message: e.target.value }))}
+          placeholder="Write a personalized note to your students..."
+          style={{ resize: 'vertical' }}
+        />
+
+        <label className="td-modal-label">Send to</label>
+        <div style={{ display:'flex', gap:'.65rem', flexWrap:'wrap', marginBottom:'1rem' }}>
+          {['all', 'selected'].map((option) => (
+            <button
+              key={option}
+              type="button"
+              className="td-outline-btn"
+              style={{ flex: option === 'all' ? '1.2' : '1', background: form.sendTo === option ? 'rgba(200,160,50,.12)' : undefined }}
+              onClick={() => setForm((prev) => ({ ...prev, sendTo: option }))}
+            >
+              {option === 'all' ? 'All assigned students' : 'Select students'}
+            </button>
+          ))}
+        </div>
+
+        {form.sendTo === 'selected' && (
+          <div className="td-student-select-list" style={{ maxHeight: '220px', marginBottom: '1rem' }}>
+            {myStudents.length === 0 ? (
+              <div className="td-empty">No assigned students found.</div>
+            ) : (
+              myStudents.map((student) => (
+                <label key={student.id} className="td-student-checkbox-item">
+                  <input
+                    type="checkbox"
+                    checked={form.studentIds.includes(String(student.id))}
+                    onChange={() => toggleStudent(student.id)}
+                  />
+                  <div>
+                    <div className="td-student-checkbox-name">{student.full_name}</div>
+                    <div className="td-student-checkbox-email">{student.email}</div>
+                  </div>
+                </label>
+              ))
+            )}
+          </div>
+        )}
+
+        <div className="td-modal-actions">
+          <button className="td-btn-cancel" onClick={onClose} disabled={sending}>Cancel</button>
+          <button
+            className="td-btn-send"
+            onClick={onSend}
+            disabled={sending || !form.title.trim() || !form.message.trim() || (form.sendTo === 'selected' && form.studentIds.length === 0)}
+          >
+            {sending ? <span className="td-spinner" /> : 'Send announcement'}
+          </button>
+        </div>
+      </div>
+    </div>
+  ) : null;
+}
+
 /* ════════════════════════════════════════════════════════════
    Main Dashboard
    ════════════════════════════════════════════════════════════ */
@@ -1149,6 +1303,17 @@ export default function TeacherDashboard() {
   const [sendSuccess, setSendSuccess] = useState(null);
   const [toast, setToast] = useState(null);
 
+  const [messageModalOpen, setMessageModalOpen] = useState(false);
+  const [messageSending, setMessageSending] = useState(false);
+  const [messageForm, setMessageForm] = useState({
+    templateId: 'praise',
+    title: 'Outstanding quiz performance!',
+    message: 'You did a great job on the recent quiz. Keep reviewing the lecture material and maintain the momentum!',
+    reward: 'Gold star badge',
+    sendTo: 'all',
+    studentIds: [],
+  });
+
   const [confirmModal, setConfirmModal] = useState(null);
 
   const pendingSendQuizIdRef = useRef(null);
@@ -1164,6 +1329,53 @@ export default function TeacherDashboard() {
   const showToast = (msg, type = "success") => {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 3600);
+  };
+
+  const openMessageModal = () => {
+    setMessageForm({
+      templateId: 'praise',
+      title: 'Outstanding quiz performance!',
+      message: 'You did a great job on the recent quiz. Keep reviewing the lecture material and maintain the momentum!',
+      reward: 'Gold star badge',
+      sendTo: 'all',
+      studentIds: [],
+    });
+    setMessageModalOpen(true);
+  };
+
+  const closeMessageModal = () => {
+    setMessageModalOpen(false);
+  };
+
+  const handleSendTeacherMessage = async () => {
+    const { title, message, reward, sendTo, studentIds } = messageForm;
+    if (!title.trim() || !message.trim()) {
+      showToast("Please add a title and message before sending.", "error");
+      return;
+    }
+    if (sendTo === 'selected' && studentIds.length === 0) {
+      showToast("Select at least one student to send the message to.", "error");
+      return;
+    }
+    setMessageSending(true);
+    try {
+      const payload = {
+        title: title.trim(),
+        message: message.trim(),
+        reward: reward.trim(),
+        studentIds: sendTo === 'selected' ? studentIds : undefined,
+      };
+      await apiFetch('/api/admin/teacher-notifications', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+      setMessageModalOpen(false);
+      showToast(`Message sent to ${sendTo === 'selected' ? studentIds.length : myStudents.length} student(s).`, 'success');
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      setMessageSending(false);
+    }
   };
 
   const showConfirm = (title, message, onConfirm) => {
@@ -1552,6 +1764,18 @@ export default function TeacherDashboard() {
         />
       )}
 
+      {messageModalOpen && (
+        <TeacherNotificationModal
+          myStudents={myStudents}
+          open={messageModalOpen}
+          onClose={closeMessageModal}
+          onSend={handleSendTeacherMessage}
+          sending={messageSending}
+          form={messageForm}
+          setForm={setMessageForm}
+        />
+      )}
+
       {resultsModalQuiz && (
         <div className="td-modal-overlay" style={{ zIndex: 62 }} onClick={() => !resultsModalLoading && setResultsModalQuiz(null)}>
           <div className="td-modal" style={{ maxWidth: 620 }} onClick={(e) => e.stopPropagation()}>
@@ -1705,6 +1929,7 @@ export default function TeacherDashboard() {
               </div>
             )}
 
+            <button className="td-topbar-btn" onClick={openMessageModal}>📣 Announce</button>
             <button className="td-topbar-btn" onClick={refreshDashboard}>↻ Refresh</button>
             <button className="td-topbar-btn" onClick={resetStudentPoints}>Reset Points</button>
             <button className="td-topbar-btn" onClick={() => { logout(); navigate("/"); }}>Sign out</button>

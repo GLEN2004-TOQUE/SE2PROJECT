@@ -17,6 +17,9 @@ const { supabaseAdmin } = require("../supabaseClient");
 /** In-memory certificate queue (lost on restart) until a DB table is added */
 const certificateRequests = [];
 
+/** In-memory teacher notification queue (lost on restart) until a DB table is added */
+const teacherNotifications = [];
+
 async function userMiniMapByIds(ids) {
   const unique = [...new Set(ids.map((id) => String(id)).filter(Boolean))];
   if (unique.length === 0) return new Map();
@@ -189,6 +192,104 @@ router.post(
       res.status(201).json({ message: "Certificate request submitted", request: shaped });
     } catch (err) {
       res.status(500).json({ message: err.message || "Could not submit certificate request." });
+    }
+  }
+);
+
+router.post(
+  "/teacher-notifications",
+  verifyToken,
+  requireActiveUser,
+  authorizeRole("teacher"),
+  async (req, res) => {
+    try {
+      const teacherId = req.user.id;
+      const title = String(req.body?.title || "").trim();
+      const message = String(req.body?.message || "").trim();
+      const reward = req.body?.reward ? String(req.body.reward).trim() : null;
+      const studentIds = Array.isArray(req.body?.studentIds) ? req.body.studentIds.map((v) => String(v)) : [];
+
+      if (!title) return res.status(400).json({ message: "Title is required." });
+      if (!message) return res.status(400).json({ message: "Message body is required." });
+
+      const { data: links, error: linkErr } = await supabaseAdmin
+        .from("teacher_student_assignments")
+        .select("student_id")
+        .eq("teacher_id", teacherId);
+
+      if (linkErr) return res.status(400).json({ message: linkErr.message });
+      const assignedStudentIds = (links || []).map((row) => String(row.student_id)).filter(Boolean);
+      if (!assignedStudentIds.length) {
+        return res.status(400).json({ message: "No assigned students available to send a message." });
+      }
+
+      const recipients = studentIds.length
+        ? assignedStudentIds.filter((id) => studentIds.includes(id))
+        : assignedStudentIds;
+
+      if (studentIds.length && recipients.length !== studentIds.length) {
+        return res.status(403).json({ message: "One or more selected students are not assigned to you." });
+      }
+
+      const teacherName = req.user.full_name || req.user.name || "Your teacher";
+      const now = new Date().toISOString();
+      const rows = recipients.map((studentId) => ({
+        id: crypto.randomUUID(),
+        teacherId,
+        teacherName,
+        studentId,
+        title,
+        message,
+        reward,
+        read: false,
+        createdAt: now,
+      }));
+
+      teacherNotifications.push(...rows);
+      res.status(201).json({ message: `Message sent to ${rows.length} student(s).`, notifications: rows });
+    } catch (err) {
+      res.status(500).json({ message: err.message || "Could not send teacher notifications." });
+    }
+  }
+);
+
+router.get(
+  "/my-notifications",
+  verifyToken,
+  requireActiveUser,
+  authorizeRole("student"),
+  async (req, res) => {
+    try {
+      const studentId = String(req.user.id);
+      const rows = teacherNotifications
+        .filter((n) => String(n.studentId) === studentId)
+        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      res.json(rows);
+    } catch (err) {
+      res.status(500).json({ message: err.message || "Could not load notifications." });
+    }
+  }
+);
+
+router.patch(
+  "/my-notifications/:notificationId/read",
+  verifyToken,
+  requireActiveUser,
+  authorizeRole("student"),
+  async (req, res) => {
+    try {
+      const studentId = String(req.user.id);
+      const notificationId = String(req.params.notificationId);
+      const notification = teacherNotifications.find(
+        (n) => String(n.id) === notificationId && String(n.studentId) === studentId
+      );
+      if (!notification) {
+        return res.status(404).json({ message: "Notification not found." });
+      }
+      notification.read = true;
+      res.json({ message: "Notification marked as read." });
+    } catch (err) {
+      res.status(500).json({ message: err.message || "Could not mark notification read." });
     }
   }
 );
