@@ -1,4 +1,11 @@
-const BASE_URL = process.env.REACT_APP_API_URL ||  "https://backend-7lik.onrender.com";
+function normalizeApiBaseUrl(raw) {
+  const fallback = "https://backend-7lik.onrender.com";
+  if (raw == null || String(raw).trim() === "") return fallback;
+  return String(raw).trim().replace(/\/+$/, "");
+}
+
+/** Trailing slashes stripped so paths like `${API_BASE_URL}/otp/...` never become `//otp`. */
+export const API_BASE_URL = normalizeApiBaseUrl(process.env.REACT_APP_API_URL);
 
 /** User-facing messages — never surface raw status codes like "404" or "405". */
 const HTTP_FRIENDLY = {
@@ -7,7 +14,7 @@ const HTTP_FRIENDLY = {
   403: "You do not have permission to do that.",
   404: "That service or endpoint is not available. It may be missing or the link may be wrong.",
   405: "That action is not allowed for this address. Please try again or contact support if it continues.",
-  408: "The request took too long. Please try again.",
+  408: "The request took too long. Try again in a moment—email and sign-in can be slow when the server is waking up.",
   409: "This conflicts with existing data. Refresh the page and try again.",
   413: "The file or data is too large.",
   415: "The server cannot accept this type of data.",
@@ -94,6 +101,9 @@ const DEFAULT_API_TIMEOUT_MS = 15000;
 /** AI generation can exceed default timeout (LLM + cold backend). */
 const AI_GENERATE_TIMEOUT_MS = 180000;
 
+/** Email + OTP + cold server (e.g. Render spin-up + Brevo) often exceeds 15s. */
+const EMAIL_ACTION_TIMEOUT_MS = 90000;
+
 const withTimeout = async (url, opts = {}, timeoutMs = DEFAULT_API_TIMEOUT_MS) => {
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeoutMs);
@@ -111,7 +121,7 @@ export const api = async (endpoint, options = {}) => {
   const { timeoutMs, ...restOptions } = options;
   let res;
   try {
-    res = await withTimeout(`${BASE_URL}${endpoint}`, {
+    res = await withTimeout(`${API_BASE_URL}${endpoint}`, {
       ...restOptions,
       headers: {
         'Content-Type': 'application/json',
@@ -137,7 +147,7 @@ export const api = async (endpoint, options = {}) => {
 };
 
 export const apiUpload = async (endpoint, formData) => {
-  const res = await fetch(`${BASE_URL}${endpoint}`, {
+  const res = await fetch(`${API_BASE_URL}${endpoint}`, {
     method: 'POST',
     headers: authHeaders(),
     body: formData,
@@ -157,6 +167,86 @@ export const login = (email, password) =>
 
 export const register = (fullName, email, password, role) =>
   api('/register', { method: 'POST', body: JSON.stringify({ fullName, email, password, role }) });
+
+/**
+ * Forgot-password calls use plain fetch (no Authorization header), same as Register OTP,
+ * so gateways and caches do not treat them like authenticated API traffic.
+ * If `/otp/...` returns a "route missing" style 404, we retry `/api/otp/...` (both are mounted on the backend).
+ */
+function forgotPassword404ShouldRetryAltPath(data) {
+  const msg = String(data?.message || data?.error || "").toLowerCase();
+  if (msg.includes("no account")) return false;
+  return true;
+}
+
+async function postPublicOtpWithPathFallback(primaryPath, secondaryPath, body) {
+  const run = async (path) => {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), EMAIL_ACTION_TIMEOUT_MS);
+    try {
+      const res = await fetch(`${API_BASE_URL}${path}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+      if (res.status === 503 || res.status === 502) {
+        return {
+          res,
+          data: { message: "The server is starting up — please wait 30 seconds and try again." },
+        };
+      }
+      let data = {};
+      try {
+        data = await res.json();
+      } catch {
+        data = {};
+      }
+      return { res, data };
+    } catch (e) {
+      const isAbort =
+        e?.name === "AbortError" ||
+        (typeof e?.message === "string" && e.message.toLowerCase().includes("aborted"));
+      if (isAbort) throw new Error(HTTP_FRIENDLY[408]);
+      throw e;
+    } finally {
+      clearTimeout(id);
+    }
+  };
+
+  let { res, data } = await run(primaryPath);
+  if (res.ok) return data;
+
+  if (res.status === 404 && forgotPassword404ShouldRetryAltPath(data)) {
+    ({ res, data } = await run(secondaryPath));
+  }
+
+  if (!res.ok) {
+    throw new Error(getFriendlyApiErrorMessage(res.status, data.message || data.error));
+  }
+  return data;
+}
+
+export const forgotPasswordSend = (email) =>
+  postPublicOtpWithPathFallback(
+    "/otp/forgot-password/send",
+    "/api/otp/forgot-password/send",
+    { email }
+  );
+
+export const forgotPasswordVerify = (email, otp) =>
+  postPublicOtpWithPathFallback(
+    "/otp/forgot-password/verify",
+    "/api/otp/forgot-password/verify",
+    { email, otp }
+  );
+
+export const forgotPasswordComplete = (resetToken, newPassword) =>
+  postPublicOtpWithPathFallback(
+    "/otp/forgot-password/complete",
+    "/api/otp/forgot-password/complete",
+    { resetToken, newPassword }
+  );
 
 // ─── Lectures ─────────────────────────────────────────────────────────────────
 

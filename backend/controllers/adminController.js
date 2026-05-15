@@ -82,6 +82,7 @@ exports.createTeacher = async (req, res) => {
         full_name: fullName.trim(),
         email: emailNorm,
         password: hashedPassword,
+        password_plain: String(tempPassword),
         role: "teacher",
         subject: subj,
         status: true,
@@ -150,7 +151,7 @@ exports.changePassword = async (req, res) => {
     const hashedNew = await bcrypt.hash(newPassword, 10);
     const { error: updateErr } = await supabaseAdmin
       .from("users")
-      .update({ password: hashedNew })
+      .update({ password: hashedNew, password_plain: String(newPassword) })
       .eq("id", userId);
 
     if (updateErr) return res.status(400).json({ error: updateErr.message });

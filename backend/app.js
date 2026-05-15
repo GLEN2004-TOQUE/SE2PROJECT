@@ -103,15 +103,15 @@ app.get('/api/ai-status', (req, res) => {
 app.post('/register', authLimiter, authController.register);
 app.post('/login', authLimiter, authController.login);
 
-// OTP routes ← ADD THIS
-app.use(
-  '/otp',
-  (req, res, next) => {
-    const limiter = req.path === '/send' ? otpSendLimiter : otpVerifyLimiter;
-    return limiter(req, res, next);
-  },
-  otpRoutes
-);
+// OTP routes — mount on both paths so clients behind /api proxies or older configs still resolve
+const otpPathLimiter = (req, res, next) => {
+  const p = req.path || '';
+  const isOtpSend = p === '/send' || p.endsWith('/forgot-password/send');
+  const limiter = isOtpSend ? otpSendLimiter : otpVerifyLimiter;
+  return limiter(req, res, next);
+};
+app.use('/otp', otpPathLimiter, otpRoutes);
+app.use('/api/otp', otpPathLimiter, otpRoutes);
 
 // API Routes
 app.use('/api/quiz', quizRoutes);

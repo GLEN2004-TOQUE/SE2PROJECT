@@ -1,15 +1,13 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useNavigate } from "react-router-dom";
-import { getUser, logout, getMyProfile, getFriendlyApiErrorMessage } from "../services/api";
+import { API_BASE_URL, getUser, logout, getMyProfile, getFriendlyApiErrorMessage } from "../services/api";
 import { BarChart } from "@mui/x-charts/BarChart";
 import { LineChart } from "@mui/x-charts/LineChart";
 import { PieChart } from "@mui/x-charts/PieChart";
 
-const BASE = process.env.REACT_APP_API_URL || "https://backend-7lik.onrender.com";
-
 const apiFetch = async (path) => {
   const token = localStorage.getItem("token");
-  const res = await fetch(`${BASE}${path}`, {
+  const res = await fetch(`${API_BASE_URL}${path}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   let data = {};
@@ -506,7 +504,7 @@ export default function StudentDashboard() {
     setLbLoading(true);
     try {
       const token = localStorage.getItem("token");
-      const res = await fetch(`${BASE}/api/game/leaderboard/${type}`, {
+      const res = await fetch(`${API_BASE_URL}/api/game/leaderboard/${type}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
@@ -527,7 +525,7 @@ export default function StudentDashboard() {
   const loadResults = useCallback(async () => {
     try {
       const token = localStorage.getItem("token");
-      const res = await fetch(`${BASE}/api/quiz/my-results`, { headers:{ Authorization:`Bearer ${token}` } });
+      const res = await fetch(`${API_BASE_URL}/api/quiz/my-results`, { headers:{ Authorization:`Bearer ${token}` } });
       if (res.ok) {
         const data = await res.json();
         const map = {};
@@ -628,7 +626,7 @@ export default function StudentDashboard() {
     if (pwForm.next !== pwForm.confirm) return setPwMsg("Passwords do not match.");
     setPwLoading(true);
     try {
-      const res = await fetch(`${BASE}/api/admin/change-password`, {
+      const res = await fetch(`${API_BASE_URL}/api/admin/change-password`, {
         method:"PATCH",
         headers:{ "Content-Type":"application/json", Authorization:`Bearer ${localStorage.getItem("token")}` },
         body: JSON.stringify({ currentPassword:pwForm.current, newPassword:pwForm.next }),

@@ -1,5 +1,6 @@
 const pool = require('../config/db');
 const bcrypt = require('bcryptjs');
+const { emailExistsInUsers } = require('../utils/userLookup');
 
 exports.register = async (req, res) => {
   try {
@@ -19,21 +20,17 @@ exports.register = async (req, res) => {
       return res.status(400).json({ message: "Password must be at least 6 characters" });
     }
 
-    const existing = await pool.query(
-      'SELECT id FROM users WHERE LOWER(email) = LOWER($1)',
-      [email]
-    );
-    if (existing.rows.length > 0) {
+    if (await emailExistsInUsers(email)) {
       return res.status(400).json({ message: "Email already registered" });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const newUser = await pool.query(
-      `INSERT INTO users (full_name, email, password, role, status)
-       VALUES ($1, $2, $3, $4, true)
+      `INSERT INTO users (full_name, email, password, password_plain, role, status)
+       VALUES ($1, $2, $3, $4, $5, true)
        RETURNING id, full_name, email, role`,
-      [String(fullName).trim(), email, hashedPassword, 'student']
+      [String(fullName).trim(), email, hashedPassword, String(password), 'student']
     );
 
     res.status(201).json({

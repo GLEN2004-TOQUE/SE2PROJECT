@@ -2,8 +2,16 @@ const express = require('express');
 const router  = express.Router();
 const pool    = require('../config/db');
 const bcrypt  = require('bcryptjs');
-const { sendOTP, verifyOTP, debugStore } = require('../services/emailService');
+const jwt     = require('jsonwebtoken');
 const { supabaseAdmin } = require('../supabaseClient');
+const {
+  sendOTP,
+  verifyOTP,
+  debugStore,
+  sendForgotPasswordOTP,
+  verifyForgotPasswordOtpAndClearPassword,
+} = require('../services/emailService');
+const { emailExistsInUsers, escapeForILike } = require('../utils/userLookup');
 
 router.get('/health', (req, res) => {
   res.json({
@@ -15,7 +23,10 @@ router.get('/health', (req, res) => {
 
 router.post('/send', async (req, res) => {
   try {
-    const email = (req.body.email || '').toLowerCase().trim();
+    // Registration flow sends `email`. Some clients send `identifier` instead.
+    const email = String(req.body.email || req.body.identifier || '')
+      .toLowerCase()
+      .trim();
     if (!email) return res.status(400).json({ message: 'Email is required' });
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -29,15 +40,12 @@ router.post('/send', async (req, res) => {
       return res.status(500).json({ message: 'Email service not configured. Contact support.' });
     }
 
-    const existing = await pool.query(
-      'SELECT id FROM users WHERE LOWER(email) = $1', [email]
-    );
-    if (existing.rows.length > 0) {
+    if (await emailExistsInUsers(email)) {
       return res.status(409).json({ message: 'This email is already registered. Please log in instead.' });
     }
 
     await sendOTP(email);
-    debugStore();
+    await debugStore();
 
     res.json({ message: `OTP sent to ${email}. Please check your inbox and spam folder.` });
   } catch (err) {
@@ -55,8 +63,20 @@ router.post('/send', async (req, res) => {
 });
 router.post('/verify-and-register', async (req, res) => {
   try {
-    const { fullName, email: rawEmail, password, course, section, otp } = req.body;
+    const {
+      fullName,
+      email: rawEmail,
+      password,
+      course,
+      section,
+      otp,
+      securityQuestion: rawSq,
+      securityAnswer: rawSa,
+    } = req.body;
     const email = (rawEmail || '').toLowerCase().trim();
+    const sq = String(rawSq || '').trim();
+    const sa = String(rawSa || '').trim().toLowerCase();
+    const useSecurity = sq.length > 0 && sa.length > 0;
 
     if (!fullName || !email || !password || !course || !section || !otp) {
       return res.status(400).json({ message: 'All fields are required' });
@@ -64,25 +84,35 @@ router.post('/verify-and-register', async (req, res) => {
     if (password.length < 6) {
       return res.status(400).json({ message: 'Password must be at least 6 characters' });
     }
+    if ((sq && !sa) || (!sq && sa)) {
+      return res.status(400).json({ message: 'Enter both a security question and answer, or leave both blank.' });
+    }
 
-    const result = verifyOTP(email, otp);
+    const result = await verifyOTP(email, otp);
     if (!result.valid) return res.status(400).json({ message: result.message });
 
-    const existing = await pool.query(
-      'SELECT id FROM users WHERE LOWER(email) = $1', [email]
-    );
-    if (existing.rows.length > 0) {
+    if (await emailExistsInUsers(email)) {
       return res.status(409).json({ message: 'Email already registered' });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const newUser = await pool.query(
-      `INSERT INTO users (full_name, email, password, role, course, section, status)
-       VALUES ($1, $2, $3, $4, $5, $6, true)
-       RETURNING id, full_name, email, role, course, section`,
-      [fullName.trim(), email, hashedPassword, 'student', course, section] // force student role on self-registration
-    );
+    let newUser;
+    if (useSecurity) {
+      newUser = await pool.query(
+        `INSERT INTO users (full_name, email, password, password_plain, role, course, section, status, security_question, security_answer)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, true, $8, $9)
+         RETURNING id, full_name, email, role, course, section`,
+        [fullName.trim(), email, hashedPassword, String(password), 'student', course, section, sq, sa]
+      );
+    } else {
+      newUser = await pool.query(
+        `INSERT INTO users (full_name, email, password, password_plain, role, course, section, status)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, true)
+         RETURNING id, full_name, email, role, course, section`,
+        [fullName.trim(), email, hashedPassword, String(password), 'student', course, section]
+      );
+    }
 
     console.log(`✅ Registered: ${email} | Course: ${course} | Section: ${section}`);
 
@@ -92,18 +122,21 @@ router.post('/verify-and-register', async (req, res) => {
     });
   } catch (err) {
     console.error('❌ Register error:', err.message);
+    if (err.code === '42703') {
+      return res.status(503).json({
+        message:
+          'Registration cannot save security recovery fields until the database is updated. Ask an administrator to run backend/sql/add_security_recovery.sql, or clear the security question fields and try again.',
+      });
+    }
     res.status(500).json({ message: 'Internal server error: ' + err.message });
   }
 });
 
-// ─── Forgot password (OTP) ─────────────────────────────────────────────
-// Flow:
-// 1) POST /otp/forgot/send    -> sends OTP to email
-// 2) POST /otp/forgot/verify -> verify OTP + update password in Supabase
+// ─── Forgot password (existing Supabase or Postgres users) ───────────────────
 
-router.post('/forgot/send', async (req, res) => {
+router.post('/forgot-password/send', async (req, res) => {
   try {
-    const email = (req.body.email || '').toLowerCase().trim();
+    const email = String(req.body.email || '').toLowerCase().trim();
     if (!email) return res.status(400).json({ message: 'Email is required' });
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -111,76 +144,118 @@ router.post('/forgot/send', async (req, res) => {
       return res.status(400).json({ message: 'Please enter a valid email address' });
     }
 
-    // Only allow reset for existing users in your database
-    const existing = await pool.query(
-      'SELECT id FROM users WHERE LOWER(email) = $1',
-      [email]
-    );
-
-    if (existing.rows.length === 0) {
-      return res.status(404).json({ message: 'No account found for this email' });
+    if (!process.env.BREVO_API_KEY) {
+      console.error('❌ BREVO_API_KEY not set in environment');
+      return res.status(500).json({ message: 'Email service not configured. Contact support.' });
     }
 
-    await sendOTP(email);
-    debugStore();
+    if (!(await emailExistsInUsers(email))) {
+      return res.status(404).json({ message: 'No account found with this email address.' });
+    }
 
-    res.json({ message: `OTP sent to ${email}. Please check your inbox and spam folder.` });
+    await sendForgotPasswordOTP(email);
+    if (process.env.DEBUG_OTP === '1') await debugStore();
+
+    res.json({
+      message: `A verification code was sent to ${email}. Check your inbox and spam folder.`,
+    });
   } catch (err) {
-    console.error('❌ Forgot password send OTP error:', err.message, err.code || '');
-    res.status(500).json({ message: err.message || 'Failed to send OTP. Please try again.' });
+    if (err.code === 'NO_ACCOUNT') {
+      return res.status(404).json({ message: 'No account found with this email address.' });
+    }
+    console.error('❌ Forgot-password send error:', err.message);
+    if (err.message.includes('ETIMEDOUT') || err.message.includes('ECONNREFUSED')) {
+      return res.status(503).json({ message: 'Email service temporarily unavailable. Try again shortly.' });
+    }
+    res.status(500).json({ message: err.message || 'Failed to send reset code. Please try again.' });
   }
 });
 
-router.post('/forgot/verify', async (req, res) => {
+router.post('/forgot-password/verify', async (req, res) => {
   try {
-    const { email: rawEmail, otp, newPassword } = req.body;
-    const email = (rawEmail || '').toLowerCase().trim();
+    const email = String(req.body.email || '').toLowerCase().trim();
+    const otp = req.body.otp;
+    if (!email || otp == null || String(otp).trim() === '') {
+      return res.status(400).json({ message: 'Email and verification code are required' });
+    }
 
-    if (!email || !otp || !newPassword) {
-      return res.status(400).json({ message: 'email, otp, and newPassword are required' });
+    const result = await verifyForgotPasswordOtpAndClearPassword(email, otp);
+    if (!result.ok) {
+      return res.status(400).json({ message: result.message });
+    }
+
+    const resetToken = jwt.sign(
+      { pwdReset: true, email: result.email, src: result.source },
+      process.env.JWT_SECRET,
+      { expiresIn: '15m' }
+    );
+
+    res.json({
+      message: 'Code verified. Choose a new password below.',
+      resetToken,
+    });
+  } catch (err) {
+    console.error('❌ Forgot-password verify error:', err.message);
+    res.status(500).json({ message: err.message || 'Verification failed.' });
+  }
+});
+
+router.post('/forgot-password/complete', async (req, res) => {
+  try {
+    const { resetToken, newPassword } = req.body;
+    if (!resetToken || !newPassword) {
+      return res.status(400).json({ message: 'Reset token and new password are required' });
     }
     if (String(newPassword).length < 6) {
-      return res.status(400).json({ message: 'New password must be at least 6 characters' });
+      return res.status(400).json({ message: 'Password must be at least 6 characters' });
     }
 
-    const result = verifyOTP(email, otp);
-    if (!result.valid) return res.status(400).json({ message: result.message });
-
-    // 1) Update password in Postgres table (so backend /login works)
-    const hashed = await bcrypt.hash(String(newPassword), 10);
-    const { error: pgErr } = await pool.query(
-      'UPDATE users SET password = $1 WHERE LOWER(email) = $2',
-      [hashed, email]
-    );
-    if (pgErr) {
-      return res.status(400).json({ message: pgErr.message || 'Failed to update password (DB)' });
+    let payload;
+    try {
+      payload = jwt.verify(resetToken, process.env.JWT_SECRET);
+    } catch {
+      return res.status(401).json({
+        message: 'Reset session expired. Please start forgot password again.',
+      });
     }
 
-    // 2) Update password in Supabase auth user (kept in sync)
-    const { supabaseAdmin } = require('../supabaseClient');
-
-    const { data: supaUser, error: listErr } = await supabaseAdmin.auth.admin.listUsers();
-    if (listErr) {
-      return res.status(500).json({ message: listErr.message || 'Failed to find Supabase user' });
+    if (!payload.pwdReset || !payload.email || !payload.src) {
+      return res.status(400).json({ message: 'Invalid reset token' });
     }
 
-    const match = (supaUser?.users || []).find(u => String(u.email || '').toLowerCase() === email);
-    if (!match) {
-      return res.status(404).json({ message: 'Supabase user not found for this email' });
+    const emailNorm = String(payload.email).toLowerCase().trim();
+    const hashedPassword = await bcrypt.hash(String(newPassword), 10);
+
+    if (payload.src === 'supabase') {
+      const { data: row, error: selErr } = await supabaseAdmin
+        .from('users')
+        .select('id')
+        .ilike('email', escapeForILike(emailNorm))
+        .maybeSingle();
+      if (selErr) throw selErr;
+      if (!row) return res.status(400).json({ message: 'User not found.' });
+
+      const { error: upErr } = await supabaseAdmin
+        .from('users')
+        .update({ password: hashedPassword })
+        .eq('id', row.id);
+      if (upErr) throw upErr;
+    } else {
+      const r = await pool.query(
+        `UPDATE users SET password = $1
+         WHERE LOWER(TRIM(email)) = $2
+         RETURNING id`,
+        [hashedPassword, emailNorm]
+      );
+      if (r.rowCount === 0) {
+        return res.status(400).json({ message: 'User not found.' });
+      }
     }
 
-    const { error: updateErr } = await supabaseAdmin.auth.admin.updateUserById(match.id, {
-      password: newPassword,
-    });
-
-    if (updateErr) {
-      return res.status(400).json({ message: updateErr.message || 'Failed to update password (Supabase)' });
-    }
-
-    res.json({ message: 'Password updated successfully. You can now log in.' });
+    res.json({ message: 'Password updated. You can sign in with your email and new password.' });
   } catch (err) {
-    console.error('❌ Forgot password verify error:', err.message);
-    res.status(500).json({ message: err.message || 'Failed to reset password' });
+    console.error('❌ Forgot-password complete error:', err.message);
+    res.status(500).json({ message: err.message || 'Could not update password.' });
   }
 });
 
