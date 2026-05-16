@@ -214,7 +214,7 @@ const Styles = () => (
     /* ── Layout ── */
     .td-layout {
       position:relative; z-index:1;
-      display:grid; grid-template-columns:210px 1fr;
+      display:grid; grid-template-columns: 1fr;
       gap:1.2rem; max-width:1280px; margin:0 auto; padding:1.4rem;
     }
 
@@ -615,21 +615,35 @@ const Styles = () => (
     /* ── Attendance chart wrapper ── */
     .td-analytics-grid { display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-bottom:1.75rem; animation:floatUp .5s .13s ease both; }
 
-    @media(max-width:1024px){
-      .td-layout { grid-template-columns:1fr; padding:.85rem; }
-      .td-top-nav-links { display:none; }
-      .td-top-nav-hamburger { display:inline-flex; }
-      .td-side { position:static; }
-      .td-side-placeholder { display:none; }
-      .td-user-chip-name { display:none; }
-      .td-stats { grid-template-columns:1fr 1fr; }
-      .td-analytics-grid { grid-template-columns:1fr; }
-      .td-settings-grid { grid-template-columns:1fr; }
-      .td-topbar { padding:0 1rem; }
-      .td-name { font-size:1.65rem; }
-      .td-actions { grid-template-columns:1fr; }
-      .td-section-grid { grid-template-columns: 1fr 1fr; }
-    }
+@media(max-width:1024px){
+  .td-layout { grid-template-columns:1fr; padding:.85rem; }
+  .td-top-nav-links { display:none; }
+  .td-top-nav-hamburger { display:inline-flex; }
+  .td-side { position:static; }
+  .td-side-placeholder { display:none; }
+  .td-user-chip-name { display:none; }
+  .td-stats { grid-template-columns:1fr 1fr; }
+  .td-analytics-grid { grid-template-columns:1fr; }
+  .td-settings-grid { grid-template-columns:1fr; }
+  .td-topbar { padding:0 .75rem; }
+  .td-name { font-size:1.65rem; }
+  .td-actions { grid-template-columns:1fr; }
+  .td-section-grid { grid-template-columns: 1fr 1fr; }
+  .td-topbar-right { gap:.5rem; }
+  .td-topbar-btn { display:none; }
+  .td-subject-dropdown-wrap { display:none; }
+}
+@media(max-width:640px){
+  .td-stats { grid-template-columns:1fr; }
+  .td-students-grid { grid-template-columns:1fr; }
+  .td-section-grid { grid-template-columns:1fr; }
+  .td-quiz-card { flex-wrap:wrap; }
+  .td-quiz-actions { width:100%; justify-content:flex-end; }
+  .td-analytics-grid { gap:.75rem; }
+  .td-topbar { height:54px; }
+  .td-logo { font-size:.95rem; }
+  .td-logo-icon { width:28px; height:28px; }
+}
   `}</style>
 );
 
@@ -1905,15 +1919,43 @@ export default function TeacherDashboard() {
                 <button className={`td-top-nav-link ${activeView === "settings" ? "active" : ""}`} onClick={() => { setActiveView("settings"); setPwError(""); setPwSuccess(false); }}>Settings</button>
               </nav>
               <button className="td-top-nav-hamburger" onClick={() => setTopNavOpen(v => !v)} aria-expanded={topNavOpen} aria-label="Open navigation">☰</button>
-              {topNavOpen && (
-                <>
-                  <div style={{ position: "fixed", inset: 0, zIndex: 49 }} onClick={() => setTopNavOpen(false)} />
-                  <div className="td-top-nav-dropdown">
-                    <div className={`td-top-nav-dropdown-item ${activeView === "overview" ? "active" : ""}`} onClick={() => { setActiveView("overview"); setTopNavOpen(false); }}>Overview</div>
-                    <div className={`td-top-nav-dropdown-item ${activeView === "settings" ? "active" : ""}`} onClick={() => { setActiveView("settings"); setTopNavOpen(false); setPwError(""); setPwSuccess(false); }}>Settings</div>
-                  </div>
-                </>
-              )}
+             {topNavOpen && (
+  <>
+    <div style={{ position: "fixed", inset: 0, zIndex: 49 }} onClick={() => setTopNavOpen(false)} />
+    <div className="td-top-nav-dropdown" style={{ minWidth: 200 }}>
+      <div
+        style={{ padding:".3rem .7rem .5rem", fontSize:".58rem", letterSpacing:".12em", textTransform:"uppercase", color:"rgba(200,160,60,.4)", fontWeight:500 }}
+      >
+        Navigation
+      </div>
+      <div className={`td-top-nav-dropdown-item ${activeView === "overview" ? "active" : ""}`} onClick={() => { setActiveView("overview"); setTopNavOpen(false); }}>
+        📊 Overview
+      </div>
+      <div className={`td-top-nav-dropdown-item ${activeView === "settings" ? "active" : ""}`} onClick={() => { setActiveView("settings"); setTopNavOpen(false); setPwError(""); setPwSuccess(false); }}>
+        ⚙️ Settings
+      </div>
+      <div style={{ height:"1px", background:"rgba(200,160,50,.1)", margin:".4rem .5rem" }} />
+      <div
+        style={{ padding:".3rem .7rem .5rem", fontSize:".58rem", letterSpacing:".12em", textTransform:"uppercase", color:"rgba(200,160,60,.4)", fontWeight:500 }}
+      >
+        Actions
+      </div>
+      <div className="td-top-nav-dropdown-item" onClick={() => { openMessageModal(); setTopNavOpen(false); }}>
+        📣 Announce
+      </div>
+      <div className="td-top-nav-dropdown-item" onClick={() => { refreshDashboard(); setTopNavOpen(false); }}>
+        ↻ Refresh
+      </div>
+      <div className="td-top-nav-dropdown-item" onClick={() => { resetStudentPoints(); setTopNavOpen(false); }}>
+        🔄 Reset Points
+      </div>
+      <div style={{ height:"1px", background:"rgba(200,160,50,.1)", margin:".4rem .5rem" }} />
+      <div className="td-top-nav-dropdown-item" style={{ color:"rgba(252,165,165,.7)" }} onClick={() => { logout(); navigate("/"); }}>
+        🚪 Sign out
+      </div>
+    </div>
+  </>
+)}
             </div>
             <div className="td-user-chip">
               <div className="td-user-chip-avatar">{initials(teacherName)}</div>

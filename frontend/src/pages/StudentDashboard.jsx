@@ -449,6 +449,34 @@ const Styles = () => (
     .sd-badge-course  { background:rgba(147,130,200,.1); color:#c4b5fd; border:1px solid rgba(147,130,200,.2); }
     .sd-badge-section { background:rgba(200,160,40,.1); color:#e8c878; border:1px solid rgba(200,160,40,.22); }
 
+    .sd-hamburger {
+  display:none; align-items:center; justify-content:center;
+  width:38px; height:38px; border-radius:10px;
+  border:1px solid rgba(200,160,50,.18);
+  background:rgba(200,160,50,.06); color:rgba(200,160,80,.8);
+  cursor:pointer; font-size:1.1rem; transition:all .15s; flex-shrink:0;
+}
+.sd-hamburger:hover { background:rgba(200,160,50,.14); color:#e8c878; }
+.sd-mob-menu {
+  position:absolute; top:calc(100% + 8px); right:0; min-width:210px; z-index:60;
+  background:linear-gradient(160deg,#1e0c0c 0%,#160808 100%);
+  border:1px solid rgba(200,160,50,.22); border-radius:12px; padding:.4rem;
+  box-shadow:0 20px 60px rgba(0,0,0,.7);
+  animation:slideDown .18s ease both;
+}
+.sd-mob-menu-section {
+  padding:.3rem .7rem .45rem; font-size:.58rem; letter-spacing:.12em;
+  text-transform:uppercase; color:rgba(200,160,60,.4); font-weight:500;
+}
+.sd-mob-menu-item {
+  display:flex; align-items:center; gap:.55rem;
+  padding:.6rem .8rem; border-radius:9px; cursor:pointer;
+  color:rgba(232,200,120,.85); font-size:.82rem; transition:background .12s;
+}
+.sd-mob-menu-item:hover { background:rgba(200,160,50,.08); color:#f5e6c8; }
+.sd-mob-menu-item.active { background:rgba(200,160,50,.12); color:#e8c878; font-weight:500; }
+.sd-mob-menu-divider { height:1px; background:rgba(200,160,50,.1); margin:.35rem .4rem; }
+
     /* ── Teacher card ── */
     .sd-teacher-card {
       padding:1.4rem 1.6rem; margin-bottom:1.75rem;
@@ -703,22 +731,31 @@ const Styles = () => (
     /* ── Responsive ── */
     @media(max-width:1024px){
       .sd-hero-grid { grid-template-columns:1fr; }
-    }
-    @media(max-width:760px){
-      .sd-layout { padding:.85rem; }
-      .sd-stats { grid-template-columns:1fr 1fr; }
-      .sd-analytics-grid { grid-template-columns:1fr; }
-      .sd-settings-grid { grid-template-columns:1fr; }
-      .sd-topbar {
-        padding:0 1rem; flex-direction:column; align-items:flex-start;
-        height:auto; gap:.85rem;
-      }
-      .sd-topbar-left { width:100%; justify-content:space-between; }
-      .sd-topbar-right { width:100%; justify-content:space-between; flex-wrap:wrap; }
-      .sd-topnav { width:100%; }
-      .sd-topnav-item { flex:1 1 auto; min-width:120px; }
-      .sd-name { font-size:1.65rem; }
-    }
+    @media(max-width:1024px){
+  .sd-hero-grid { grid-template-columns:1fr; }
+  .sd-section-subject { grid-template-columns:1fr; }
+}
+@media(max-width:768px){
+  .sd-layout { padding:.85rem; }
+  .sd-stats { grid-template-columns:1fr 1fr; }
+  .sd-analytics-grid { grid-template-columns:1fr; }
+  .sd-settings-grid { grid-template-columns:1fr; }
+  .sd-topbar { padding:0 .75rem; }
+  .sd-topnav { display:none; }
+  .sd-hamburger { display:inline-flex !important; }
+  .sd-topbar-right .sd-user-chip span.sd-chip-name { display:none; }
+  .sd-logout { display:none; }
+  .sd-name { font-size:1.65rem; }
+  .sd-tier-row { grid-template-columns:1fr 1fr; }
+}
+@media(max-width:480px){
+  .sd-stats { grid-template-columns:1fr; }
+  .sd-tier-row { grid-template-columns:1fr; }
+  .sd-quiz-card { flex-wrap:wrap; }
+  .sd-topbar { height:54px; }
+  .sd-logo { font-size:.95rem; }
+  .sd-logo-icon { width:28px; height:28px; }
+}
   `}</style>
 );
 
@@ -850,6 +887,7 @@ export default function StudentDashboard() {
 
   const [notifications, setNotifications] = useState([]);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [topNavOpen, setTopNavOpen] = useState(false);
   const [notificationsLoading, setNotificationsLoading] = useState(false);
   const [notificationsError, setNotificationsError] = useState("");
 
@@ -1158,46 +1196,71 @@ export default function StudentDashboard() {
         <div className="deco-ring deco-ring-2" />
 
         {/* ── Topbar ── */}
-        <header className="sd-topbar">
-          <div className="sd-topbar-left">
-            <div className="sd-logo">
-              <div className="sd-logo-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.87L12 18.07 5.82 22 7 14.14 2 9.27l6.91-1.01z"/>
-                </svg>
-              </div>
-              QuizSystem
+<header className="sd-topbar" style={{ position:"sticky", top:0, zIndex:30 }}>
+  <div className="sd-topbar-left">
+    <div className="sd-logo">
+      <div className="sd-logo-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.87L12 18.07 5.82 22 7 14.14 2 9.27l6.91-1.01z"/>
+        </svg>
+      </div>
+      QuizSystem
+    </div>
+    <div className="sd-topnav">
+      <button className={`sd-topnav-item ${activeView==="overview"?"active":""}`} onClick={()=>setActiveView("overview")}>Overview</button>
+      <button className={`sd-topnav-item ${activeView==="settings"?"active":""}`} onClick={()=>setActiveView("settings")}>Settings</button>
+    </div>
+  </div>
+  <div className="sd-topbar-right" style={{ position:"relative" }}>
+    <button
+      className="sd-notification-button"
+      onClick={() => { setNotificationsOpen(o=>!o); if(!notificationsOpen) loadNotifications(); }}
+      aria-label="Toggle notifications"
+    >
+      <BellIcon />
+      {unreadCount > 0 && <span className="sd-notification-badge">{unreadCount}</span>}
+    </button>
+    <div className="sd-user-chip">
+      <div className="sd-user-chip-avatar">
+        {profilePhoto
+          ? <img src={profilePhoto} alt="You" style={{width:"100%",height:"100%",objectFit:"cover"}} />
+          : avatarText}
+      </div>
+      <span className="sd-chip-name">{displayName}</span>
+    </div>
+    <button className="sd-logout" onClick={() => { logout(); navigate("/"); }}>Sign out</button>
+
+    {/* Hamburger — mobile only */}
+    <div style={{ position:"relative" }}>
+      <button
+        className="sd-hamburger"
+        onClick={() => setTopNavOpen(v => !v)}
+        aria-label="Open menu"
+      >
+        ☰
+      </button>
+      {topNavOpen && (
+        <>
+          <div style={{ position:"fixed", inset:0, zIndex:49 }} onClick={() => setTopNavOpen(false)} />
+          <div className="sd-mob-menu">
+            <div className="sd-mob-menu-section">Navigate</div>
+            <div className={`sd-mob-menu-item ${activeView==="overview"?"active":""}`} onClick={() => { setActiveView("overview"); setTopNavOpen(false); }}>
+              📊 Overview
             </div>
-            <div className="sd-topnav">
-              <button className={`sd-topnav-item ${activeView==="overview"?"active":""}`} onClick={()=>setActiveView("overview")}>Overview</button>
-              <button className={`sd-topnav-item ${activeView==="settings"?"active":""}`} onClick={()=>setActiveView("settings")}>Settings</button>
+            <div className={`sd-mob-menu-item ${activeView==="settings"?"active":""}`} onClick={() => { setActiveView("settings"); setTopNavOpen(false); }}>
+              ⚙️ Settings
+            </div>
+            <div className="sd-mob-menu-divider" />
+            <div className="sd-mob-menu-section">Account</div>
+            <div className="sd-mob-menu-item" style={{ color:"rgba(252,165,165,.7)" }} onClick={() => { logout(); navigate("/"); }}>
+              🚪 Sign out
             </div>
           </div>
-          <div className="sd-topbar-right">
-            <button
-              className="sd-notification-button"
-              onClick={() => {
-                setNotificationsOpen((open) => !open);
-                if (!notificationsOpen) {
-                  loadNotifications();
-                }
-              }}
-              aria-label="Toggle notifications"
-            >
-              <BellIcon />
-              {unreadCount > 0 && <span className="sd-notification-badge">{unreadCount}</span>}
-            </button>
-            <div className="sd-user-chip">
-              <div className="sd-user-chip-avatar">
-                {profilePhoto
-                  ? <img src={profilePhoto} alt="You" style={{width:"100%",height:"100%",objectFit:"cover"}} />
-                  : avatarText}
-              </div>
-              {displayName}
-            </div>
-            <button className="sd-logout" onClick={() => { logout(); navigate("/"); }}>Sign out</button>
-          </div>
-        </header>
+        </>
+      )}
+    </div>
+  </div>
+</header>
 
         <div className="sd-layout">
           {showAiExpiredPopup && (
