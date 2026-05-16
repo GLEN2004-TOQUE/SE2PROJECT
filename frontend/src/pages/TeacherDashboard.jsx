@@ -126,6 +126,7 @@ const Styles = () => (
       display:flex; align-items:center; justify-content:center;
       font-size:.62rem; font-weight:700; color:#f5e6c8; flex-shrink:0;
     }
+    .td-user-chip-name { display:inline-block; }
     .td-chip-small {
       font-family:'DM Mono',monospace; font-size:.65rem; padding:.18rem .65rem;
       border-radius:999px; background:rgba(200,160,50,.1);
@@ -140,6 +141,25 @@ const Styles = () => (
       transition: all .15s;
     }
     .td-topbar-btn:hover { background:rgba(200,160,50,.14); color:#e8c878; }
+
+    /* ── Top nav (placed beside refresh) ── */
+    .td-top-nav { position:relative; display:flex; align-items:center; gap:.5rem; margin-right:.35rem; }
+    .td-top-nav-links { display:flex; gap:.4rem; align-items:center; }
+    .td-top-nav-link {
+      padding:.35rem .7rem; border-radius:8px; cursor:pointer; background:transparent; border:1px solid transparent; color:rgba(200,170,100,.75); font-size:.82rem; font-weight:500;
+    }
+    .td-top-nav-link.active { background:rgba(200,160,50,.08); border-color:rgba(200,160,50,.12); color:#e8c878; }
+    .td-top-nav-hamburger {
+      display:none; padding:.32rem .6rem; border-radius:8px; background:rgba(255,255,255,.02); color:rgba(200,170,100,.8); border:1px solid rgba(200,160,50,.06); cursor:pointer; font-size:1rem;
+    }
+    .td-top-nav-dropdown {
+      position:absolute; top:calc(100% + 8px); right:0; min-width:160px; z-index:60;
+      background: linear-gradient(160deg, #1e0c0c 0%, #160808 100%);
+      border:1px solid rgba(200,160,50,.22); border-radius:10px; padding:.35rem; box-shadow:0 20px 60px rgba(0,0,0,.6);
+    }
+    .td-top-nav-dropdown-item { padding:.6rem .8rem; border-radius:8px; color:rgba(232,200,120,.9); cursor:pointer; }
+    .td-top-nav-dropdown-item:hover { background:rgba(200,160,50,.06); }
+    .td-top-nav-dropdown-item.active { background:rgba(200,160,50,.12); color:#e8c878; }
 
     /* ── Subject Dropdown ── */
     .td-subject-dropdown-wrap { position: relative; }
@@ -197,6 +217,9 @@ const Styles = () => (
       display:grid; grid-template-columns:210px 1fr;
       gap:1.2rem; max-width:1280px; margin:0 auto; padding:1.4rem;
     }
+
+    /* Placeholder used when the sidebar is removed but layout spacing should remain */
+    .td-side-placeholder { width:100%; height:1px; }
 
     /* ── Sidebar ── */
     .td-side {
@@ -592,9 +615,13 @@ const Styles = () => (
     /* ── Attendance chart wrapper ── */
     .td-analytics-grid { display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-bottom:1.75rem; animation:floatUp .5s .13s ease both; }
 
-    @media(max-width:760px){
+    @media(max-width:1024px){
       .td-layout { grid-template-columns:1fr; padding:.85rem; }
+      .td-top-nav-links { display:none; }
+      .td-top-nav-hamburger { display:inline-flex; }
       .td-side { position:static; }
+      .td-side-placeholder { display:none; }
+      .td-user-chip-name { display:none; }
       .td-stats { grid-template-columns:1fr 1fr; }
       .td-analytics-grid { grid-template-columns:1fr; }
       .td-settings-grid { grid-template-columns:1fr; }
@@ -1297,6 +1324,7 @@ export default function TeacherDashboard() {
   const [studentFilterSubject, setStudentFilterSubject] = useState("");
 
   const [subjectDropdownOpen, setSubjectDropdownOpen] = useState(false);
+  const [topNavOpen, setTopNavOpen] = useState(false);
 
   const [sendModal, setSendModal] = useState(null);   // { quiz }
   const [sending, setSending] = useState(false);
@@ -1870,9 +1898,26 @@ export default function TeacherDashboard() {
           </div>
 
           <div className="td-topbar-right">
+            {/* Top navigation (placed beside refresh) */}
+            <div className="td-top-nav">
+              <nav className="td-top-nav-links">
+                <button className={`td-top-nav-link ${activeView === "overview" ? "active" : ""}`} onClick={() => setActiveView("overview")}>Overview</button>
+                <button className={`td-top-nav-link ${activeView === "settings" ? "active" : ""}`} onClick={() => { setActiveView("settings"); setPwError(""); setPwSuccess(false); }}>Settings</button>
+              </nav>
+              <button className="td-top-nav-hamburger" onClick={() => setTopNavOpen(v => !v)} aria-expanded={topNavOpen} aria-label="Open navigation">☰</button>
+              {topNavOpen && (
+                <>
+                  <div style={{ position: "fixed", inset: 0, zIndex: 49 }} onClick={() => setTopNavOpen(false)} />
+                  <div className="td-top-nav-dropdown">
+                    <div className={`td-top-nav-dropdown-item ${activeView === "overview" ? "active" : ""}`} onClick={() => { setActiveView("overview"); setTopNavOpen(false); }}>Overview</div>
+                    <div className={`td-top-nav-dropdown-item ${activeView === "settings" ? "active" : ""}`} onClick={() => { setActiveView("settings"); setTopNavOpen(false); setPwError(""); setPwSuccess(false); }}>Settings</div>
+                  </div>
+                </>
+              )}
+            </div>
             <div className="td-user-chip">
               <div className="td-user-chip-avatar">{initials(teacherName)}</div>
-              {teacherName}
+              <span className="td-user-chip-name">{teacherName}</span>
             </div>
 
             {/* Subject Dropdown */}
@@ -1937,16 +1982,8 @@ export default function TeacherDashboard() {
         </header>
 
         <div className="td-layout">
-          {/* Sidebar */}
-          <aside className="td-side">
-            <div className="td-side-label">Navigation</div>
-            <div className={`td-side-item ${activeView === "overview" ? "active" : ""}`} onClick={() => setActiveView("overview")}>
-              {Ico.Overview} Overview
-            </div>
-            <div className={`td-side-item ${activeView === "settings" ? "active" : ""}`} onClick={() => { setActiveView("settings"); setPwError(""); setPwSuccess(false); }}>
-              {Ico.Settings} Settings
-            </div>
-          </aside>
+          {/* Sidebar removed — keep placeholder for layout spacing */}
+          <div className="td-side-placeholder" aria-hidden="true" />
 
           <div className="td-body">
 
