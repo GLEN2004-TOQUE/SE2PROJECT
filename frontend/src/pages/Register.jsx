@@ -366,7 +366,9 @@ export default function Register() {
   const [step, setStep] = useState(1);
 
   // Form state
-  const [fullName, setFullName]     = useState("");
+  const [firstName, setFirstName]   = useState("");
+  const [middleName, setMiddleName] = useState("");
+  const [lastName, setLastName]     = useState("");
   const [email, setEmail]           = useState("");
   const [password, setPassword]     = useState("");
   const [showPass, setShowPass]     = useState(false);
@@ -412,10 +414,12 @@ export default function Register() {
   const handleSendOTP = async (e) => {
   e.preventDefault();
   setError(""); setSuccess("");
-  const cleanName = sanitizeText(fullName);
+  const cleanFirstName = sanitizeText(firstName);
+  const cleanMiddleName = sanitizeText(middleName);
+  const cleanLastName = sanitizeText(lastName);
   const cleanEmail = sanitizeEmail(email);
-  if (!cleanName || !cleanEmail || !password || !level || !course || !section) {
-    setError("Please fill in all fields including Section."); return;
+  if (!cleanFirstName || !cleanLastName || !cleanEmail || !password || !level || !course || !section) {
+    setError("Please fill in all required fields, including first name, last name, course, section, and email."); return;
   }
   if (!isValidEmail(cleanEmail)) { setError("Please use a valid email address."); return; }
   if (!isStrongPassword(password)) { setError("Password must be at least 6 characters."); return; }
@@ -520,13 +524,20 @@ export default function Register() {
     
     setError(""); setLoading(true);
     try {
+      const cleanFirstName = sanitizeText(firstName);
+      const cleanMiddleName = sanitizeText(middleName);
+      const cleanLastName = sanitizeText(lastName);
+      const cleanFullName = [cleanFirstName, cleanMiddleName, cleanLastName].filter(Boolean).join(" ");
       const res = await fetch(`${API_BASE_URL}/otp/verify-and-register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          fullName: sanitizeText(fullName), email: sanitizeEmail(email), password,
+          firstName: cleanFirstName,
+          middleName: cleanMiddleName,
+          lastName: cleanLastName,
+          fullName: cleanFullName,
+          email: sanitizeEmail(email), password,
           role: "student", course, section, otp,
-        
         }),
       });
       const data = await readResponseJson(res);
@@ -580,13 +591,31 @@ export default function Register() {
                 )}
 
                 <form onSubmit={handleSendOTP}>
-                  {/* Full Name */}
-                  <div className="field">
-                    <label>Full Name</label>
-                    <div className="input-wrap">
-                      <Ico.Person />
-                      <input type="text" placeholder="Juan Dela Cruz"
-                        value={fullName} onChange={e => setFullName(e.target.value)} required />
+                  {/* First / Middle / Last Name */}
+                  <div className="field-row">
+                    <div className="field">
+                      <label>First Name</label>
+                      <div className="input-wrap">
+                        <Ico.Person />
+                        <input type="text" placeholder="Juan"
+                          value={firstName} onChange={e => setFirstName(e.target.value)} required />
+                      </div>
+                    </div>
+                    <div className="field">
+                      <label>Middle Name</label>
+                      <div className="input-wrap">
+                        <Ico.Person />
+                        <input type="text" placeholder="Dela" value={middleName}
+                          onChange={e => setMiddleName(e.target.value)} />
+                      </div>
+                    </div>
+                    <div className="field">
+                      <label>Last Name</label>
+                      <div className="input-wrap">
+                        <Ico.Person />
+                        <input type="text" placeholder="Cruz"
+                          value={lastName} onChange={e => setLastName(e.target.value)} required />
+                      </div>
                     </div>
                   </div>
 
@@ -796,7 +825,7 @@ export default function Register() {
                   fontSize:".82rem",color:"rgba(200,170,100,.7)",
                   lineHeight:1.8,
                 }}>
-                  <div><strong style={{color:"#f5e6c8"}}>{fullName}</strong></div>
+                  <div><strong style={{color:"#f5e6c8"}}>{[firstName, middleName, lastName].filter(Boolean).join(" ") || email}</strong></div>
                   <div>{email}</div>
                   <div style={{marginTop:".4rem"}}>
                     <span className="summary-chip chip-course">📚 {course}</span>

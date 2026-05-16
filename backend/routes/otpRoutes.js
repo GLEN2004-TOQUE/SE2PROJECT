@@ -70,18 +70,24 @@ router.post('/send', async (req, res) => {
 router.post('/verify-and-register', async (req, res) => {
   try {
     const {
+      firstName,
+      middleName,
+      lastName,
       fullName,
       email: rawEmail,
       password,
       course,
       section,
       otp,
-    
     } = req.body;
     const email = (rawEmail || '').toLowerCase().trim();
-    
+    const cleanFirstName = String(firstName || '').trim();
+    const cleanMiddleName = String(middleName || '').trim();
+    const cleanLastName = String(lastName || '').trim();
+    const cleanFullName = String(fullName || '').trim();
+    const resolvedFullName = [cleanFirstName, cleanMiddleName, cleanLastName].filter(Boolean).join(' ') || cleanFullName;
 
-    if (!fullName || !email || !password || !course || !section || !otp) {
+    if (!resolvedFullName || !email || !password || !course || !section || !otp) {
       return res.status(400).json({ message: 'All fields are required' });
     }
     if (password.length < 6) {
@@ -104,7 +110,7 @@ router.post('/verify-and-register', async (req, res) => {
         `INSERT INTO users (full_name, email, password, password_plain, role, course, section, status)
          VALUES ($1, $2, $3, $4, $5, $6, $7, true)
          RETURNING id, full_name, email, role, course, section`,
-        [fullName.trim(), email, hashedPassword, String(password), 'student', course, section]
+        [resolvedFullName.trim(), email, hashedPassword, String(password), 'student', course, section]
       );
       newUser = newUser.rows[0];
       console.log(`✅ Registered in Postgres: ${email} | Course: ${course} | Section: ${section}`);
@@ -115,7 +121,7 @@ router.post('/verify-and-register', async (req, res) => {
           .from('users')
           .insert([
             {
-              full_name: fullName.trim(),
+              full_name: resolvedFullName.trim(),
               email,
               password: hashedPassword,
               role: 'student',
