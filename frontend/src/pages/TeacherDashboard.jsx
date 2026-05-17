@@ -2096,10 +2096,11 @@ export default function TeacherDashboard() {
                           <table className="td-results-table" style={{ width: "100%" }}>
                             <thead>
                               <tr>
-                                <th style={{ width: "22%" }}>Date</th>
-                                <th style={{ width: "32%" }}>Quiz</th>
+                                <th style={{ width: "18%" }}>Date</th>
+                                <th style={{ width: "30%" }}>Quiz</th>
                                 <th style={{ width: "30%" }}>Student</th>
-                                <th style={{ width: "16%" }}>Status</th>
+                                <th style={{ width: "12%" }}>Completed</th>
+                                <th style={{ width: "10%" }}>Status</th>
                               </tr>
                             </thead>
                             <tbody>
@@ -2110,6 +2111,11 @@ export default function TeacherDashboard() {
                                   </td>
                                   <td>{record.quizTitle}</td>
                                   <td>{record.studentName}</td>
+                                  <td>
+                                    <span className={`td-pill ${record.completed ? "td-pass-pill" : "td-pend-pill"}`} style={{ margin: 0 }}>
+                                      {record.completed ? "Completed" : "Not completed"}
+                                    </span>
+                                  </td>
                                   <td>
                                     <span className={`td-pill ${record.status === "present" ? "td-pass-pill" : "td-fail-pill"}`} style={{ margin: 0 }}>
                                       {record.status === "present" ? "Present" : "Absent"}

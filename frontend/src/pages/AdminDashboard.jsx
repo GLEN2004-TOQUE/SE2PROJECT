@@ -346,6 +346,27 @@ const Styles = () => (
     .grad-green .ad-stat-val { color: #4ade80; }
     .grad-blue  .ad-stat-val { color: #93c5fd; }
     .grad-red   .ad-stat-val { color: #fca5a5; }
+    .ad-stat-footer {
+      margin-top: 1.1rem;
+      padding: .9rem 1rem;
+      border-radius: 14px;
+      background: rgba(255,255,255,.06);
+      border: 1px solid rgba(255,255,255,.1);
+      display: grid;
+      gap: .3rem;
+    }
+    .ad-stat-foot-line {
+      font-size: .9rem;
+      font-weight: 600;
+      color: var(--text);
+      line-height: 1.2;
+    }
+    .ad-stat-foot-meta {
+      font-size: .75rem;
+      color: rgba(255,255,255,.72);
+      line-height: 1.4;
+      font-family: 'DM Mono', monospace;
+    }
     .ad-stat-hint { font-size: .7rem; color: var(--muted); margin-top: .4rem; font-weight: 300; }
 
     /* ══════════════════════════════
@@ -1007,6 +1028,18 @@ export default function AdminDashboard() {
     lbFilter === "all"
       ? leaderboardByProgram
       : leaderboardByProgram.filter((u) => u.section === lbFilter);
+
+  const topOverallStudent = leaderboard[0] || null;
+  const topCollegeStudent = leaderboard.find((u) => inferStudentProgram(u.course) === "college") || null;
+  const topShsStudent = leaderboard.find((u) => inferStudentProgram(u.course) === "seniorhigh") || null;
+  const getTeacherNames = (student) => {
+    if (!student) return "—";
+    const teachers = assignMap[sidKey(student.id)] || [];
+    return teachers.length > 0 ? teachers.map((t) => t.full_name).join(", ") : "Unassigned";
+  };
+  const formatStudentLabel = (student) =>
+    student ? student.full_name : "—";
+  const formatStudentSection = (student) => student?.section || "No section";
 
   const filterBySearch = arr => arr.filter(u=>
     u.full_name?.toLowerCase().includes(search.toLowerCase())||
@@ -1789,16 +1822,23 @@ export default function AdminDashboard() {
                   </div>
                 </div>
 
-                <div className="ad-stat-row" style={{gridTemplateColumns:"repeat(3,1fr)"}}>
+                <div className="ad-stat-row" style={{gridTemplateColumns:"repeat(4,1fr)"}}>
                   {[
-                    {icon:I.Users,  label:"Total Students", value:leaderboardByProgram.length,                        grad:"grad-gold"},
-                    {icon:I.Trophy, label:"Top Score",       value:leaderboardByProgram[0]?.points?.toLocaleString()||"—", grad:"grad-green"},
-                    {icon:I.Chart,  label:"Sections",        value:sections.length,                           grad:"grad-blue"},
+                    {icon:I.Users,  label:"Total Students",      value:leaderboardByProgram.length,                        grad:"grad-gold"},
+                    {icon:I.Trophy, label:"College Top Score",   student:topCollegeStudent, score:topCollegeStudent?.points?.toLocaleString()||"—", grad:"grad-green"},
+                    {icon:I.Trophy, label:"Senior High Top Score", student:topShsStudent,    score:topShsStudent?.points?.toLocaleString()||"—",    grad:"grad-blue"},
+                    {icon:I.Trophy, label:"Overall Top Score",   student:topOverallStudent, score:topOverallStudent?.points?.toLocaleString()||"—", grad:"grad-gold"},
                   ].map((s,i)=>(
                     <div key={i} className={`ad-stat-card ${s.grad}`}>
                       <div className="ad-stat-icon">{s.icon}</div>
                       <p className="ad-stat-label">{s.label}</p>
-                      <p className="ad-stat-val">{lbLoading?"—":s.value}</p>
+                      <p className="ad-stat-val">{lbLoading?"—":s.score ?? s.value}</p>
+                      {!lbLoading && s.student && (
+                        <div className="ad-stat-footer">
+                          <div className="ad-stat-foot-line">{formatStudentLabel(s.student)}</div>
+                          <div className="ad-stat-foot-meta">{formatStudentSection(s.student)} · {getTeacherNames(s.student)}</div>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

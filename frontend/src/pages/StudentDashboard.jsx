@@ -1120,7 +1120,7 @@ export default function StudentDashboard() {
                       return (
                         <div key={tier.id} className={`sd-tier-card ${isCurrent ? "current" : ""}`}>
                           <h4><TierIcon tier={tier} size={18} /> {tier.label}</h4>
-                          <div className="sd-tier-req">{tier.min.toLocaleString()} XP tier threshold</div>
+                          <div className="sd-tier-req">{tier.min.toLocaleString()} XP tier </div>
                           <div className="sd-tier-reward">Unlocks: {tier.reward}</div>
                           <p>{isCurrent ? "Current tier. Your dashboard theme is active." : needed}</p>
                         </div>
