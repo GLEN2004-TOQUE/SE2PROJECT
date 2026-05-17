@@ -37,6 +37,20 @@ function QuizPage() {
   const [pendingSelection, setPendingSelection] = useState(null);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
 
+  const blockClipboardAction = useCallback((event) => {
+    event.preventDefault();
+    event.stopPropagation();
+  }, []);
+
+  const blockTextCopyPaste = useCallback((event) => {
+    const blockedCombination = (event.ctrlKey || event.metaKey) && ["c", "x", "v", "a"].includes(event.key?.toLowerCase());
+    const isPrintScreen = event.key === "PrintScreen" || event.key === "PrintScr" || event.keyCode === 44;
+
+    if (blockedCombination || isPrintScreen) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+  }, []);
 
   const handleSubmitRef = useRef(() => {});
 
@@ -103,6 +117,27 @@ function QuizPage() {
   useEffect(() => {
     handleSubmitRef.current = () => handleSubmit();
   }, [handleSubmit]);
+
+  useEffect(() => {
+    const blockEvent = (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+    };
+
+    window.addEventListener("keydown", blockTextCopyPaste, true);
+    document.addEventListener("copy", blockEvent, true);
+    document.addEventListener("cut", blockEvent, true);
+    document.addEventListener("paste", blockEvent, true);
+    document.addEventListener("contextmenu", blockEvent, true);
+
+    return () => {
+      window.removeEventListener("keydown", blockTextCopyPaste, true);
+      document.removeEventListener("copy", blockEvent, true);
+      document.removeEventListener("cut", blockEvent, true);
+      document.removeEventListener("paste", blockEvent, true);
+      document.removeEventListener("contextmenu", blockEvent, true);
+    };
+  }, [blockTextCopyPaste]);
 
   const confirmPendingSelection = useCallback(() => {
     if (!pendingSelection) return;
@@ -377,7 +412,23 @@ function QuizPage() {
   const opts = q ? [q.option_a, q.option_b, q.option_c, q.option_d].filter(Boolean) : [];
 
   return (
-    <div style={{ minHeight: "100vh", background: "#0f0a0a", color: "#fff", fontFamily: "system-ui, sans-serif" }}>
+    <div
+      style={{
+        minHeight: "100vh",
+        background: "#0f0a0a",
+        color: "#fff",
+        fontFamily: "system-ui, sans-serif",
+        userSelect: "none",
+        WebkitUserSelect: "none",
+        MozUserSelect: "none",
+        msUserSelect: "none",
+      }}
+      onCopy={blockClipboardAction}
+      onCut={blockClipboardAction}
+      onPaste={blockClipboardAction}
+      onContextMenu={blockClipboardAction}
+      onSelectStart={blockClipboardAction}
+    >
       <style>{`
         @keyframes spin{to{transform:rotate(360deg)}}
         @keyframes qpulse{0%,100%{opacity:1}50%{opacity:.72}}
