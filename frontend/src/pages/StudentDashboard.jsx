@@ -120,7 +120,14 @@ const Styles = () => (
   box-shadow:0 0 12px rgba(200,160,40,.25);
   display:flex; align-items:center; justify-content:center;
 }
-.sd-logo-icon svg { width:17px; height:17px; color:#e8c878; }
+..sd-logo-icon svg { width:17px; height:17px; color:#e8c878; }
+.sd-tier-badge-img {
+  width:1.35rem; height:1.35rem;
+  border-radius:8px;
+  object-fit:cover;
+  display:inline-flex;
+  vertical-align:middle;
+}
 
 .sd-topbar-left { display:flex; align-items:center; gap:1.25rem; }
 .sd-topbar-right { display:flex; align-items:center; gap:.75rem; position:relative; }
@@ -562,36 +569,26 @@ const hexToRgb = (hex) => {
   return `${r},${g},${b}`;
 };
 
-const TierIcon = ({ tier, size = 24 }) => {
-  const color = tier?.color || "#f5e6c8";
-  if (!tier) return null;
+const badgeImagePaths = {
+  bronze: "/image/bronze_badge.jpg",
+  silver: "/image/silver_badge.jpg",
+  gold: "/image/gold_badge.jpg",
+  platinum: "/image/platinum_badge.jpg",
+  diamond: "/image/diamond_badge.jpg",
+};
 
-  const shape = tier.id;
+const TierIcon = ({ tier, size = 24 }) => {
+  if (!tier || !tier.id) return null;
+  const src = badgeImagePaths[tier.id] || badgeImagePaths.bronze;
   return (
-    <svg width={size} height={size} viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        <linearGradient id={`tier-grad-${tier.id}`} x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity="0.95" />
-          <stop offset="100%" stopColor="#1a0a0a" stopOpacity="0.2" />
-        </linearGradient>
-      </defs>
-      <circle cx="32" cy="32" r="28" fill={`url(#tier-grad-${tier.id})`} />
-      {shape === 'bronze' && (
-        <path d="M20 36l7-14 7 14 15-3-12 10 4 15-13-8-13 8 4-15-12-10 15 3Z" fill="rgba(255,255,255,0.92)" />
-      )}
-      {shape === 'silver' && (
-        <path d="M32 16l14 8v14l-14 10-14-10V24l14-8Zm0 6.5L22.75 28v8l9.25 6.5 9.25-6.5v-8L32 22.5Z" fill="rgba(255,255,255,0.92)" />
-      )}
-      {shape === 'gold' && (
-        <path d="M32 14l12.5 25H36l3.5 15L32 44l-7.5 10L28 39.5H19.5L32 14Z" fill="rgba(255,255,255,0.92)" />
-      )}
-      {shape === 'platinum' && (
-        <path d="M32 12 52 26 44 50 20 50 12 26 32 12Zm0 5.5L16 26l8 18h24l8-18-16-8.5Z" fill="rgba(255,255,255,0.92)" />
-      )}
-      {shape === 'diamond' && (
-        <path d="M20 22 32 12l12 10 8 22H12L20 22Zm6 3 6-5 6 5 5 14H21l5-14Z" fill="rgba(255,255,255,0.92)" />
-      )}
-    </svg>
+    <img
+      className="sd-tier-badge-img"
+      src={src}
+      alt={`${tier.label || tier.id} badge`}
+      width={size}
+      height={size}
+      style={{ width: size, height: size }}
+    />
   );
 };
 
@@ -981,7 +978,7 @@ export default function StudentDashboard() {
           <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.87L12 18.07 5.82 22 7 14.14 2 9.27l6.91-1.01z"/>
         </svg>
       </div>
-      QuizSystem
+      QuizQuest
     </div>
     <div className="sd-topnav">
       <button className={`sd-topnav-item ${activeView==="overview"?"active":""}`} onClick={()=>setActiveView("overview")}>Overview</button>
