@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import MainPage from "./pages/MainPage";
 import Register from "./pages/Register";
@@ -15,10 +15,10 @@ import Preloader from "./components/Preloader";
 
 function App() {
   const [ready, setReady] = useState(false);
-
-  if (!ready) return <Preloader onDone={() => setReady(true)} />;
+  const handlePreloaderDone = useCallback(() => setReady(true), []);
 
   return (
+    <>
     <Router>
       <Routes>
         {/* Public */}
@@ -81,6 +81,8 @@ function App() {
         />
       </Routes>
     </Router>
+    {!ready && <Preloader onDone={handlePreloaderDone} />}
+    </>
   );
 }
 
