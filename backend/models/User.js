@@ -56,7 +56,6 @@ exports.createUser = async ({ fullName, email, password, role = "student" }) => 
       full_name: fullName,
       email,
       password: hashedPassword,
-      password_plain: String(password),
       role,
       status: true,
       points: 0,
@@ -100,7 +99,7 @@ exports.changePassword = async (userId, currentPassword, newPassword) => {
   const hashed = await bcrypt.hash(newPassword, 10);
   const { error: updateError } = await supabaseAdmin
     .from("users")
-    .update({ password: hashed, password_plain: String(newPassword) })
+    .update({ password: hashed })
     .eq("id", userId);
   if (updateError) throw new Error(updateError.message);
   return { message: "Password updated successfully" };

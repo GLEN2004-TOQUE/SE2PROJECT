@@ -4,6 +4,8 @@ import { API_BASE_URL, getUser, logout, getFriendlyApiErrorMessage } from "../se
 import { BarChart } from "@mui/x-charts/BarChart";
 import { LineChart } from "@mui/x-charts/LineChart";
 import { SparkLineChart } from "@mui/x-charts/SparkLineChart";
+import TutorialGuide from "../components/TutorialGuide";
+import { hasSeenTutorial, markTutorialSeen } from "../utils/tutorial";
 
 const apiFetch = async (path, opts = {}) => {
   const token = localStorage.getItem("token");
@@ -1367,6 +1369,7 @@ export default function TeacherDashboard() {
   const [pwLoading, setPwLoading] = useState(false);
   const [pwError, setPwError] = useState("");
   const [pwSuccess, setPwSuccess] = useState(false);
+  const [showTutorial, setShowTutorial] = useState(false);
 
   const showToast = (msg, type = "success") => {
     setToast({ msg, type });
@@ -1685,10 +1688,19 @@ export default function TeacherDashboard() {
     localStorage.setItem(TEACHER_VIEW_STORAGE_KEY, activeView);
   }, [activeView]);
 
+  const dismissTutorial = () => {
+    const user = getUser();
+    if (user?.id) markTutorialSeen(user.id, "teacher");
+    setShowTutorial(false);
+  };
+
   useEffect(() => {
     const user = getUser();
     if (!user) { navigate("/"); return; }
     if (user.role !== "teacher") { navigate("/student"); return; }
+    if (!hasSeenTutorial(user.id, "teacher")) {
+      setShowTutorial(true);
+    }
     loadProfile();
     apiFetch("/api/admin/my-students")
       .then(setMyStudents).catch(() => setMyStudents([]))
@@ -2526,6 +2538,14 @@ export default function TeacherDashboard() {
           </div>
         </div>
       </div>
+
+      {showTutorial && (
+        <TutorialGuide
+          variant="teacher"
+          displayName={teacherName || teacherProfile?.full_name}
+          onClose={dismissTutorial}
+        />
+      )}
     </>
   );
 }

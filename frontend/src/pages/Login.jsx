@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { canAttemptAuth, isValidEmail, sanitizeEmail } from "../utils/security";
 import { getFriendlyApiErrorMessage, setAuthToken, API_BASE_URL, forgotPasswordSend, forgotPasswordVerify, forgotPasswordComplete } from "../services/api";
@@ -450,7 +450,14 @@ function Login() {
   const [forgotInfo, setForgotInfo] = useState("");
 
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
+
+  useEffect(() => {
+    if (location.state?.showTutorial) {
+      setSuccessMsg("Account created! Sign in below — a quick dashboard tour will appear on your first visit.");
+    }
+  }, [location.state?.showTutorial]);
 
   // If another tab signs in (localStorage sync) or user already has a session, leave login.
   useEffect(() => {

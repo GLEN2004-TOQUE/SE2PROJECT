@@ -12,6 +12,8 @@ import {
 import { BarChart } from "@mui/x-charts/BarChart";
 import { LineChart } from "@mui/x-charts/LineChart";
 import { PieChart } from "@mui/x-charts/PieChart";
+import TutorialGuide from "../components/TutorialGuide";
+import { hasSeenTutorial, markTutorialSeen } from "../utils/tutorial";
 
 const apiFetch = async (path) => {
   const token = localStorage.getItem("token");
@@ -664,6 +666,7 @@ export default function StudentDashboard() {
   const [topNavOpen, setTopNavOpen] = useState(false);
   const [notificationsLoading, setNotificationsLoading] = useState(false);
   const [notificationsError, setNotificationsError] = useState("");
+  const [showTutorial, setShowTutorial] = useState(false);
 
   const tokenUser = getUser();
   const studentId = tokenUser?.id;
@@ -890,6 +893,18 @@ export default function StudentDashboard() {
   }, [teacherPage, teacherPageCount]);
 
   const handleRefreshQuizzes = async () => { await loadQuizzes(); await loadResults(); await loadAttendance(); await loadItemAnalysis(); };
+
+  useEffect(() => {
+    if (!studentId || !isStudent) return;
+    if (!hasSeenTutorial(studentId, "student")) {
+      setShowTutorial(true);
+    }
+  }, [studentId, isStudent]);
+
+  const dismissTutorial = () => {
+    if (studentId) markTutorialSeen(studentId, "student");
+    setShowTutorial(false);
+  };
 
   useEffect(() => {
     if (!studentId) return;
@@ -1552,6 +1567,14 @@ export default function StudentDashboard() {
 
           </div>
         </div>
+
+        {showTutorial && (
+          <TutorialGuide
+            variant="student"
+            displayName={displayName}
+            onClose={dismissTutorial}
+          />
+        )}
     </>
   );
 }
