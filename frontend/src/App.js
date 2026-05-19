@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import MainPage from "./pages/MainPage";
 import Register from "./pages/Register";
@@ -10,8 +11,13 @@ import QuizPage from "./pages/QuizPage";
 import UploadLecture from "./pages/UploadLecture";
 import GenerateQuiz from "./pages/GenerateQuiz";
 import ProtectedRoute from "./components/ProtectedRoute";
+import Preloader from "./components/Preloader";
 
 function App() {
+  const [ready, setReady] = useState(false);
+
+  if (!ready) return <Preloader onDone={() => setReady(true)} />;
+
   return (
     <Router>
       <Routes>
@@ -21,7 +27,6 @@ function App() {
         <Route path="/login" element={<Login />} />
 
         {/* Admin */}
-
         <Route
           path="/admin"
           element={

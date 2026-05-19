@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import Preloader from "../components/Preloader";
 import { canAttemptAuth, isValidEmail, sanitizeEmail } from "../utils/security";
 import { getFriendlyApiErrorMessage, setAuthToken, API_BASE_URL, forgotPasswordSend, forgotPasswordVerify, forgotPasswordComplete } from "../services/api";
 
@@ -435,6 +436,10 @@ function Login() {
   const [password,    setPassword]    = useState("");
   const [showPassword,setShowPassword]= useState(false);
   const [isLoading,   setIsLoading]   = useState(false);
+  const [showPreloader, setShowPreloader] = useState(false);
+  const [preloaderDone, setPreloaderDone] = useState(false);
+  const [loginDone, setLoginDone] = useState(false);
+  const [loginDestination, setLoginDestination] = useState(null);
   const [errorMsg,    setErrorMsg]    = useState("");
   const [successMsg,  setSuccessMsg]  = useState("");
 
@@ -472,6 +477,10 @@ function Login() {
       setErrorMsg("Too many attempts. Please wait a few minutes.");
       return;
     }
+    setShowPreloader(true);
+    setPreloaderDone(false);
+    setLoginDone(false);
+    setLoginDestination(null);
     setIsLoading(true);
     try {
       const response = await fetch(
@@ -493,18 +502,40 @@ function Login() {
         setAuthToken(data.token);
         const payload = JSON.parse(atob(data.token.split(".")[1]));
         const dest = ROLE_HOME[payload.role];
-        if (dest) navigate(dest);
-        else setErrorMsg(`Unknown role: ${payload.role}`);
+        if (dest) {
+          setLoginDestination(dest);
+          setLoginDone(true);
+          if (preloaderDone) navigate(dest);
+        } else {
+          setShowPreloader(false);
+          setLoginDone(true);
+          setErrorMsg(`Unknown role: ${payload.role}`);
+        }
       } else {
+        setShowPreloader(false);
+        setLoginDone(true);
         setErrorMsg(
           getFriendlyApiErrorMessage(response.status, data.message || data.error) ||
             "Login failed. Please check your credentials."
         );
       }
     } catch {
+      setShowPreloader(false);
+      setLoginDone(true);
       setErrorMsg("Cannot reach the server. Is the backend running?");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleLoginPreloaderDone = () => {
+    setPreloaderDone(true);
+    if (loginDone && loginDestination) {
+      navigate(loginDestination);
+      return;
+    }
+    if (loginDone && !loginDestination) {
+      setShowPreloader(false);
     }
   };
 
@@ -719,6 +750,8 @@ function Login() {
           </p>
         </div>
       </div>
+
+      {showPreloader && <Preloader onDone={handleLoginPreloaderDone} />}
 
       {forgotOpen && (
         <div
