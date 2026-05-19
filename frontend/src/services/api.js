@@ -190,12 +190,6 @@ async function postPublicOtpWithPathFallback(primaryPath, secondaryPath, body) {
         body: JSON.stringify(body),
         signal: controller.signal,
       });
-      if (res.status === 503 || res.status === 502) {
-        return {
-          res,
-          data: { message: "The server is starting up — please wait 30 seconds and try again." },
-        };
-      }
       let data = {};
       try {
         data = await res.json();
@@ -214,18 +208,45 @@ async function postPublicOtpWithPathFallback(primaryPath, secondaryPath, body) {
     }
   };
 
-  let { res, data } = await run(primaryPath);
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  const runWithWakeRetry = async (path) => {
+    let { res, data } = await run(path);
+    if (res.status === 503 || res.status === 502) {
+      await sleep(4000);
+      ({ res, data } = await run(path));
+    }
+    return { res, data };
+  };
+
+  let { res, data } = await runWithWakeRetry(primaryPath);
   if (res.ok) return data;
 
   if (res.status === 404 && forgotPassword404ShouldRetryAltPath(data)) {
-    ({ res, data } = await run(secondaryPath));
+    ({ res, data } = await runWithWakeRetry(secondaryPath));
   }
 
   if (!res.ok) {
+    if (res.status === 503 || res.status === 502) {
+      throw new Error(
+        data.message ||
+          "The server is starting up — please wait 30 seconds and try again."
+      );
+    }
     throw new Error(getFriendlyApiErrorMessage(res.status, data.message || data.error));
   }
   return data;
 }
+
+export const registerOtpSend = (email) =>
+  postPublicOtpWithPathFallback("/otp/send", "/api/otp/send", { email });
+
+export const registerOtpVerify = (payload) =>
+  postPublicOtpWithPathFallback(
+    "/otp/verify-and-register",
+    "/api/otp/verify-and-register",
+    payload
+  );
 
 export const forgotPasswordSend = (email) =>
   postPublicOtpWithPathFallback(

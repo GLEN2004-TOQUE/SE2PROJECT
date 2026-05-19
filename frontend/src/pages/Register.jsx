@@ -1,15 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { canAttemptAuth, isStrongPassword, isValidEmail, sanitizeEmail, sanitizeText } from "../utils/security";
-import { API_BASE_URL, getFriendlyApiErrorMessage } from "../services/api";
-
-const readResponseJson = async (res) => {
-  try {
-    return await res.json();
-  } catch {
-    return {};
-  }
-};
+import { registerOtpSend, registerOtpVerify } from "../services/api";
 
 const COURSES = {
   college:    ["BSCS", "BSOA", "BTVTED"],
@@ -427,39 +419,12 @@ export default function Register() {
 
   setLoading(true);
   try {
-    const res = await fetch(`${API_BASE_URL}/otp/send`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: cleanEmail }),
-    });
-
-    // Handle Render's cold-start 503 (returns HTML, not JSON)
-    if (res.status === 503 || res.status === 502) {
-      setError("The server is starting up — please wait 30 seconds and try again.");
-      return;
-    }
-
-    let data;
-    try {
-      data = await res.json();
-    } catch {
-      setError("Server returned an unexpected response. Please try again shortly.");
-      return;
-    }
-
-    if (!res.ok) {
-      setError(getFriendlyApiErrorMessage(res.status, data.message || data.error));
-      return;
-    }
-    setSuccess("OTP sent! Check your Gmail inbox (and spam folder).");
+    await registerOtpSend(cleanEmail);
+    setSuccess("OTP sent! Check your inbox (and spam folder).");
     setStep(2);
     startCountdown();
   } catch (err) {
-    if (err.name === "AbortError" || err.message.includes("fetch")) {
-      setError("Cannot reach the server. Check your connection or try again in a moment.");
-    } else {
-      setError("Something went wrong. Please try again.");
-    }
+    setError(err.message || "Something went wrong. Please try again.");
   } finally {
     setLoading(false);
   }
@@ -470,21 +435,12 @@ export default function Register() {
     setError(""); setSuccess("");
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/otp/send`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: sanitizeEmail(email) }),
-      });
-      const data = await readResponseJson(res);
-      if (!res.ok) {
-        setError(getFriendlyApiErrorMessage(res.status, data.message || data.error) || "Failed to resend OTP. Please try again.");
-        return;
-      }
+      await registerOtpSend(sanitizeEmail(email));
       setSuccess("New OTP sent!");
       setOtpDigits(["","","","","",""]);
       startCountdown();
-    } catch {
-      setError("Failed to resend OTP.");
+    } catch (err) {
+      setError(err.message || "Failed to resend OTP.");
     } finally {
       setLoading(false);
     }
@@ -528,27 +484,23 @@ export default function Register() {
       const cleanMiddleName = sanitizeText(middleName);
       const cleanLastName = sanitizeText(lastName);
       const cleanFullName = [cleanFirstName, cleanMiddleName, cleanLastName].filter(Boolean).join(" ");
-      const res = await fetch(`${API_BASE_URL}/otp/verify-and-register`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          firstName: cleanFirstName,
-          middleName: cleanMiddleName,
-          lastName: cleanLastName,
-          fullName: cleanFullName,
-          email: sanitizeEmail(email), password,
-          role: "student", course, section, otp,
-        }),
+      await registerOtpVerify({
+        firstName: cleanFirstName,
+        middleName: cleanMiddleName,
+        lastName: cleanLastName,
+        fullName: cleanFullName,
+        email: sanitizeEmail(email),
+        password,
+        role: "student",
+        course,
+        section,
+        otp,
       });
-      const data = await readResponseJson(res);
-      if (!res.ok) {
-        setError(getFriendlyApiErrorMessage(res.status, data.message || data.error) || "Verification failed. Please try again.");
-        setOtpShake(true); setTimeout(() => setOtpShake(false), 500);
-        return;
-      }
       setStep(3);
-    } catch {
-      setError("Cannot reach the server.");
+    } catch (err) {
+      setError(err.message || "Verification failed. Please try again.");
+      setOtpShake(true);
+      setTimeout(() => setOtpShake(false), 500);
     } finally {
       setLoading(false);
     }
@@ -833,11 +785,14 @@ export default function Register() {
                   </div>
                 </div>
 
-                <Link to="/">
+                <Link to="/login" state={{ showTutorial: true }}>
                   <button className="btn-submit" style={{width:"100%"}}>
-                    Go to Login →
+                    Sign in to start →
                   </button>
                 </Link>
+                <p className="subline" style={{ marginTop: ".85rem", fontSize: ".78rem" }}>
+                  After sign-in, a short tour will walk you through the dashboard.
+                </p>
               </div>
             )}
 

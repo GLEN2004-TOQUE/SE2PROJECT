@@ -25,6 +25,100 @@ async function ensurePasswordResetOtpTable() {
   otpTableEnsured = true;
 }
 
+/** Primary OTP store (Supabase) — survives Render restarts and multi-instance deploys. */
+async function persistRegistrationOtp(key, otp, expiresAtMs) {
+  const expiresIso = new Date(expiresAtMs).toISOString();
+
+  try {
+    const { error } = await supabaseAdmin
+      .from('password_reset_otps')
+      .upsert(
+        { email_lower: key, code: otp, expires_at: expiresIso },
+        { onConflict: 'email_lower' }
+      );
+    if (!error) return;
+    console.warn('Supabase OTP store failed:', error.message || error);
+  } catch (e) {
+    console.warn('Supabase OTP store error:', e.message || e);
+  }
+
+  try {
+    await ensurePasswordResetOtpTable();
+    await pool.query(
+      `INSERT INTO password_reset_otps (email_lower, code, expires_at)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (email_lower) DO UPDATE SET
+         code = EXCLUDED.code,
+         expires_at = EXCLUDED.expires_at`,
+      [key, otp, new Date(expiresAtMs)]
+    );
+    return;
+  } catch (e) {
+    console.warn('Postgres OTP store failed, using in-memory fallback:', e.message || e);
+    otpStoreFallback.set(key, { otp, expiresAt: expiresAtMs });
+  }
+}
+
+async function loadRegistrationOtp(key) {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('password_reset_otps')
+      .select('code, expires_at')
+      .eq('email_lower', key)
+      .maybeSingle();
+    if (!error && data) {
+      return {
+        code: String(data.code).trim(),
+        expiresAtMs: new Date(data.expires_at).getTime(),
+        source: 'supabase',
+      };
+    }
+    if (error) console.warn('Supabase OTP load failed:', error.message || error);
+  } catch (e) {
+    console.warn('Supabase OTP load error:', e.message || e);
+  }
+
+  try {
+    await ensurePasswordResetOtpTable();
+    const { rows } = await pool.query(
+      'SELECT code, expires_at FROM password_reset_otps WHERE email_lower = $1',
+      [key]
+    );
+    const row = rows[0];
+    if (row) {
+      return {
+        code: String(row.code).trim(),
+        expiresAtMs: new Date(row.expires_at).getTime(),
+        source: 'postgres',
+      };
+    }
+  } catch (e) {
+    console.warn('Postgres OTP load failed:', e.message || e);
+  }
+
+  const record = otpStoreFallback.get(key);
+  if (!record) return null;
+  return {
+    code: String(record.otp).trim(),
+    expiresAtMs: record.expiresAt,
+    source: 'memory',
+  };
+}
+
+async function deleteRegistrationOtp(key) {
+  try {
+    await supabaseAdmin.from('password_reset_otps').delete().eq('email_lower', key);
+  } catch (e) {
+    console.warn('Supabase OTP delete failed:', e.message || e);
+  }
+  try {
+    await pool.query('DELETE FROM password_reset_otps WHERE email_lower = $1', [key]);
+  } catch {
+    /* ignore */
+  }
+  otpStoreFallback.delete(key);
+}
+
 const generateOTP = () =>
   Math.floor(100000 + Math.random() * 900000).toString();
 
@@ -70,20 +164,7 @@ exports.sendOTP = async (email) => {
   const key = email.toLowerCase().trim();
   const expiresAt = Date.now() + 10 * 60 * 1000;
 
-  try {
-    await ensurePasswordResetOtpTable();
-    await pool.query(
-      `INSERT INTO password_reset_otps (email_lower, code, expires_at)
-       VALUES ($1, $2, $3)
-       ON CONFLICT (email_lower) DO UPDATE SET
-         code = EXCLUDED.code,
-         expires_at = EXCLUDED.expires_at`,
-      [key, otp, new Date(expiresAt)]
-    );
-  } catch (e) {
-    console.warn('OTP DB store failed, using in-memory fallback:', e.message);
-    otpStoreFallback.set(key, { otp, expiresAt });
-  }
+  await persistRegistrationOtp(key, otp, expiresAt);
 
   console.log(`📧 Sending OTP to: ${email} | OTP: ${otp}`);
 
@@ -408,42 +489,38 @@ exports.verifyOTP = async (email, otp) => {
   const key = email.toLowerCase().trim();
   const trimmedOtp = String(otp).trim();
 
-  try {
-    await ensurePasswordResetOtpTable();
-    const { rows } = await pool.query(
-      'SELECT code, expires_at FROM password_reset_otps WHERE email_lower = $1',
-      [key]
-    );
-    const row = rows[0];
-    if (row) {
-      const expMs = new Date(row.expires_at).getTime();
-      if (Date.now() > expMs) {
-        await pool.query('DELETE FROM password_reset_otps WHERE email_lower = $1', [key]);
-        return { valid: false, message: 'OTP has expired. Please request a new one.' };
-      }
-      if (row.code !== trimmedOtp) {
-        return { valid: false, message: 'Incorrect OTP. Please try again.' };
-      }
-      await pool.query('DELETE FROM password_reset_otps WHERE email_lower = $1', [key]);
-      return { valid: true };
-    }
-  } catch (e) {
-    console.warn('OTP DB verify failed, checking in-memory fallback:', e.message);
+  const record = await loadRegistrationOtp(key);
+  if (!record) {
+    return { valid: false, message: 'No OTP found. Please request a new one.' };
   }
-
-  const record = otpStoreFallback.get(key);
-  if (!record) return { valid: false, message: 'No OTP found. Please request a new one.' };
-  if (Date.now() > record.expiresAt) {
-    otpStoreFallback.delete(key);
+  if (Date.now() > record.expiresAtMs) {
+    await deleteRegistrationOtp(key);
     return { valid: false, message: 'OTP has expired. Please request a new one.' };
   }
-  if (record.otp !== trimmedOtp) return { valid: false, message: 'Incorrect OTP. Please try again.' };
-  otpStoreFallback.delete(key);
+  if (record.code !== trimmedOtp) {
+    return { valid: false, message: 'Incorrect OTP. Please try again.' };
+  }
+  await deleteRegistrationOtp(key);
   return { valid: true };
 };
 
 exports.debugStore = async () => {
-  console.log('📦 OTP store (DB + memory fallback):');
+  console.log('📦 OTP store (Supabase + Postgres + memory):');
+  try {
+    const { data: sbRows, error } = await supabaseAdmin
+      .from('password_reset_otps')
+      .select('email_lower, code, expires_at')
+      .order('email_lower');
+    if (error) console.log('   (Supabase unreadable)', error.message);
+    else {
+      for (const r of sbRows || []) {
+        const remaining = Math.max(0, Math.round((new Date(r.expires_at).getTime() - Date.now()) / 1000));
+        console.log(`   ${r.email_lower} → ${r.code} (${remaining}s left) [supabase]`);
+      }
+    }
+  } catch (e) {
+    console.log('   (Supabase unreadable)', e.message);
+  }
   try {
     await ensurePasswordResetOtpTable();
     const { rows } = await pool.query(
@@ -451,10 +528,10 @@ exports.debugStore = async () => {
     );
     for (const r of rows) {
       const remaining = Math.max(0, Math.round((new Date(r.expires_at).getTime() - Date.now()) / 1000));
-      console.log(`   ${r.email_lower} → ${r.code} (${remaining}s left)`);
+      console.log(`   ${r.email_lower} → ${r.code} (${remaining}s left) [postgres]`);
     }
   } catch (e) {
-    console.log('   (DB unreadable)', e.message);
+    console.log('   (Postgres unreadable)', e.message);
   }
   otpStoreFallback.forEach((val, key) => {
     const remaining = Math.max(0, Math.round((val.expiresAt - Date.now()) / 1000));

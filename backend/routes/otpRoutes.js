@@ -11,13 +11,14 @@ const {
   sendForgotPasswordOTP,
   verifyForgotPasswordOtpAndClearPassword,
 } = require('../services/emailService');
+const { registerStudent } = require('../services/registrationService');
 const { emailExistsInUsers, escapeForILike } = require('../utils/userLookup');
 
 router.get('/health', (req, res) => {
   res.json({
     status: 'OK',
-    emailConfigured: !!process.env.EMAIL_USER,
-    emailUser: process.env.EMAIL_USER || 'NOT SET'
+    emailConfigured: !!process.env.BREVO_API_KEY,
+    senderEmail: process.env.BREVO_SENDER_EMAIL || 'NOT SET',
   });
 });
 
@@ -102,63 +103,32 @@ router.post('/verify-and-register', async (req, res) => {
       return res.status(409).json({ message: 'Email already registered' });
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    let newUser = null;
-    try {
-      newUser = await pool.query(
-        `INSERT INTO users (full_name, email, password, password_plain, role, course, section, status)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, true)
-         RETURNING id, full_name, email, role, course, section`,
-        [resolvedFullName.trim(), email, hashedPassword, String(password), 'student', course, section]
-      );
-      newUser = newUser.rows[0];
-      console.log(`✅ Registered in Postgres: ${email} | Course: ${course} | Section: ${section}`);
-    } catch (dbErr) {
-      console.warn('⚠️ Postgres registration failed, trying Supabase fallback:', dbErr.message || dbErr);
-      if (dbErr.code === 'ECONNREFUSED' || String(dbErr.message).includes('connect ECONNREFUSED')) {
-        const { data, error } = await supabaseAdmin
-          .from('users')
-          .insert([
-            {
-              full_name: resolvedFullName.trim(),
-              email,
-              password: hashedPassword,
-              role: 'student',
-              course,
-              section,
-              status: true,
-            },
-          ])
-          .select('id, full_name, email, role, course, section');
-
-        if (error) {
-          console.error('❌ Supabase fallback registration failed:', error.message || error);
-          throw error;
-        }
-        newUser = data?.[0] || null;
-        console.log(`✅ Registered in Supabase fallback: ${email} | Course: ${course} | Section: ${section}`);
-      } else {
-        throw dbErr;
-      }
-    }
-
-    if (!newUser) {
-      throw new Error('Registration failed: could not create user record.');
-    }
+    const { user: newUser, source } = await registerStudent({
+      fullName: resolvedFullName,
+      email,
+      password,
+      course,
+      section,
+    });
+    console.log(`✅ Registered (${source}): ${email} | Course: ${course} | Section: ${section}`);
 
     res.status(201).json({
       message: 'Registration successful! You can now log in.',
       user: newUser,
     });
   } catch (err) {
-    console.error('❌ Register error:', err.message);
-    if (err.code === '42703') {
-      return res.status(503).json({
-        message: 'Registration failed due to database schema mismatch. Contact an administrator.',
+    console.error('❌ Register error:', err.message, err.code || '', err.details || '');
+    const msg = err.message || 'Registration failed. Please try again.';
+    if (err.code === '23505' || /duplicate|already registered/i.test(msg)) {
+      return res.status(409).json({ message: 'Email already registered' });
+    }
+    if (err.code === '42703' || err.code === 'PGRST204') {
+      return res.status(500).json({
+        message:
+          'Registration could not be completed because the user database schema is out of date. Please contact support.',
       });
     }
-    res.status(500).json({ message: 'Internal server error: ' + err.message });
+    res.status(500).json({ message: msg });
   }
 });
 
