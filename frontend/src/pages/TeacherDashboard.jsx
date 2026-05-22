@@ -1,15 +1,15 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { getUser, logout, getFriendlyApiErrorMessage } from "../services/api";
+import { API_BASE_URL, getUser, logout, getFriendlyApiErrorMessage } from "../services/api";
 import { BarChart } from "@mui/x-charts/BarChart";
 import { LineChart } from "@mui/x-charts/LineChart";
 import { SparkLineChart } from "@mui/x-charts/SparkLineChart";
-
-const BASE = process.env.REACT_APP_API_URL || "https://backend-7lik.onrender.com";
+import TutorialGuide from "../components/TutorialGuide";
+import { hasSeenTutorial, markTutorialSeen } from "../utils/tutorial";
 
 const apiFetch = async (path, opts = {}) => {
   const token = localStorage.getItem("token");
-  const res = await fetch(`${BASE}${path}`, {
+  const res = await fetch(`${API_BASE_URL}${path}`, {
     ...opts,
     headers: {
       "Content-Type": "application/json",
@@ -128,6 +128,7 @@ const Styles = () => (
       display:flex; align-items:center; justify-content:center;
       font-size:.62rem; font-weight:700; color:#f5e6c8; flex-shrink:0;
     }
+    .td-user-chip-name { display:inline-block; }
     .td-chip-small {
       font-family:'DM Mono',monospace; font-size:.65rem; padding:.18rem .65rem;
       border-radius:999px; background:rgba(200,160,50,.1);
@@ -142,6 +143,25 @@ const Styles = () => (
       transition: all .15s;
     }
     .td-topbar-btn:hover { background:rgba(200,160,50,.14); color:#e8c878; }
+
+    /* ── Top nav (placed beside refresh) ── */
+    .td-top-nav { position:relative; display:flex; align-items:center; gap:.5rem; margin-right:.35rem; }
+    .td-top-nav-links { display:flex; gap:.4rem; align-items:center; }
+    .td-top-nav-link {
+      padding:.35rem .7rem; border-radius:8px; cursor:pointer; background:transparent; border:1px solid transparent; color:rgba(200,170,100,.75); font-size:.82rem; font-weight:500;
+    }
+    .td-top-nav-link.active { background:rgba(200,160,50,.08); border-color:rgba(200,160,50,.12); color:#e8c878; }
+    .td-top-nav-hamburger {
+      display:none; padding:.32rem .6rem; border-radius:8px; background:rgba(255,255,255,.02); color:rgba(200,170,100,.8); border:1px solid rgba(200,160,50,.06); cursor:pointer; font-size:1rem;
+    }
+    .td-top-nav-dropdown {
+      position:absolute; top:calc(100% + 8px); right:0; min-width:160px; z-index:60;
+      background: linear-gradient(160deg, #1e0c0c 0%, #160808 100%);
+      border:1px solid rgba(200,160,50,.22); border-radius:10px; padding:.35rem; box-shadow:0 20px 60px rgba(0,0,0,.6);
+    }
+    .td-top-nav-dropdown-item { padding:.6rem .8rem; border-radius:8px; color:rgba(232,200,120,.9); cursor:pointer; }
+    .td-top-nav-dropdown-item:hover { background:rgba(200,160,50,.06); }
+    .td-top-nav-dropdown-item.active { background:rgba(200,160,50,.12); color:#e8c878; }
 
     /* ── Subject Dropdown ── */
     .td-subject-dropdown-wrap { position: relative; }
@@ -196,9 +216,12 @@ const Styles = () => (
     /* ── Layout ── */
     .td-layout {
       position:relative; z-index:1;
-      display:grid; grid-template-columns:210px 1fr;
+      display:grid; grid-template-columns: 1fr;
       gap:1.2rem; max-width:1280px; margin:0 auto; padding:1.4rem;
     }
+
+    /* Placeholder used when the sidebar is removed but layout spacing should remain */
+    .td-side-placeholder { width:100%; height:1px; }
 
     /* ── Sidebar ── */
     .td-side {
@@ -594,17 +617,35 @@ const Styles = () => (
     /* ── Attendance chart wrapper ── */
     .td-analytics-grid { display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-bottom:1.75rem; animation:floatUp .5s .13s ease both; }
 
-    @media(max-width:760px){
-      .td-layout { grid-template-columns:1fr; padding:.85rem; }
-      .td-side { position:static; }
-      .td-stats { grid-template-columns:1fr 1fr; }
-      .td-analytics-grid { grid-template-columns:1fr; }
-      .td-settings-grid { grid-template-columns:1fr; }
-      .td-topbar { padding:0 1rem; }
-      .td-name { font-size:1.65rem; }
-      .td-actions { grid-template-columns:1fr; }
-      .td-section-grid { grid-template-columns: 1fr 1fr; }
-    }
+@media(max-width:1024px){
+  .td-layout { grid-template-columns:1fr; padding:.85rem; }
+  .td-top-nav-links { display:none; }
+  .td-top-nav-hamburger { display:inline-flex; }
+  .td-side { position:static; }
+  .td-side-placeholder { display:none; }
+  .td-user-chip-name { display:none; }
+  .td-stats { grid-template-columns:1fr 1fr; }
+  .td-analytics-grid { grid-template-columns:1fr; }
+  .td-settings-grid { grid-template-columns:1fr; }
+  .td-topbar { padding:0 .75rem; }
+  .td-name { font-size:1.65rem; }
+  .td-actions { grid-template-columns:1fr; }
+  .td-section-grid { grid-template-columns: 1fr 1fr; }
+  .td-topbar-right { gap:.5rem; }
+  .td-topbar-btn { display:none; }
+  .td-subject-dropdown-wrap { display:none; }
+}
+@media(max-width:640px){
+  .td-stats { grid-template-columns:1fr; }
+  .td-students-grid { grid-template-columns:1fr; }
+  .td-section-grid { grid-template-columns:1fr; }
+  .td-quiz-card { flex-wrap:wrap; }
+  .td-quiz-actions { width:100%; justify-content:flex-end; }
+  .td-analytics-grid { gap:.75rem; }
+  .td-topbar { height:54px; }
+  .td-logo { font-size:.95rem; }
+  .td-logo-icon { width:28px; height:28px; }
+}
   `}</style>
 );
 
@@ -697,6 +738,12 @@ const Ico = {
       <path d="M22 2L11 13"/><path d="M22 2L15 22l-4-9-9-4 20-7z"/>
     </svg>
   ),
+  Message: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M4 4h16v12H5.17L4 17.17V4z" />
+      <path d="M22 4l-10 7L2 4" />
+    </svg>
+  ),
   Upload: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
       <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
@@ -751,6 +798,31 @@ const Ico = {
 const chartAxisStyle = {
   tickLabelStyle: { fill: "rgba(200,170,100,.6)", fontSize: 11, fontFamily: "DM Mono" },
 };
+
+const TEACHER_MESSAGE_TEMPLATES = [
+  {
+    id: "praise",
+    label: "Praise & reward",
+    title: "Outstanding quiz performance!",
+    message: "You did a great job on the recent quiz. Keep reviewing the lecture material and maintain the momentum!",
+    reward: "Gold star badge",
+  },
+  {
+    id: "encourage",
+    label: "Encouragement",
+    title: "Keep going — improvement ahead",
+    message: "Review your weak areas and stay focused on the next lesson. I’m here to help you succeed.",
+    reward: "Extra practice points",
+  },
+  {
+    id: "announcement",
+    label: "Class announcement",
+    title: "Important class update",
+    message: "Please check the latest lecture notes and complete the next quiz on time. Good work everyone!",
+    reward: "Participation credit",
+  },
+];
+
 const chartSx = {
   "& .MuiChartsAxis-line": { stroke: "rgba(200,160,50,.15)" },
   "& .MuiChartsAxis-tick": { stroke: "rgba(200,160,50,.15)" },
@@ -791,6 +863,25 @@ function SendQuizModal({
   const now = new Date();
   const [startTime, setStartTime] = useState(formatDateTimeLocalForPH(new Date(now.getTime() + 5 * 60000)));
   const [endTime, setEndTime]     = useState(formatDateTimeLocalForPH(new Date(now.getTime() + 65 * 60000)));
+
+  // Interval scheduling (duration)
+  const [scheduleMode, setScheduleMode] = useState("manual"); // "manual" | "duration"
+  const [durationValue, setDurationValue] = useState(60);
+  const [durationUnit, setDurationUnit] = useState("seconds"); // "seconds" | "minutes"
+
+  const computeEndTimeFromDuration = useCallback((manualStartTime, value, unit) => {
+    const parsedStart = parsePHDateTimeLocal(manualStartTime);
+    if (!parsedStart) return null;
+    const n = Number(value);
+    if (!Number.isFinite(n) || n <= 0) return null;
+
+    const msPer = unit === "minutes" ? 60_000 : 1_000;
+    const safeN = Math.min(Math.max(n, 1), unit === "minutes" ? 1440 : 86400); // clamp: up to 24h
+
+    const end = new Date(parsedStart.getTime() + safeN * msPer);
+    return formatDateTimeLocalForPH(end);
+  }, []);
+
 
   // Build section map: { sectionName: [students] }
   const sectionMap = myStudents.reduce((acc, s) => {
@@ -1091,6 +1182,129 @@ function SendQuizModal({
   );
 }
 
+function TeacherNotificationModal({ myStudents, open, onClose, onSend, sending, form, setForm }) {
+  const selectedStudents = myStudents.filter((s) => form.studentIds.includes(String(s.id)));
+  const availableStudents = myStudents.filter((s) => !form.studentIds.includes(String(s.id)));
+  const toggleStudent = (studentId) => {
+    setForm((prev) => {
+      const idStr = String(studentId);
+      const nextIds = prev.studentIds.includes(idStr)
+        ? prev.studentIds.filter((id) => id !== idStr)
+        : [...prev.studentIds, idStr];
+      return { ...prev, studentIds: nextIds };
+    });
+  };
+
+  return open ? (
+    <div className="td-modal-overlay" onClick={() => !sending && onClose()}>
+      <div className="td-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="td-modal-icon">{Ico.Message || Ico.Warning}</div>
+        <h2 className="td-modal-title">Send Reward Message</h2>
+        <p className="td-modal-sub">
+          Share a reward note, announcement, or encouragement with your assigned students. Customize the title, message, and reward details.
+        </p>
+        <label className="td-modal-label">Choose a template</label>
+        <div style={{ display: 'grid', gap: '0.75rem', marginBottom: '1rem' }}>
+          {TEACHER_MESSAGE_TEMPLATES.map((template) => (
+            <button
+              key={template.id}
+              type="button"
+              className="td-outline-btn"
+              style={{ textAlign: 'left', background: form.templateId === template.id ? 'rgba(200,160,50,.12)' : undefined }}
+              onClick={() => setForm((prev) => ({
+                ...prev,
+                templateId: template.id,
+                title: template.title,
+                message: template.message,
+                reward: template.reward,
+              }))}
+            >
+              <strong>{template.label}</strong>
+              <div style={{ fontSize: '.78rem', color: 'rgba(200,170,100,.65)', marginTop: '.25rem' }}>{template.message}</div>
+            </button>
+          ))}
+        </div>
+
+        <label className="td-modal-label">Message Title</label>
+        <input
+          className="td-modal-input"
+          type="text"
+          value={form.title}
+          onChange={(e) => setForm((prev) => ({ ...prev, title: e.target.value }))}
+          placeholder="e.g. Great job on the recent quiz"
+        />
+
+        <label className="td-modal-label">Reward / Announcement</label>
+        <input
+          className="td-modal-input"
+          type="text"
+          value={form.reward}
+          onChange={(e) => setForm((prev) => ({ ...prev, reward: e.target.value }))}
+          placeholder="e.g. Reward points, badge, participation credit"
+        />
+
+        <label className="td-modal-label">Message</label>
+        <textarea
+          className="td-modal-input"
+          rows="5"
+          value={form.message}
+          onChange={(e) => setForm((prev) => ({ ...prev, message: e.target.value }))}
+          placeholder="Write a personalized note to your students..."
+          style={{ resize: 'vertical' }}
+        />
+
+        <label className="td-modal-label">Send to</label>
+        <div style={{ display:'flex', gap:'.65rem', flexWrap:'wrap', marginBottom:'1rem' }}>
+          {['all', 'selected'].map((option) => (
+            <button
+              key={option}
+              type="button"
+              className="td-outline-btn"
+              style={{ flex: option === 'all' ? '1.2' : '1', background: form.sendTo === option ? 'rgba(200,160,50,.12)' : undefined }}
+              onClick={() => setForm((prev) => ({ ...prev, sendTo: option }))}
+            >
+              {option === 'all' ? 'All assigned students' : 'Select students'}
+            </button>
+          ))}
+        </div>
+
+        {form.sendTo === 'selected' && (
+          <div className="td-student-select-list" style={{ maxHeight: '220px', marginBottom: '1rem' }}>
+            {myStudents.length === 0 ? (
+              <div className="td-empty">No assigned students found.</div>
+            ) : (
+              myStudents.map((student) => (
+                <label key={student.id} className="td-student-checkbox-item">
+                  <input
+                    type="checkbox"
+                    checked={form.studentIds.includes(String(student.id))}
+                    onChange={() => toggleStudent(student.id)}
+                  />
+                  <div>
+                    <div className="td-student-checkbox-name">{student.full_name}</div>
+                    <div className="td-student-checkbox-email">{student.email}</div>
+                  </div>
+                </label>
+              ))
+            )}
+          </div>
+        )}
+
+        <div className="td-modal-actions">
+          <button className="td-btn-cancel" onClick={onClose} disabled={sending}>Cancel</button>
+          <button
+            className="td-btn-send"
+            onClick={onSend}
+            disabled={sending || !form.title.trim() || !form.message.trim() || (form.sendTo === 'selected' && form.studentIds.length === 0)}
+          >
+            {sending ? <span className="td-spinner" /> : 'Send announcement'}
+          </button>
+        </div>
+      </div>
+    </div>
+  ) : null;
+}
+
 /* ════════════════════════════════════════════════════════════
    Main Dashboard
    ════════════════════════════════════════════════════════════ */
@@ -1117,6 +1331,7 @@ export default function TeacherDashboard() {
   const [quizzesLoading, setQuizzesLoading] = useState(true);
   const [certLoading, setCertLoading] = useState(true);
   const [attendanceTimeline, setAttendanceTimeline] = useState([]);
+  const [attendanceRecords, setAttendanceRecords] = useState([]);
   const [deletingQuizId, setDeletingQuizId] = useState(null);
   const [requestingCertId, setRequestingCertId] = useState(null);
   const [assigningSubjectStudentId, setAssigningSubjectStudentId] = useState(null);
@@ -1125,11 +1340,23 @@ export default function TeacherDashboard() {
   const [studentFilterSubject, setStudentFilterSubject] = useState("");
 
   const [subjectDropdownOpen, setSubjectDropdownOpen] = useState(false);
+  const [topNavOpen, setTopNavOpen] = useState(false);
 
   const [sendModal, setSendModal] = useState(null);   // { quiz }
   const [sending, setSending] = useState(false);
   const [sendSuccess, setSendSuccess] = useState(null);
   const [toast, setToast] = useState(null);
+
+  const [messageModalOpen, setMessageModalOpen] = useState(false);
+  const [messageSending, setMessageSending] = useState(false);
+  const [messageForm, setMessageForm] = useState({
+    templateId: 'praise',
+    title: 'Outstanding quiz performance!',
+    message: 'You did a great job on the recent quiz. Keep reviewing the lecture material and maintain the momentum!',
+    reward: 'Gold star badge',
+    sendTo: 'all',
+    studentIds: [],
+  });
 
   const [confirmModal, setConfirmModal] = useState(null);
 
@@ -1142,10 +1369,58 @@ export default function TeacherDashboard() {
   const [pwLoading, setPwLoading] = useState(false);
   const [pwError, setPwError] = useState("");
   const [pwSuccess, setPwSuccess] = useState(false);
+  const [showTutorial, setShowTutorial] = useState(false);
 
   const showToast = (msg, type = "success") => {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 3600);
+  };
+
+  const openMessageModal = () => {
+    setMessageForm({
+      templateId: 'praise',
+      title: 'Outstanding quiz performance!',
+      message: 'You did a great job on the recent quiz. Keep reviewing the lecture material and maintain the momentum!',
+      reward: 'Gold star badge',
+      sendTo: 'all',
+      studentIds: [],
+    });
+    setMessageModalOpen(true);
+  };
+
+  const closeMessageModal = () => {
+    setMessageModalOpen(false);
+  };
+
+  const handleSendTeacherMessage = async () => {
+    const { title, message, reward, sendTo, studentIds } = messageForm;
+    if (!title.trim() || !message.trim()) {
+      showToast("Please add a title and message before sending.", "error");
+      return;
+    }
+    if (sendTo === 'selected' && studentIds.length === 0) {
+      showToast("Select at least one student to send the message to.", "error");
+      return;
+    }
+    setMessageSending(true);
+    try {
+      const payload = {
+        title: title.trim(),
+        message: message.trim(),
+        reward: reward.trim(),
+        studentIds: sendTo === 'selected' ? studentIds : undefined,
+      };
+      await apiFetch('/api/admin/teacher-notifications', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+      setMessageModalOpen(false);
+      showToast(`Message sent to ${sendTo === 'selected' ? studentIds.length : myStudents.length} student(s).`, 'success');
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      setMessageSending(false);
+    }
   };
 
   const showConfirm = (title, message, onConfirm) => {
@@ -1228,9 +1503,16 @@ export default function TeacherDashboard() {
 
   const loadAttendanceTimeline = useCallback(async () => {
     try {
-      const data = await apiFetch("/api/quiz/attendance/teacher/timeline");
-      setAttendanceTimeline(Array.isArray(data) ? data : []);
-    } catch { setAttendanceTimeline([]); }
+      const [timeline, records] = await Promise.all([
+        apiFetch("/api/quiz/attendance/teacher/timeline"),
+        apiFetch("/api/quiz/attendance/teacher/records"),
+      ]);
+      setAttendanceTimeline(Array.isArray(timeline) ? timeline : []);
+      setAttendanceRecords(Array.isArray(records) ? records : []);
+    } catch {
+      setAttendanceTimeline([]);
+      setAttendanceRecords([]);
+    }
   }, []);
 
   const requestCertificate = async (studentId) => {
@@ -1406,10 +1688,19 @@ export default function TeacherDashboard() {
     localStorage.setItem(TEACHER_VIEW_STORAGE_KEY, activeView);
   }, [activeView]);
 
+  const dismissTutorial = () => {
+    const user = getUser();
+    if (user?.id) markTutorialSeen(user.id, "teacher");
+    setShowTutorial(false);
+  };
+
   useEffect(() => {
     const user = getUser();
     if (!user) { navigate("/"); return; }
     if (user.role !== "teacher") { navigate("/student"); return; }
+    if (!hasSeenTutorial(user.id, "teacher")) {
+      setShowTutorial(true);
+    }
     loadProfile();
     apiFetch("/api/admin/my-students")
       .then(setMyStudents).catch(() => setMyStudents([]))
@@ -1527,6 +1818,18 @@ export default function TeacherDashboard() {
         />
       )}
 
+      {messageModalOpen && (
+        <TeacherNotificationModal
+          myStudents={myStudents}
+          open={messageModalOpen}
+          onClose={closeMessageModal}
+          onSend={handleSendTeacherMessage}
+          sending={messageSending}
+          form={messageForm}
+          setForm={setMessageForm}
+        />
+      )}
+
       {resultsModalQuiz && (
         <div className="td-modal-overlay" style={{ zIndex: 62 }} onClick={() => !resultsModalLoading && setResultsModalQuiz(null)}>
           <div className="td-modal" style={{ maxWidth: 620 }} onClick={(e) => e.stopPropagation()}>
@@ -1621,9 +1924,54 @@ export default function TeacherDashboard() {
           </div>
 
           <div className="td-topbar-right">
+            {/* Top navigation (placed beside refresh) */}
+            <div className="td-top-nav">
+              <nav className="td-top-nav-links">
+                <button className={`td-top-nav-link ${activeView === "overview" ? "active" : ""}`} onClick={() => setActiveView("overview")}>Overview</button>
+                <button className={`td-top-nav-link ${activeView === "settings" ? "active" : ""}`} onClick={() => { setActiveView("settings"); setPwError(""); setPwSuccess(false); }}>Settings</button>
+              </nav>
+              <button className="td-top-nav-hamburger" onClick={() => setTopNavOpen(v => !v)} aria-expanded={topNavOpen} aria-label="Open navigation">☰</button>
+             {topNavOpen && (
+  <>
+    <div style={{ position: "fixed", inset: 0, zIndex: 49 }} onClick={() => setTopNavOpen(false)} />
+    <div className="td-top-nav-dropdown" style={{ minWidth: 200 }}>
+      <div
+        style={{ padding:".3rem .7rem .5rem", fontSize:".58rem", letterSpacing:".12em", textTransform:"uppercase", color:"rgba(200,160,60,.4)", fontWeight:500 }}
+      >
+        Navigation
+      </div>
+      <div className={`td-top-nav-dropdown-item ${activeView === "overview" ? "active" : ""}`} onClick={() => { setActiveView("overview"); setTopNavOpen(false); }}>
+        📊 Overview
+      </div>
+      <div className={`td-top-nav-dropdown-item ${activeView === "settings" ? "active" : ""}`} onClick={() => { setActiveView("settings"); setTopNavOpen(false); setPwError(""); setPwSuccess(false); }}>
+        ⚙️ Settings
+      </div>
+      <div style={{ height:"1px", background:"rgba(200,160,50,.1)", margin:".4rem .5rem" }} />
+      <div
+        style={{ padding:".3rem .7rem .5rem", fontSize:".58rem", letterSpacing:".12em", textTransform:"uppercase", color:"rgba(200,160,60,.4)", fontWeight:500 }}
+      >
+        Actions
+      </div>
+      <div className="td-top-nav-dropdown-item" onClick={() => { openMessageModal(); setTopNavOpen(false); }}>
+        📣 Announce
+      </div>
+      <div className="td-top-nav-dropdown-item" onClick={() => { refreshDashboard(); setTopNavOpen(false); }}>
+        ↻ Refresh
+      </div>
+      <div className="td-top-nav-dropdown-item" onClick={() => { resetStudentPoints(); setTopNavOpen(false); }}>
+        🔄 Reset Points
+      </div>
+      <div style={{ height:"1px", background:"rgba(200,160,50,.1)", margin:".4rem .5rem" }} />
+      <div className="td-top-nav-dropdown-item" style={{ color:"rgba(252,165,165,.7)" }} onClick={() => { logout(); navigate("/"); }}>
+        🚪 Sign out
+      </div>
+    </div>
+  </>
+)}
+            </div>
             <div className="td-user-chip">
               <div className="td-user-chip-avatar">{initials(teacherName)}</div>
-              {teacherName}
+              <span className="td-user-chip-name">{teacherName}</span>
             </div>
 
             {/* Subject Dropdown */}
@@ -1680,6 +2028,7 @@ export default function TeacherDashboard() {
               </div>
             )}
 
+            <button className="td-topbar-btn" onClick={openMessageModal}>📣 Announce</button>
             <button className="td-topbar-btn" onClick={refreshDashboard}>↻ Refresh</button>
             <button className="td-topbar-btn" onClick={resetStudentPoints}>Reset Points</button>
             <button className="td-topbar-btn" onClick={() => { logout(); navigate("/"); }}>Sign out</button>
@@ -1687,16 +2036,8 @@ export default function TeacherDashboard() {
         </header>
 
         <div className="td-layout">
-          {/* Sidebar */}
-          <aside className="td-side">
-            <div className="td-side-label">Navigation</div>
-            <div className={`td-side-item ${activeView === "overview" ? "active" : ""}`} onClick={() => setActiveView("overview")}>
-              {Ico.Overview} Overview
-            </div>
-            <div className={`td-side-item ${activeView === "settings" ? "active" : ""}`} onClick={() => { setActiveView("settings"); setPwError(""); setPwSuccess(false); }}>
-              {Ico.Settings} Settings
-            </div>
-          </aside>
+          {/* Sidebar removed — keep placeholder for layout spacing */}
+          <div className="td-side-placeholder" aria-hidden="true" />
 
           <div className="td-body">
 
@@ -1759,6 +2100,47 @@ export default function TeacherDashboard() {
                         height={220}
                         sx={chartSx}
                       />
+                    </div>
+                    <div style={{ marginTop: 16 }}>
+                      <p className="td-stat-label" style={{ marginBottom: 8 }}>Recent Attendance</p>
+                      {attendanceRecords.length > 0 ? (
+                        <div style={{ maxHeight: 220, overflowY: "auto" }}>
+                          <table className="td-results-table" style={{ width: "100%" }}>
+                            <thead>
+                              <tr>
+                                <th style={{ width: "18%" }}>Date</th>
+                                <th style={{ width: "30%" }}>Quiz</th>
+                                <th style={{ width: "30%" }}>Student</th>
+                                <th style={{ width: "12%" }}>Completed</th>
+                                <th style={{ width: "10%" }}>Status</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {attendanceRecords.slice(0, 8).map((record, idx) => (
+                                <tr key={`${String(record.timestamp)}-${idx}`}>
+                                  <td style={{ fontFamily: "'DM Mono', monospace" }}>
+                                    {new Date(record.timestamp).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                                  </td>
+                                  <td>{record.quizTitle}</td>
+                                  <td>{record.studentName}</td>
+                                  <td>
+                                    <span className={`td-pill ${record.completed ? "td-pass-pill" : "td-pend-pill"}`} style={{ margin: 0 }}>
+                                      {record.completed ? "Completed" : "Not completed"}
+                                    </span>
+                                  </td>
+                                  <td>
+                                    <span className={`td-pill ${record.status === "present" ? "td-pass-pill" : "td-fail-pill"}`} style={{ margin: 0 }}>
+                                      {record.status === "present" ? "Present" : "Absent"}
+                                    </span>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      ) : (
+                        <div style={{ color: "rgba(200,170,100,.6)", fontSize: ".9rem" }}>No attendance records yet.</div>
+                      )}
                     </div>
                   </div>
                   <div className="glass-card td-stat">
@@ -2156,6 +2538,14 @@ export default function TeacherDashboard() {
           </div>
         </div>
       </div>
+
+      {showTutorial && (
+        <TutorialGuide
+          variant="teacher"
+          displayName={teacherName || teacherProfile?.full_name}
+          onClose={dismissTutorial}
+        />
+      )}
     </>
   );
 }

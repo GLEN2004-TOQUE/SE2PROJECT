@@ -7,7 +7,7 @@ const { supabaseAdmin } = require("../supabaseClient");
  * Columns: id, user_id, quiz_id, score, total, submitted_at
  *
  * Supabase table: attendance
- * Columns: id, user_id, quiz_id, status ("present" | "absent"), recorded_at
+ * Columns: id, user_id, quiz_id, status ("present" | "absent"), submitted_at
  */
 
 // ─── Results ──────────────────────────────────────────────────────────────────
@@ -109,7 +109,7 @@ exports.getQuizStats = async (quizId, passingThreshold = 0.6) => {
 exports.saveAttendance = async ({ user_id, quiz_id, status }) => {
   const { data, error } = await supabaseAdmin
     .from("attendance")
-    .insert([{ user_id, quiz_id, status, recorded_at: new Date() }])
+    .insert([{ user_id, quiz_id, status, submitted_at: new Date() }])
     .select()
     .single();
 
@@ -138,7 +138,7 @@ exports.resolveAttendanceStatus = (quiz, submissionTime = new Date()) => {
 exports.getAttendanceByQuiz = async (quizId) => {
   const { data, error } = await supabaseAdmin
     .from("attendance")
-    .select("id, user_id, status, recorded_at")
+    .select("id, user_id, status, submitted_at")
     .eq("quiz_id", quizId);
 
   if (error) throw new Error(error.message);
@@ -171,9 +171,9 @@ exports.getAttendanceStats = async (quizId) => {
 exports.getAttendanceByUser = async (userId) => {
   const { data, error } = await supabaseAdmin
     .from("attendance")
-    .select("id, quiz_id, status, recorded_at, quizzes(title)")
+    .select("id, quiz_id, status, submitted_at, quizzes(title)")
     .eq("user_id", userId)
-    .order("recorded_at", { ascending: false });
+    .order("submitted_at", { ascending: false });
 
   if (error) throw new Error(error.message);
   return data;

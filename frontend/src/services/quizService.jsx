@@ -1,6 +1,4 @@
-import { getFriendlyApiErrorMessage } from "./api";
-
-const BASE_URL = process.env.REACT_APP_API_URL || "https://backend-7lik.onrender.com";
+import { API_BASE_URL, getFriendlyApiErrorMessage } from "./api";
 
 const authHeaders = () => {
   const token = localStorage.getItem('token');
@@ -14,7 +12,7 @@ const quizService = {
    */
   getAll: async () => {
     try {
-      const res = await fetch(`${BASE_URL}/api/quiz`, {
+      const res = await fetch(`${API_BASE_URL}/api/quiz`, {
         headers: authHeaders(),
       });
       if (!res.ok) return [];
@@ -25,7 +23,7 @@ const quizService = {
   },
 
   getById: async (quizId) => {
-    const res = await fetch(`${BASE_URL}/api/quiz/${quizId}`, {
+    const res = await fetch(`${API_BASE_URL}/api/quiz/${quizId}`, {
       headers: authHeaders(),
     });
     let data = {};

@@ -8,7 +8,9 @@ const {
   getAttendanceReport,
   getAttendanceStats,
   getMyAttendance,
+  getMyItemAnalysis,
   getTeacherAttendanceTimeline,
+  getTeacherAttendanceRecords,
   getQuizzesForStudent,
   getTeacherQuizzes,
   getTeacherQuizDetail,
@@ -30,6 +32,7 @@ router.patch("/teacher/:quizId", verifyToken, requireActiveUser, authorizeRole("
 router.post("/submit",     verifyToken, requireActiveUser, authorizeRole("student"), submitQuiz);
 router.get("/my-quizzes",  verifyToken, requireActiveUser, authorizeRole("student"), getQuizzesForStudent);
 router.get("/my-attendance", verifyToken, requireActiveUser, authorizeRole("student"), getMyAttendance);
+router.get("/analysis", verifyToken, requireActiveUser, authorizeRole("student"), getMyItemAnalysis);
 
 // Student: get their past results (maps quizId → result for dashboard display)
 router.get("/my-results", verifyToken, requireActiveUser, authorizeRole("student"), async (req, res) => {
@@ -92,6 +95,7 @@ router.get("/ai/status", verifyToken, requireActiveUser, authorizeRole("teacher"
 // ── Attendance (specific paths before /attendance/:quizId) ─────────────────────
 router.get("/attendance/stats/:quizId", verifyToken, requireActiveUser, getAttendanceStats);
 router.get("/attendance/teacher/timeline", verifyToken, requireActiveUser, authorizeRole("teacher"), getTeacherAttendanceTimeline);
+router.get("/attendance/teacher/records", verifyToken, requireActiveUser, authorizeRole("teacher"), getTeacherAttendanceRecords);
 router.get("/attendance/:quizId", verifyToken, requireActiveUser, getAttendanceReport);
 
 // ── Student quiz fetch by ID – MUST BE LAST among GET single-segment routes ───

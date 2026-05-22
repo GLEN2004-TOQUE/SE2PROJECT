@@ -1,17 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { canAttemptAuth, isStrongPassword, isValidEmail, sanitizeEmail, sanitizeText } from "../utils/security";
-import { getFriendlyApiErrorMessage } from "../services/api";
-
-const BASE = process.env.REACT_APP_API_URL || "https://backend-7lik.onrender.com";
-
-const readResponseJson = async (res) => {
-  try {
-    return await res.json();
-  } catch {
-    return {};
-  }
-};
+import { registerOtpSend, registerOtpVerify } from "../services/api";
 
 const COURSES = {
   college:    ["BSCS", "BSOA", "BTVTED"],
@@ -368,13 +358,16 @@ export default function Register() {
   const [step, setStep] = useState(1);
 
   // Form state
-  const [fullName, setFullName]     = useState("");
+  const [firstName, setFirstName]   = useState("");
+  const [middleName, setMiddleName] = useState("");
+  const [lastName, setLastName]     = useState("");
   const [email, setEmail]           = useState("");
   const [password, setPassword]     = useState("");
   const [showPass, setShowPass]     = useState(false);
   const [level, setLevel]           = useState("");
   const [course, setCourse]         = useState("");
   const [section, setSection]       = useState("");
+  
 
   // OTP state
   const [otpDigits, setOtpDigits]   = useState(["","","","","",""]);
@@ -413,10 +406,12 @@ export default function Register() {
   const handleSendOTP = async (e) => {
   e.preventDefault();
   setError(""); setSuccess("");
-  const cleanName = sanitizeText(fullName);
+  const cleanFirstName = sanitizeText(firstName);
+  const cleanMiddleName = sanitizeText(middleName);
+  const cleanLastName = sanitizeText(lastName);
   const cleanEmail = sanitizeEmail(email);
-  if (!cleanName || !cleanEmail || !password || !level || !course || !section) {
-    setError("Please fill in all fields including Section."); return;
+  if (!cleanFirstName || !cleanLastName || !cleanEmail || !password || !level || !course || !section) {
+    setError("Please fill in all required fields, including first name, last name, course, section, and email."); return;
   }
   if (!isValidEmail(cleanEmail)) { setError("Please use a valid email address."); return; }
   if (!isStrongPassword(password)) { setError("Password must be at least 6 characters."); return; }
@@ -424,39 +419,12 @@ export default function Register() {
 
   setLoading(true);
   try {
-    const res = await fetch(`${BASE}/otp/send`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: cleanEmail }),
-    });
-
-    // Handle Render's cold-start 503 (returns HTML, not JSON)
-    if (res.status === 503 || res.status === 502) {
-      setError("The server is starting up — please wait 30 seconds and try again.");
-      return;
-    }
-
-    let data;
-    try {
-      data = await res.json();
-    } catch {
-      setError("Server returned an unexpected response. Please try again shortly.");
-      return;
-    }
-
-    if (!res.ok) {
-      setError(getFriendlyApiErrorMessage(res.status, data.message || data.error));
-      return;
-    }
-    setSuccess("OTP sent! Check your Gmail inbox (and spam folder).");
+    await registerOtpSend(cleanEmail);
+    setSuccess("OTP sent! Check your inbox (and spam folder).");
     setStep(2);
     startCountdown();
   } catch (err) {
-    if (err.name === "AbortError" || err.message.includes("fetch")) {
-      setError("Cannot reach the server. Check your connection or try again in a moment.");
-    } else {
-      setError("Something went wrong. Please try again.");
-    }
+    setError(err.message || "Something went wrong. Please try again.");
   } finally {
     setLoading(false);
   }
@@ -467,21 +435,12 @@ export default function Register() {
     setError(""); setSuccess("");
     setLoading(true);
     try {
-      const res = await fetch(`${BASE}/otp/send`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: sanitizeEmail(email) }),
-      });
-      const data = await readResponseJson(res);
-      if (!res.ok) {
-        setError(getFriendlyApiErrorMessage(res.status, data.message || data.error) || "Failed to resend OTP. Please try again.");
-        return;
-      }
+      await registerOtpSend(sanitizeEmail(email));
       setSuccess("New OTP sent!");
       setOtpDigits(["","","","","",""]);
       startCountdown();
-    } catch {
-      setError("Failed to resend OTP.");
+    } catch (err) {
+      setError(err.message || "Failed to resend OTP.");
     } finally {
       setLoading(false);
     }
@@ -518,25 +477,30 @@ export default function Register() {
       setOtpShake(true); setTimeout(() => setOtpShake(false), 500);
       return;
     }
+    
     setError(""); setLoading(true);
     try {
-      const res = await fetch(`${BASE}/otp/verify-and-register`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          fullName: sanitizeText(fullName), email: sanitizeEmail(email), password,
-          role: "student", course, section, otp
-        }),
+      const cleanFirstName = sanitizeText(firstName);
+      const cleanMiddleName = sanitizeText(middleName);
+      const cleanLastName = sanitizeText(lastName);
+      const cleanFullName = [cleanFirstName, cleanMiddleName, cleanLastName].filter(Boolean).join(" ");
+      await registerOtpVerify({
+        firstName: cleanFirstName,
+        middleName: cleanMiddleName,
+        lastName: cleanLastName,
+        fullName: cleanFullName,
+        email: sanitizeEmail(email),
+        password,
+        role: "student",
+        course,
+        section,
+        otp,
       });
-      const data = await readResponseJson(res);
-      if (!res.ok) {
-        setError(getFriendlyApiErrorMessage(res.status, data.message || data.error) || "Verification failed. Please try again.");
-        setOtpShake(true); setTimeout(() => setOtpShake(false), 500);
-        return;
-      }
       setStep(3);
-    } catch {
-      setError("Cannot reach the server.");
+    } catch (err) {
+      setError(err.message || "Verification failed. Please try again.");
+      setOtpShake(true);
+      setTimeout(() => setOtpShake(false), 500);
     } finally {
       setLoading(false);
     }
@@ -579,13 +543,31 @@ export default function Register() {
                 )}
 
                 <form onSubmit={handleSendOTP}>
-                  {/* Full Name */}
-                  <div className="field">
-                    <label>Full Name</label>
-                    <div className="input-wrap">
-                      <Ico.Person />
-                      <input type="text" placeholder="Juan Dela Cruz"
-                        value={fullName} onChange={e => setFullName(e.target.value)} required />
+                  {/* First / Middle / Last Name */}
+                  <div className="field-row">
+                    <div className="field">
+                      <label>First Name</label>
+                      <div className="input-wrap">
+                        <Ico.Person />
+                        <input type="text" placeholder="Juan"
+                          value={firstName} onChange={e => setFirstName(e.target.value)} required />
+                      </div>
+                    </div>
+                    <div className="field">
+                      <label>Middle Name</label>
+                      <div className="input-wrap">
+                        <Ico.Person />
+                        <input type="text" placeholder="Dela" value={middleName}
+                          onChange={e => setMiddleName(e.target.value)} />
+                      </div>
+                    </div>
+                    <div className="field">
+                      <label>Last Name</label>
+                      <div className="input-wrap">
+                        <Ico.Person />
+                        <input type="text" placeholder="Cruz"
+                          value={lastName} onChange={e => setLastName(e.target.value)} required />
+                      </div>
                     </div>
                   </div>
 
@@ -618,6 +600,8 @@ export default function Register() {
                       </button>
                     </div>
                   </div>
+
+                  
 
                   {/* Education Level */}
                   <div className="field">
@@ -793,7 +777,7 @@ export default function Register() {
                   fontSize:".82rem",color:"rgba(200,170,100,.7)",
                   lineHeight:1.8,
                 }}>
-                  <div><strong style={{color:"#f5e6c8"}}>{fullName}</strong></div>
+                  <div><strong style={{color:"#f5e6c8"}}>{[firstName, middleName, lastName].filter(Boolean).join(" ") || email}</strong></div>
                   <div>{email}</div>
                   <div style={{marginTop:".4rem"}}>
                     <span className="summary-chip chip-course">📚 {course}</span>
@@ -801,11 +785,14 @@ export default function Register() {
                   </div>
                 </div>
 
-                <Link to="/">
+                <Link to="/login" state={{ showTutorial: true }}>
                   <button className="btn-submit" style={{width:"100%"}}>
-                    Go to Login →
+                    Sign in to start →
                   </button>
                 </Link>
+                <p className="subline" style={{ marginTop: ".85rem", fontSize: ".78rem" }}>
+                  After sign-in, a short tour will walk you through the dashboard.
+                </p>
               </div>
             )}
 

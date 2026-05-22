@@ -1,7 +1,11 @@
 import { useState, useEffect } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { canAttemptAuth, isValidEmail, sanitizeEmail } from "../utils/security";
+<<<<<<< HEAD
+import { getFriendlyApiErrorMessage, setAuthToken, API_BASE_URL, forgotPasswordSend, forgotPasswordVerify, forgotPasswordComplete } from "../services/api";
+=======
+>>>>>>> c428fe1977041a811bebf1e076fe33ee4f1ada6b
 
 /* ─── Inline styles & keyframes injected once ─── */
 const GlobalStyles = () => (
@@ -289,6 +293,93 @@ const GlobalStyles = () => (
       animation: fadeIn .2s ease both;
     }
     .error-alert svg { width:14px; height:14px; flex-shrink:0; }
+
+    .success-alert {
+      display: flex; align-items: center; gap: .55rem;
+      padding: .65rem .9rem;
+      background: rgba(34,197,94,.1);
+      border: 1px solid rgba(34,197,94,.28);
+      border-radius: 9px;
+      margin-bottom: 1.2rem;
+      font-size: .8rem;
+      color: #86efac;
+      animation: fadeIn .2s ease both;
+    }
+    .success-alert svg { width:14px; height:14px; flex-shrink:0; }
+
+    .forgot-row {
+      text-align: right;
+      margin: -.4rem 0 1rem;
+    }
+    .forgot-link {
+      background: none; border: none; padding: 0;
+      font-family: 'DM Sans', sans-serif;
+      font-size: .78rem;
+      color: rgba(200,160,80,.85);
+      cursor: pointer;
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+    .forgot-link:hover { color: #e8c060; }
+
+    .modal-overlay {
+      position: fixed; inset: 0; z-index: 100;
+      background: rgba(0,0,0,.72);
+      backdrop-filter: blur(6px);
+      display: flex; align-items: center; justify-content: center;
+      padding: 1.25rem;
+      animation: fadeIn .2s ease both;
+    }
+    .modal-panel {
+      width: 100%; max-width: 400px;
+      background: rgba(30,12,12,.97);
+      border: 1px solid rgba(255,230,160,.14);
+      border-radius: 16px;
+      padding: 1.5rem 1.45rem 1.35rem;
+      box-shadow: 0 24px 64px rgba(0,0,0,.65);
+      animation: floatUp .4s cubic-bezier(.22,1,.36,1) both;
+    }
+    .modal-head {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: #f5e6c8;
+      margin-bottom: .35rem;
+    }
+    .modal-desc {
+      font-size: .8rem;
+      color: rgba(200,170,100,.65);
+      margin-bottom: 1.1rem;
+      line-height: 1.45;
+    }
+    .modal-actions {
+      display: flex; gap: .6rem; margin-top: 1.1rem;
+      justify-content: flex-end;
+    }
+    .btn-ghost {
+      padding: .55rem .9rem;
+      border-radius: 9px;
+      border: 1px solid rgba(200,160,50,.25);
+      background: transparent;
+      color: rgba(220,190,120,.85);
+      font-family: 'DM Sans', sans-serif;
+      font-size: .82rem;
+      cursor: pointer;
+    }
+    .btn-ghost:hover { border-color: rgba(200,160,50,.45); color: #f5e6c8; }
+    .btn-primary-sm {
+      padding: .55rem 1rem;
+      border-radius: 9px;
+      border: none;
+      background: linear-gradient(135deg, #8b1a1a 0%, #6b1010 100%);
+      color: #fff8e8;
+      font-family: 'DM Sans', sans-serif;
+      font-size: .82rem;
+      font-weight: 500;
+      cursor: pointer;
+    }
+    .btn-primary-sm:disabled { opacity: .5; cursor: not-allowed; }
+
   `}</style>
 );
 
@@ -329,7 +420,11 @@ const IconAlert = () => (
     <circle cx="10" cy="13.5" r=".5" fill="currentColor"/>
   </svg>
 );
-
+const IconCheck = () => (
+  <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8">
+    <path d="M4 10l4 4 8-8" />
+  </svg>
+);
 /* role → redirect path */
 const ROLE_HOME = {
   teacher: "/teacher",
@@ -344,8 +439,28 @@ function Login() {
   const [showPassword,setShowPassword]= useState(false);
   const [isLoading,   setIsLoading]   = useState(false);
   const [errorMsg,    setErrorMsg]    = useState("");
+  const [successMsg,  setSuccessMsg]  = useState("");
+
+  const [forgotOpen, setForgotOpen] = useState(false);
+  const [forgotStep, setForgotStep] = useState("email"); // 'email' | 'otp' | 'password'
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotOtp, setForgotOtp] = useState("");
+  const [forgotNewPassword, setForgotNewPassword] = useState("");
+  const [forgotConfirm, setForgotConfirm] = useState("");
+  const [forgotResetToken, setForgotResetToken] = useState("");
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotError, setForgotError] = useState("");
+  const [forgotInfo, setForgotInfo] = useState("");
+
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
+
+  useEffect(() => {
+    if (location.state?.showTutorial) {
+      setSuccessMsg("Account created! Sign in below — a quick dashboard tour will appear on your first visit.");
+    }
+  }, [location.state?.showTutorial]);
 
   // If another tab signs in (localStorage sync) or user already has a session, leave login.
   useEffect(() => {
@@ -357,6 +472,7 @@ function Login() {
   const handleLogin = async (e) => {
     e.preventDefault();
     setErrorMsg("");
+    setSuccessMsg("");
     const cleanEmail = sanitizeEmail(email);
     if (!isValidEmail(cleanEmail)) {
       setErrorMsg("Please enter a valid email.");
@@ -369,7 +485,7 @@ function Login() {
     setIsLoading(true);
     try {
       const response = await fetch(
-        `${process.env.REACT_APP_API_URL || "https://backend-7lik.onrender.com" }/login`,
+        `${API_BASE_URL}/login`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -387,8 +503,11 @@ function Login() {
         localStorage.setItem("token", data.token);
         const payload = JSON.parse(atob(data.token.split(".")[1]));
         const dest = ROLE_HOME[payload.role];
-        if (dest) navigate(dest);
-        else setErrorMsg(`Unknown role: ${payload.role}`);
+        if (dest) {
+          navigate(dest, { replace: true });
+        } else {
+          setErrorMsg(`Unknown role: ${payload.role}`);
+        }
       } else {
         setErrorMsg(
           getFriendlyApiErrorMessage(response.status, data.message || data.error) ||
@@ -399,6 +518,108 @@ function Login() {
       setErrorMsg("Cannot reach the server. Is the backend running?");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const resetForgotState = () => {
+    setForgotStep("email");
+    setForgotEmail("");
+    setForgotOtp("");
+    setForgotNewPassword("");
+    setForgotConfirm("");
+    setForgotResetToken("");
+    setForgotError("");
+    setForgotInfo("");
+    setForgotLoading(false);
+  };
+
+  const openForgotModal = () => {
+    resetForgotState();
+    setForgotEmail(sanitizeEmail(email));
+    setForgotOpen(true);
+  };
+
+  const closeForgotModal = () => {
+    setForgotOpen(false);
+    resetForgotState();
+  };
+
+  const handleForgotSend = async () => {
+    setForgotError("");
+    const clean = sanitizeEmail(forgotEmail);
+    if (!isValidEmail(clean)) {
+      setForgotError("Please enter a valid email.");
+      return;
+    }
+    if (!canAttemptAuth()) {
+      setForgotError("Too many attempts. Please wait a few minutes.");
+      return;
+    }
+    setForgotLoading(true);
+    try {
+      const data = await forgotPasswordSend(clean);
+      setForgotEmail(clean);
+      setForgotInfo(data.message || "A verification code was sent to your email. Check your inbox and spam folder.");
+      setForgotStep("otp");
+    } catch (e) {
+      setForgotError(e?.message || "Could not send code. Try again.");
+    } finally {
+      setForgotLoading(false);
+    }
+  };
+
+  const handleForgotVerify = async () => {
+    setForgotError("");
+    const clean = sanitizeEmail(forgotEmail);
+    const code = String(forgotOtp).trim().replace(/\s/g, "");
+    if (!isValidEmail(clean)) {
+      setForgotError("Please enter a valid email.");
+      return;
+    }
+    if (code.length < 6) {
+      setForgotError("Enter the 6-digit code from your email.");
+      return;
+    }
+    setForgotLoading(true);
+    try {
+      const data = await forgotPasswordVerify(clean, code);
+      setForgotResetToken(data.resetToken || "");
+      setForgotOtp("");
+      setForgotInfo("Your code is correct! Enter a new password below.");
+      setForgotStep("password");
+    } catch (e) {
+      setForgotError(e?.message || "Verification failed.");
+    } finally {
+      setForgotLoading(false);
+    }
+  };
+
+  const handleForgotComplete = async () => {
+    setForgotError("");
+    if (!forgotResetToken) {
+      setForgotError("Session expired. Close this dialog and start again.");
+      return;
+    }
+    if (forgotNewPassword.length < 6) {
+      setForgotError("Password must be at least 6 characters.");
+      return;
+    }
+    if (forgotNewPassword !== forgotConfirm) {
+      setForgotError("Passwords do not match.");
+      return;
+    }
+    setForgotLoading(true);
+    try {
+      const data = await forgotPasswordComplete(forgotResetToken, forgotNewPassword);
+      const clean = sanitizeEmail(forgotEmail);
+      setEmail(clean);
+      setPassword("");
+      setSuccessMsg(data.message || "Password updated. Sign in with your email and new password.");
+      closeForgotModal();
+    } catch (e) {
+      setForgotError(e?.message || "Could not save password.");
+    } finally {
+      setForgotLoading(false);
     }
   };
 
@@ -427,68 +648,83 @@ function Login() {
                 {errorMsg}
               </div>
             )}
+            {successMsg && (
+              <div className="success-alert">
+                <IconCheck />
+                {successMsg}
+              </div>
+            )}
 
             <form onSubmit={handleLogin}>
-              {/* Email */}
-              <div className="field">
-                <label htmlFor="email">Email Address</label>
-                <div className="input-wrap">
-                  <IconMail />
-                  <input
-                    id="email" type="email"
-                    placeholder="student@school.edu"
-                    value={email}
-                    onChange={e => setEmail(e.target.value)}
-                    required
-                    autoComplete="email"
-                  />
+                {/* Email */}
+                <div className="field">
+                  <label htmlFor="email">Email Address</label>
+                  <div className="input-wrap">
+                    <IconMail />
+                    <input
+                      id="email" type="email"
+                      placeholder="student@school.edu"
+                      value={email}
+                      onChange={e => setEmail(e.target.value)}
+                      required
+                      autoComplete="email"
+                    />
+                  </div>
                 </div>
-              </div>
 
-              {/* Password */}
-              <div className="field">
-                <label htmlFor="password">Password</label>
-                <div className="input-wrap">
-                  <IconLock />
-                  <input
-                    id="password"
-                    type={showPassword ? "text" : "password"}
-                    placeholder="••••••••"
-                    value={password}
-                    onChange={e => setPassword(e.target.value)}
-                    required
-                    className="password-input"
-                    autoComplete="current-password"
-                  />
-                  <button
-                    type="button"
-                    className="toggle-password"
-                    onClick={() => setShowPassword(v => !v)}
-                    aria-label={showPassword ? "Hide password" : "Show password"}
-                  >
-                    {showPassword ? <IconEyeOpen /> : <IconEyeClosed />}
+                {/* Password */}
+                <div className="field">
+                  <label htmlFor="password">Password</label>
+                  <div className="input-wrap">
+                    <IconLock />
+                    <input
+                      id="password"
+                      type={showPassword ? "text" : "password"}
+                      placeholder="••••••••"
+                      value={password}
+                      onChange={e => setPassword(e.target.value)}
+                      required
+                      className="password-input"
+                      autoComplete="current-password"
+                    />
+                    <button
+                      type="button"
+                      className="toggle-password"
+                      onClick={() => setShowPassword(v => !v)}
+                      aria-label={showPassword ? "Hide password" : "Show password"}
+                    >
+                      {showPassword ? <IconEyeOpen /> : <IconEyeClosed />}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="forgot-row">
+                  <button type="button" className="forgot-link" onClick={openForgotModal}>
+                    Forgot password?
                   </button>
                 </div>
-              </div>
 
-              <button type="submit" className="btn-submit" disabled={isLoading}>
-                {isLoading
-                  ? <><span className="spinner" />Signing in…</>
-                  : "Sign In"}
-              </button>
-            </form>
+                <button type="submit" className="btn-submit" disabled={isLoading}>
+                  {isLoading
+                    ? <><span className="spinner" />Signing in…</>
+                    : "Sign In"}
+                </button>
+              </form>
 
-            <div className="divider"><span>New here?</span></div>
+            {/* Login footer links */}
+              <>
+                <div className="divider"><span>New here?</span></div>
 
-            <p className="register-line">
-              Don't have an account?{" "}
-              <Link to="/register">Create one now</Link>
-            </p>
+                <p className="register-line">
+                  Don't have an account?{" "}
+                  <Link to="/register">Create one now</Link>
+                </p>
 
-            <div className="secure-badge">
-              <IconShield />
-              Secure, encrypted connection
-            </div>
+                <div className="secure-badge">
+                  <IconShield />
+                  Secure, encrypted connection
+                </div>
+              </>
           </div>
 
           <p className="footer-note">
@@ -496,6 +732,184 @@ function Login() {
           </p>
         </div>
       </div>
+
+      {forgotOpen && (
+        <div
+          className="modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="forgot-title"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) closeForgotModal();
+          }}
+        >
+          <div className="modal-panel" onMouseDown={(e) => e.stopPropagation()}>
+            <h2 id="forgot-title" className="modal-head">Reset password</h2>
+
+            {forgotStep === "email" && (
+              <>
+                <p className="modal-desc">
+                  Enter the email on your account. If it exists, we will send a 6-digit code you can use to set a new password.
+                </p>
+                {forgotError && (
+                  <div className="error-alert" style={{ marginBottom: "1rem" }}>
+                    <IconAlert />
+                    {forgotError}
+                  </div>
+                )}
+                <div className="field">
+                  <label htmlFor="forgot-email">Email</label>
+                  <div className="input-wrap">
+                    <IconMail />
+                    <input
+                      id="forgot-email"
+                      type="email"
+                      autoComplete="email"
+                      value={forgotEmail}
+                      onChange={(e) => setForgotEmail(e.target.value)}
+                      placeholder="you@school.edu"
+                    />
+                  </div>
+                </div>
+                <div className="modal-actions">
+                  <button type="button" className="btn-ghost" onClick={closeForgotModal}>
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-primary-sm"
+                    disabled={forgotLoading}
+                    onClick={handleForgotSend}
+                  >
+                    {forgotLoading ? "Sending…" : "Send code"}
+                  </button>
+                </div>
+              </>
+            )}
+
+            {forgotStep === "otp" && (
+              <>
+                <p className="modal-desc">
+                  Enter the 6-digit code sent to <strong style={{ color: "#e8c060" }}>{forgotEmail}</strong>.
+                </p>
+                {forgotInfo && (
+                  <div className="success-alert" style={{ marginBottom: "1rem" }}>
+                    <IconCheck />
+                    {forgotInfo}
+                  </div>
+                )}
+                {forgotError && (
+                  <div className="error-alert" style={{ marginBottom: "1rem" }}>
+                    <IconAlert />
+                    {forgotError}
+                  </div>
+                )}
+                <div className="field">
+                  <label htmlFor="forgot-otp">Verification code</label>
+                  <div className="input-wrap">
+                    <IconLock />
+                    <input
+                      id="forgot-otp"
+                      type="text"
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      maxLength={8}
+                      value={forgotOtp}
+                      onChange={(e) => setForgotOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                      placeholder="000000"
+                    />
+                  </div>
+                </div>
+                <div className="modal-actions">
+                  <button
+                    type="button"
+                    className="btn-ghost"
+                    onClick={() => {
+                      setForgotStep("email");
+                      setForgotOtp("");
+                      setForgotError("");
+                      setForgotInfo("");
+                    }}
+                  >
+                    Back
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-primary-sm"
+                    disabled={forgotLoading}
+                    onClick={handleForgotVerify}
+                  >
+                    {forgotLoading ? "Checking…" : "Verify code"}
+                  </button>
+                </div>
+              </>
+            )}
+
+            {forgotStep === "password" && (
+              <>
+                <p className="modal-desc">
+                  Choose a new password for <strong style={{ color: "#e8c060" }}>{forgotEmail}</strong>, then sign in on this page.
+                </p>
+                {forgotInfo && (
+                  <div className="success-alert" style={{ marginBottom: "1rem" }}>
+                    <IconCheck />
+                    {forgotInfo}
+                  </div>
+                )}
+                {forgotError && (
+                  <div className="error-alert" style={{ marginBottom: "1rem" }}>
+                    <IconAlert />
+                    {forgotError}
+                  </div>
+                )}
+                <div className="field">
+                  <label htmlFor="forgot-new">New password</label>
+                  <div className="input-wrap">
+                    <IconLock />
+                    <input
+                      id="forgot-new"
+                      type="password"
+                      autoComplete="new-password"
+                      className="password-input"
+                      value={forgotNewPassword}
+                      onChange={(e) => setForgotNewPassword(e.target.value)}
+                      placeholder="At least 6 characters"
+                    />
+                  </div>
+                </div>
+                <div className="field">
+                  <label htmlFor="forgot-confirm">Confirm password</label>
+                  <div className="input-wrap">
+                    <IconLock />
+                    <input
+                      id="forgot-confirm"
+                      type="password"
+                      autoComplete="new-password"
+                      className="password-input"
+                      value={forgotConfirm}
+                      onChange={(e) => setForgotConfirm(e.target.value)}
+                      placeholder="Repeat password"
+                    />
+                  </div>
+                </div>
+                <div className="modal-actions">
+                  <button type="button" className="btn-ghost" onClick={closeForgotModal}>
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-primary-sm"
+                    disabled={forgotLoading}
+                    onClick={handleForgotComplete}
+                  >
+                    {forgotLoading ? "Saving…" : "Save password"}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </>
   );
 }

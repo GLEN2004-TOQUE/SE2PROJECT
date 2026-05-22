@@ -5,11 +5,19 @@ class AIQueueService {
     this.aiService = require('./aiService');
   }
 
-  async addToQueue(text, type, count) {
+  async addToQueue(text, type, count, difficulty = "medium") {
     return new Promise((resolve, reject) => {
-      this.queue.push({ text, type, count, resolve, reject });
+      this.queue.push({ text, type, count, difficulty, resolve, reject });
       this.processQueue();
     });
+  }
+
+  getRequestIntervalMs() {
+    const rpms = (this.aiService.models || [])
+      .map((model) => Number.isFinite(Number(model.rpm)) ? Number(model.rpm) : 1)
+      .filter((rpm) => rpm > 0);
+    const effectiveRpm = rpms.length > 0 ? Math.min(...rpms) : 1;
+    return Math.max(1000, Math.ceil(60000 / effectiveRpm));
   }
 
   async processQueue() {
@@ -24,15 +32,16 @@ class AIQueueService {
         const result = await this.aiService.generateQuestions(
           request.text, 
           request.type, 
-          request.count
+          request.count,
+          request.difficulty
         );
         request.resolve(result);
       } catch (error) {
         request.reject(error);
       }
       
-      // Delay between requests to respect rate limits
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const delayMs = this.getRequestIntervalMs();
+      await new Promise(resolve => setTimeout(resolve, delayMs));
     }
     
     this.processing = false;

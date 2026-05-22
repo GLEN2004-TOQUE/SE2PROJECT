@@ -1,5 +1,6 @@
 // controllers/quizController.js
 const aiService = require("../services/aiService");
+const aiQueue = require("../services/queueSevice");
 const { supabaseAdmin } = require("../supabaseClient");
 const { updateGamification } = require("../services/scoringServices");
 
@@ -40,9 +41,27 @@ function authUserIds(req) {
   for (const source of [req.user?.id, req.dbUser?.id]) {
     for (const c of userIdCandidates(source)) {
       out.add(c);
+      out.add(String(c));
     }
   }
   return [...out].filter((v) => v != null && v !== "");
+}
+
+function authUserIdsNormalized(req) {
+  // For Supabase, column types might be uuid/int/text.
+  // We try all safe string + numeric representations.
+  const out = new Set();
+  for (const id of authUserIds(req)) {
+    out.add(String(id));
+    const n = Number(id);
+    if (Number.isFinite(n)) out.add(n);
+  }
+  return [...out];
+}
+
+function attendanceTimestamp(record) {
+  if (!record) return null;
+  return record.submitted_at || record.recorded_at || null;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -93,7 +112,7 @@ exports.generateQuiz = async (req, res) => {
     console.log(
       `📝 Generating ${safeCount} ${quizType} (${diff}) questions for lecture: ${lecture.title}`
     );
-    const generated = await aiService.generateQuestions(
+    const generated = await aiQueue.addToQueue(
       lecture.extracted_text,
       quizType,
       safeCount,
@@ -502,29 +521,50 @@ exports.getQuiz = async (req, res) => {
     console.log(`🔍 Student ${studentId} requesting quiz ${quizId}`);
 
     // 1. Check assignment (student_id type may differ from JWT id)
+    //    If the column type in Supabase doesn't match the provided id type,
+    //    `.eq("student_id", sid)` can error. We try a safe set of candidates,
+    //    and we only fail hard if *all* candidates error.
     let assignment = null;
-    let assignErr = null;
-    for (const sid of userIdCandidates(studentId)) {
+    let lastAssignErr = null;
+    const sidCandidates = authUserIdsNormalized({
+      user: { id: studentId },
+      dbUser: { id: studentId },
+    });
+
+    for (const sid of sidCandidates) {
       const { data, error } = await supabaseAdmin
         .from("quiz_assignments")
         .select("quiz_id")
         .eq("quiz_id", quizId)
         .eq("student_id", sid)
         .maybeSingle();
+
       if (error) {
-        assignErr = error;
-        break;
+        lastAssignErr = error;
+        continue;
       }
+
       if (data) {
         assignment = data;
         break;
       }
     }
 
-    if (assignErr) {
-      console.error("❌ Assignment check error:", assignErr);
-      return res.status(500).json({ error: "Failed to verify quiz assignment", details: assignErr.message });
+    // If we couldn't find an assignment but also didn't succeed in any lookup,
+    // return a clear verification failure.
+    if (!assignment && lastAssignErr) {
+      console.error("❌ Assignment check error:", {
+        studentId,
+        quizId,
+        sidCandidates,
+        lastAssignErr: lastAssignErr.message,
+      });
+      return res.status(500).json({
+        error: "Failed to verify quiz assignment",
+        details: lastAssignErr.message,
+      });
     }
+
 
     if (!assignment) {
       console.warn(`⚠️ No assignment found for student ${studentId} on quiz ${quizId}`);
@@ -741,18 +781,41 @@ exports.submitQuiz = async (req, res) => {
     }
 
     // Save attendance
-    const { error: attendanceError } = await supabaseAdmin
-      .from("attendance")
-      .insert([{
+    // Attempt to save attendance and log the result for debugging
+    try {
+      const attendancePayload = {
         user_id: userId,
         quiz_id: quizId,
         status: attendanceStatus,
-        timestamp: new Date()
-      }]);
+        submitted_at: new Date(),
+      };
+      const { data: attendanceData, error: attendanceError } = await supabaseAdmin
+        .from("attendance")
+        .insert([attendancePayload]);
 
-    if (attendanceError) {
-      console.error("Attendance save error:", attendanceError);
-      // Non-fatal — continue
+      if (attendanceError) {
+        console.error("Attendance save error:", attendanceError);
+        if (String(attendanceError?.message || "").includes("submitted_at") || String(attendanceError?.message || "").includes("recorded_at")) {
+          const fallbackPayload = {
+            user_id: userId,
+            quiz_id: quizId,
+            status: attendanceStatus,
+            recorded_at: new Date(),
+          };
+          const { data: fallbackData, error: fallbackError } = await supabaseAdmin
+            .from("attendance")
+            .insert([fallbackPayload]);
+          if (fallbackError) {
+            console.error("Attendance save fallback error:", fallbackError);
+          } else {
+            console.log("Attendance saved with recorded_at fallback:", { userId, quizId, status: attendanceStatus, fallbackData });
+          }
+        }
+      } else {
+        console.log("Attendance saved:", { userId, quizId, status: attendanceStatus, attendanceData });
+      }
+    } catch (attErr) {
+      console.error("Attendance insert threw:", attErr);
     }
 
     // Update gamification
@@ -790,7 +853,10 @@ exports.getAttendanceReport = async (req, res) => {
       .select(`*, users:user_id (email, full_name)`)
       .eq("quiz_id", quizId);
     if (error) return res.status(400).json({ error: error.message });
-    res.json(data);
+    res.json((data || []).map((row) => ({
+      ...row,
+      timestamp: attendanceTimestamp(row),
+    })));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -820,24 +886,179 @@ exports.getAttendanceStats = async (req, res) => {
 exports.getMyAttendance = async (req, res) => {
   try {
     const userId = req.user.id;
-    const ids = userIdCandidates(userId);
-    if (!ids.length) return res.json([]);
+
+    // Be defensive about ID shapes (uuid/int/text).
+    // Also avoid sending totally weird values to `.in()`.
+    const ids = userIdCandidates(userId)
+      .filter((v) => v !== null && v !== "" && v !== undefined)
+      .slice(0, 5);
+
+    if (!ids.length) return res.status(200).json([]);
 
     const { data, error } = await supabaseAdmin
       .from("attendance")
-      .select("quiz_id, status, timestamp")
+      .select("quiz_id, status, submitted_at, recorded_at")
       .in("user_id", ids)
-      .order("timestamp", { ascending: false });
-    if (error) return res.status(400).json({ error: error.message });
-    res.json(data || []);
+      .order("submitted_at", { ascending: false });
+
+    // Frontend expects this endpoint to be reliable.
+    // If the query fails (most commonly due to type mismatch), return empty list.
+    if (error) {
+      console.warn("getMyAttendance Supabase error:", error.message);
+      return res.status(200).json([]);
+    }
+
+    return res.status(200).json((data || []).map((row) => ({
+      quiz_id: row.quiz_id,
+      status: row.status,
+      timestamp: attendanceTimestamp(row),
+    })));
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("getMyAttendance error:", err);
+    // Fail soft.
+    return res.status(200).json([]);
+  }
+};
+
+exports.getMyItemAnalysis = async (req, res) => {
+  try {
+    const studentId = req.user.id;
+    const userIds = userIdCandidates(studentId);
+    const { data: results, error: resultsError } = await supabaseAdmin
+      .from("results")
+      .select("quiz_id, score, total, submitted_at")
+      .in("user_id", userIds)
+      .order("submitted_at", { ascending: false });
+
+    if (resultsError) {
+      // Fail soft: analysis endpoint should not hard-fail UI.
+      console.warn("getMyItemAnalysis results query error:", resultsError.message);
+      return res.status(200).json({
+        weakItems: [],
+        recommendations: [],
+        message: "No completed quizzes yet. Take a quiz to get personalized study suggestions.",
+      });
+    }
+
+    if (!results || results.length === 0) {
+      return res.json({
+        weakItems: [],
+        recommendations: [],
+        message: "No completed quizzes yet. Take a quiz to get personalized study suggestions.",
+      });
+    }
+
+    let weakItems = (results || [])
+      .map((r) => ({
+        quiz_id: r.quiz_id,
+        score: Number(r.score || 0),
+        total: Number(r.total || 0),
+        percentage: r.total > 0 ? Math.round((Number(r.score || 0) / Number(r.total || 0)) * 100) : 0,
+      }))
+      .filter((item) => item.total > 0 && item.percentage < 75)
+      .sort((a, b) => a.percentage - b.percentage);
+
+    if (!weakItems.length && results.length > 0) {
+      const fallback = results.find((r) => r.quiz_id != null && r.total > 0);
+      if (fallback) {
+        weakItems = [{
+          quiz_id: fallback.quiz_id,
+          score: Number(fallback.score || 0),
+          total: Number(fallback.total || 0),
+          percentage: Math.round((Number(fallback.score || 0) / Number(fallback.total || 0)) * 100),
+        }];
+      }
+    }
+
+    if (!weakItems.length) {
+      return res.json({
+        weakItems: [],
+        recommendations: [],
+        message: "Nice work! Your quiz performance looks strong. Keep reviewing your course materials.",
+      });
+    }
+
+    const quizIds = [...new Set(weakItems.map((item) => item.quiz_id).filter(Boolean))];
+    const { data: quizzes, error: quizzesError } = await supabaseAdmin
+      .from("quizzes")
+      .select("id, title, lecture_id")
+      .in("id", quizIds);
+
+    if (quizzesError) {
+      console.warn("getMyItemAnalysis quizzes query error:", quizzesError.message);
+      return res.status(200).json({
+        weakItems: [],
+        recommendations: [],
+        message: "Unable to load study recommendations right now. Please try again later.",
+      });
+    }
+
+    const lectureIds = [...new Set((quizzes || []).map((q) => q.lecture_id).filter(Boolean))];
+    const lectureById = {};
+    let lectureData = [];
+
+    if (lectureIds.length) {
+      const { data: lectures, error: lectureError } = await supabaseAdmin
+        .from("lectures")
+        .select("id, title, extracted_text")
+        .in("id", lectureIds);
+      if (lectureError) {
+        console.error("Lecture fetch error:", lectureError);
+      } else if (Array.isArray(lectures)) {
+        lectures.forEach((lecture) => {
+          lectureById[lecture.id] = lecture;
+        });
+        lectureData = lectures;
+      }
+    }
+
+    const annotatedWeakItems = weakItems.map((item) => {
+      const quiz = (quizzes || []).find((q) => q.id === item.quiz_id) || {};
+      const lecture = lectureById[quiz.lecture_id] || {};
+      return {
+        quizId: item.quiz_id,
+        quizTitle: quiz.title || "Untitled quiz",
+        lectureTitle: lecture.title || null,
+        percentage: item.percentage,
+        score: item.score,
+        total: item.total,
+      };
+    });
+
+    let recommendations = [];
+    let analysisNote = null;
+
+    if (lectureData.length > 0) {
+      try {
+        recommendations = await aiService.generateStudyRecommendations({
+          lectures: lectureData,
+          weakItems: annotatedWeakItems,
+          maxTopics: 5,
+        });
+      } catch (analysisError) {
+        console.error("Study recommendation error:", analysisError);
+        analysisNote = "AI recommendations are temporarily unavailable.";
+      }
+    } else {
+      analysisNote = "No lecture materials were found for your weak quizzes.";
+    }
+
+    res.json({ weakItems: annotatedWeakItems, recommendations, analysisNote });
+  } catch (err) {
+    console.error("getMyItemAnalysis error:", err);
+    return res.status(200).json({
+      weakItems: [],
+      recommendations: [],
+      message: "AI recommendations are temporarily unavailable. Please try again later.",
+    });
   }
 };
 
 exports.getTeacherAttendanceTimeline = async (req, res) => {
   try {
-    const teacherIds = authUserIds(req);
+    // Use normalized id forms to match DB (string/number UUIDs)
+    const teacherIds = authUserIdsNormalized(req);
+    console.log("getTeacherAttendanceTimeline teacherIds:", teacherIds);
     if (!teacherIds.length) return res.json([]);
 
     const { data: quizzes, error: qErr } = await supabaseAdmin
@@ -846,23 +1067,137 @@ exports.getTeacherAttendanceTimeline = async (req, res) => {
       .in("teacher_id", teacherIds);
     if (qErr) return res.status(400).json({ error: qErr.message });
     const quizIds = (quizzes || []).map((q) => q.id);
+    console.log("getTeacherAttendanceTimeline quizIds count:", quizIds.length);
     if (!quizIds.length) return res.json([]);
 
     const { data: records, error: aErr } = await supabaseAdmin
       .from("attendance")
-      .select("quiz_id, status, timestamp")
+      .select("quiz_id, status, submitted_at, recorded_at")
       .in("quiz_id", quizIds)
-      .order("timestamp", { ascending: true });
+      .order("submitted_at", { ascending: true });
     if (aErr) return res.status(400).json({ error: aErr.message });
+    console.log("getTeacherAttendanceTimeline records count:", (records || []).length);
 
     const byDate = {};
     (records || []).forEach((r) => {
-      const key = new Date(r.timestamp).toISOString().slice(0, 10);
+      const timestamp = attendanceTimestamp(r);
+      const key = timestamp ? new Date(timestamp).toISOString().slice(0, 10) : "unknown";
       if (!byDate[key]) byDate[key] = { date: key, present: 0, absent: 0 };
       if (r.status === "present") byDate[key].present += 1;
       else byDate[key].absent += 1;
     });
     res.json(Object.values(byDate));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+exports.getTeacherAttendanceRecords = async (req, res) => {
+  try {
+    // Use normalized id forms to match DB (string/number UUIDs)
+    const teacherIds = authUserIdsNormalized(req);
+    console.log("getTeacherAttendanceRecords teacherIds:", teacherIds);
+    if (!teacherIds.length) return res.json([]);
+
+    const { data: quizzes, error: qErr } = await supabaseAdmin
+      .from("quizzes")
+      .select("id")
+      .in("teacher_id", teacherIds);
+    if (qErr) return res.status(400).json({ error: qErr.message });
+
+    const quizIds = (quizzes || []).map((q) => q.id);
+    console.log("getTeacherAttendanceRecords quizIds count:", quizIds.length);
+    if (!quizIds.length) return res.json([]);
+
+    const { data: rows, error } = await supabaseAdmin
+      .from("attendance")
+      .select("status, submitted_at, recorded_at, user_id, quiz_id")
+      .in("quiz_id", quizIds)
+      .order("submitted_at", { ascending: false })
+      .limit(20);
+
+    if (error) {
+      console.error("getTeacherAttendanceRecords attendance query error:", error);
+      return res.status(400).json({ error: error.message });
+    }
+    console.log("getTeacherAttendanceRecords attendance rows:", Array.isArray(rows) ? rows.length : 0);
+
+    const quizIdSet = new Set((rows || []).map(r => r.quiz_id).filter(Boolean));
+    const userIdSet = new Set((rows || []).map(r => r.user_id).filter(Boolean));
+    const quizIdList = Array.from(quizIdSet);
+    const userIdList = Array.from(userIdSet);
+
+    const [quizMap, userMap, resultsMap] = await Promise.all([
+      (async () => {
+        if (!quizIdList.length) return {};
+        const { data: quizRows, error: quizErr } = await supabaseAdmin
+          .from("quizzes")
+          .select("id, title")
+          .in("id", quizIdList);
+        if (quizErr) {
+          console.error("getTeacherAttendanceRecords quiz lookup error:", quizErr);
+          return {};
+        }
+        return (quizRows || []).reduce((acc, q) => {
+          if (q?.id) acc[String(q.id)] = q;
+          return acc;
+        }, {});
+      })(),
+      (async () => {
+        if (!userIdList.length) return {};
+        const { data: userRows, error: userErr } = await supabaseAdmin
+          .from("users")
+          .select("id, full_name, email")
+          .in("id", userIdList);
+        if (userErr) {
+          console.error("getTeacherAttendanceRecords user lookup error:", userErr);
+          return {};
+        }
+        return (userRows || []).reduce((acc, u) => {
+          if (u?.id) acc[String(u.id)] = u;
+          return acc;
+        }, {});
+      })(),
+      (async () => {
+        if (!quizIdList.length || !userIdList.length) return new Map();
+        const { data: resultsData, error: resultsErr } = await supabaseAdmin
+          .from("results")
+          .select("quiz_id, user_id, submitted_at")
+          .in("quiz_id", quizIdList)
+          .in("user_id", userIdList);
+        const map = new Map();
+        if (resultsErr) {
+          console.error("getTeacherAttendanceRecords results lookup error:", resultsErr);
+          return map;
+        }
+        (resultsData || []).forEach((r) => {
+          const key = `${String(r.quiz_id)}|${String(r.user_id)}`;
+          const prev = map.get(key);
+          if (!prev || new Date(r.submitted_at) < new Date(prev)) map.set(key, r.submitted_at);
+        });
+        return map;
+      })(),
+    ]);
+
+    const records = (rows || []).map((record) => {
+      const quizId = record.quiz_id;
+      const userId = record.user_id;
+      const key = `${String(quizId)}|${String(userId)}`;
+      const completedAt = resultsMap.get(key) || null;
+      const quiz = quizMap[String(quizId)] || {};
+      const student = userMap[String(userId)] || {};
+      return {
+        quizTitle: quiz.title || "Unknown quiz",
+        studentName: student.full_name || "Unknown student",
+        studentEmail: student.email || "",
+        status: record.status,
+        timestamp: attendanceTimestamp(record),
+        completed: !!completedAt,
+        completedAt,
+      };
+    });
+
+    res.json(records);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -874,7 +1209,7 @@ exports.getTeacherAttendanceTimeline = async (req, res) => {
 exports.getTeacherQuizDetail = async (req, res) => {
   try {
     const { quizId } = req.params;
-    const teacherIds = authUserIds(req);
+    const teacherIds = authUserIdsNormalized(req);
     if (!teacherIds.length) {
       return res.status(403).json({ message: "Forbidden" });
     }
@@ -1144,7 +1479,7 @@ exports.generateQuizFromText = async (req, res) => {
     if (!text || text.trim().length === 0) {
       return res.status(400).json({ error: "Text content is required" });
     }
-    const questions = await aiService.generateQuestions(
+    const questions = await aiQueue.addToQueue(
       text,
       type,
       safeCount,
@@ -1152,7 +1487,7 @@ exports.generateQuizFromText = async (req, res) => {
     );
     res.json({ success: true, questions, generatedAt: new Date().toISOString() });
   } catch (err) {
-    const isRateLimit = err.message.includes('quota') || err.message.includes('429');
+    const isRateLimit = /(?:429|quota)/i.test(String(err?.message || ""));
     res.status(isRateLimit ? 429 : 500).json({ error: err.message, isRateLimit });
   }
 };

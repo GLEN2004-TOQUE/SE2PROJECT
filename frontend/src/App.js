@@ -1,3 +1,4 @@
+import { useState, useCallback } from "react";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import MainPage from "./pages/MainPage";
 import Register from "./pages/Register";
@@ -10,9 +11,14 @@ import QuizPage from "./pages/QuizPage";
 import UploadLecture from "./pages/UploadLecture";
 import GenerateQuiz from "./pages/GenerateQuiz";
 import ProtectedRoute from "./components/ProtectedRoute";
+import Preloader from "./components/Preloader";
 
 function App() {
+  const [ready, setReady] = useState(false);
+  const handlePreloaderDone = useCallback(() => setReady(true), []);
+
   return (
+    <>
     <Router>
       <Routes>
         {/* Public */}
@@ -21,7 +27,6 @@ function App() {
         <Route path="/login" element={<Login />} />
 
         {/* Admin */}
-
         <Route
           path="/admin"
           element={
@@ -76,6 +81,8 @@ function App() {
         />
       </Routes>
     </Router>
+    {!ready && <Preloader onDone={handlePreloaderDone} />}
+    </>
   );
 }
 

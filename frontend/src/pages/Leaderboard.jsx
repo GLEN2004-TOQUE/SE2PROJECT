@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
+import { API_BASE_URL } from "../services/api";
 
 function Leaderboard({ type }) {
   const [users, setUsers] = useState([]);
 
   useEffect(() => {
-    fetch(`/api/game/leaderboard/${type}`)
-      .then(res => res.json())
+    fetch(`${API_BASE_URL}/api/game/leaderboard/${type}`)
+      .then((res) => res.json())
       .then(setUsers);
   }, [type]);
 

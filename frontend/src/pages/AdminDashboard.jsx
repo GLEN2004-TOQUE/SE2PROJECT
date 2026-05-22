@@ -1,16 +1,14 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { getUser, logout, getFriendlyApiErrorMessage } from "../services/api";
+import { API_BASE_URL, getUser, logout, getFriendlyApiErrorMessage } from "../services/api";
 import { BarChart } from "@mui/x-charts/BarChart";
 import { LineChart } from "@mui/x-charts/LineChart";
 import { PieChart } from "@mui/x-charts/PieChart";
 import { SparkLineChart } from "@mui/x-charts/SparkLineChart";
 
-const BASE = process.env.REACT_APP_API_URL || "https://backend-7lik.onrender.com";
-
 const apiFetch = async (path, opts = {}) => {
   const token = localStorage.getItem("token");
-  const res = await fetch(`${BASE}${path}`, {
+  const res = await fetch(`${API_BASE_URL}${path}`, {
     ...opts,
     headers: {
       "Content-Type": "application/json",
@@ -62,7 +60,12 @@ const Styles = () => (
       --red:       #f87171;
       --blue:      #60a5fa;
       --nav-h:     64px;
-      --side-w:    240px;
+      --side-w:    248px;
+      --radius-sm: 10px;
+      --radius-md: 14px;
+      --radius-lg: 18px;
+      --shadow-card: 0 4px 24px rgba(0,0,0,.22), 0 1px 0 rgba(255,248,240,.04) inset;
+      --shadow-elevated: 0 12px 40px rgba(0,0,0,.35);
     }
 
     @keyframes _fadeUp  { from{opacity:0;transform:translateY(16px);}to{opacity:1;transform:translateY(0);} }
@@ -98,8 +101,13 @@ const Styles = () => (
       position: fixed; inset: 0;
       pointer-events: none; z-index: 0;
       background-image:
-        repeating-linear-gradient(0deg, transparent, transparent 60px, rgba(212,160,23,.018) 60px, rgba(212,160,23,.018) 61px),
-        repeating-linear-gradient(90deg, transparent, transparent 60px, rgba(212,160,23,.018) 60px, rgba(212,160,23,.018) 61px);
+        repeating-linear-gradient(0deg, transparent, transparent 80px, rgba(212,160,23,.012) 80px, rgba(212,160,23,.012) 81px),
+        repeating-linear-gradient(90deg, transparent, transparent 80px, rgba(212,160,23,.012) 80px, rgba(212,160,23,.012) 81px);
+    }
+    .ad-root::after {
+      content: '';
+      position: fixed; inset: 0; pointer-events: none; z-index: 0;
+      background: radial-gradient(ellipse 50% 40% at 50% 0%, rgba(212,160,23,.04) 0%, transparent 55%);
     }
 
     /* ══════════════════════════════
@@ -110,24 +118,25 @@ const Styles = () => (
       height: var(--nav-h);
       display: flex; align-items: center; justify-content: space-between;
       padding: 0 2rem;
-      background: rgba(42,10,15,.85);
-      backdrop-filter: blur(20px);
-      border-bottom: 1px solid rgba(92,31,42,.5);
+      background: linear-gradient(180deg, rgba(42,10,15,.94) 0%, rgba(42,10,15,.88) 100%);
+      backdrop-filter: blur(24px) saturate(1.2);
+      border-bottom: 1px solid rgba(92,31,42,.55);
+      box-shadow: 0 1px 0 rgba(255,248,240,.03) inset, 0 8px 32px rgba(0,0,0,.2);
       animation: _slideD .4s ease both;
     }
     .ad-top::after {
       content: '';
-      position: absolute; bottom: -1px; left: 20%; right: 20%; height: 1px;
-      background: linear-gradient(to right, transparent, rgba(212,160,23,.3), transparent);
+      position: absolute; bottom: 0; left: 12%; right: 12%; height: 1px;
+      background: linear-gradient(to right, transparent, rgba(212,160,23,.45), transparent);
       pointer-events: none;
     }
 
-    .ad-brand { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+    .ad-brand { display: flex; align-items: center; gap: 12px; text-decoration: none; }
     .ad-brand-logo {
-      width: 34px; height: 34px; border-radius: 9px;
-      background: var(--mustard);
+      width: 36px; height: 36px; border-radius: var(--radius-sm);
+      background: linear-gradient(145deg, #e8b82a 0%, var(--mustard) 50%, #b8860b 100%);
       display: grid; place-items: center; overflow: hidden; flex-shrink: 0;
-      box-shadow: 0 0 0 3px rgba(212,160,23,.2);
+      box-shadow: 0 2px 8px rgba(212,160,23,.25), 0 0 0 1px rgba(255,248,240,.12) inset;
     }
     .ad-brand-logo img { width: 22px; height: 22px; object-fit: contain; }
     .ad-brand-name {
@@ -145,12 +154,13 @@ const Styles = () => (
 
     .ad-top-right { display: flex; align-items: center; gap: .75rem; }
     .ad-user-pill {
-      display: flex; align-items: center; gap: .5rem;
-      padding: .3rem .75rem .3rem .4rem;
+      display: flex; align-items: center; gap: .55rem;
+      padding: .32rem .85rem .32rem .42rem;
       border: 1px solid var(--border2);
       border-radius: 100px;
-      background: rgba(255,255,255,.03);
+      background: rgba(0,0,0,.15);
       font-size: .8rem; color: var(--muted);
+      box-shadow: 0 1px 0 rgba(255,248,240,.04) inset;
     }
     .ad-avatar {
       width: 26px; height: 26px; border-radius: 50%;
@@ -179,14 +189,15 @@ const Styles = () => (
     .ad-side {
       width: var(--side-w); flex-shrink: 0;
       border-right: 1px solid var(--border2);
-      background: rgba(42,10,15,.6);
-      padding: 1.5rem .85rem;
+      background: linear-gradient(180deg, rgba(50,16,25,.75) 0%, rgba(42,10,15,.85) 100%);
+      padding: 1.35rem .9rem;
       display: flex; flex-direction: column;
-      backdrop-filter: blur(12px);
+      backdrop-filter: blur(16px);
       position: sticky;
       top: var(--nav-h);
       height: calc(100vh - var(--nav-h));
       overflow-y: auto;
+      box-shadow: 4px 0 24px rgba(0,0,0,.12);
     }
 
     .ad-side-nav { display: flex; flex-direction: column; gap: .15rem; flex: 1; }
@@ -219,24 +230,27 @@ const Styles = () => (
       font-family: 'DM Mono', monospace;
     }
     .ad-nav-item {
-      display: flex; align-items: center; gap: .65rem;
-      padding: .55rem .75rem; border-radius: 10px;
-      cursor: pointer; font-size: .83rem; font-weight: 500;
-      color: var(--muted); transition: all .2s;
+      display: flex; align-items: center; gap: .7rem;
+      padding: .6rem .85rem; border-radius: var(--radius-sm);
+      cursor: pointer; font-size: .84rem; font-weight: 500;
+      color: var(--muted); transition: background .2s, color .2s, border-color .2s, transform .15s;
       border: 1px solid transparent; position: relative;
+      letter-spacing: .01em;
     }
-    .ad-nav-item svg { width: 15px; height: 15px; flex-shrink: 0; }
-    .ad-nav-item:hover { background: var(--msoft2); color: var(--text); border-color: var(--border2); }
+    .ad-nav-item svg { width: 16px; height: 16px; flex-shrink: 0; opacity: .85; }
+    .ad-nav-item:hover { background: rgba(255,248,240,.04); color: var(--text); border-color: var(--border2); }
     .ad-nav-item.active {
-      background: var(--msoft);
-      border-color: rgba(212,160,23,.3);
+      background: linear-gradient(90deg, rgba(212,160,23,.14) 0%, rgba(212,160,23,.06) 100%);
+      border-color: rgba(212,160,23,.28);
       color: var(--mustard); font-weight: 600;
+      box-shadow: 0 1px 0 rgba(255,248,240,.05) inset;
     }
     .ad-nav-item.active::before {
-      content: ''; position: absolute; left: -1px; top: 20%; bottom: 20%;
-      width: 2px; border-radius: 0 2px 2px 0;
-      background: var(--mustard);
+      content: ''; position: absolute; left: 0; top: 18%; bottom: 18%;
+      width: 3px; border-radius: 0 3px 3px 0;
+      background: linear-gradient(180deg, #f5c84a, var(--mustard));
     }
+    .ad-nav-item.active svg { opacity: 1; }
     .ad-nav-count {
       margin-left: auto;
       font-family: 'DM Mono', monospace; font-size: .62rem;
@@ -249,85 +263,100 @@ const Styles = () => (
        MAIN
     ══════════════════════════════ */
     .ad-main {
-      flex: 1; padding: 2rem 2.2rem; min-width: 0;
-      animation: _fadeIn .3s ease both;
+      flex: 1; padding: 2.25rem 2.5rem; min-width: 0;
+      animation: _fadeIn .35s ease both;
       overflow-x: hidden;
     }
-    .ad-page-head { margin-bottom: 2rem; display: flex; align-items: flex-end; justify-content: space-between; flex-wrap: wrap; gap: 1rem; }
-    .ad-page-head-text {}
+    .ad-page-head {
+      margin-bottom: 2.25rem;
+      display: flex; align-items: flex-end; justify-content: space-between;
+      flex-wrap: wrap; gap: 1.25rem;
+      padding-bottom: 1.5rem;
+      border-bottom: 1px solid var(--border2);
+      position: relative;
+    }
+    .ad-page-head::after {
+      content: '';
+      position: absolute; bottom: -1px; left: 0; width: 72px; height: 2px;
+      background: linear-gradient(90deg, var(--mustard), transparent);
+      border-radius: 1px;
+    }
+    .ad-page-head-text { max-width: 52rem; }
     .ad-page-eyebrow {
-      display: inline-block;
-      font-size: .62rem; font-weight: 600; letter-spacing: .14em; text-transform: uppercase;
+      display: inline-flex; align-items: center; gap: .5rem;
+      font-size: .62rem; font-weight: 600; letter-spacing: .16em; text-transform: uppercase;
       color: var(--mustard); font-family: 'DM Mono', monospace;
-      margin-bottom: .4rem;
+      margin-bottom: .5rem;
+    }
+    .ad-page-eyebrow::before {
+      content: ''; width: 18px; height: 1px; background: var(--mustard); opacity: .6;
     }
     .ad-page-title {
       font-family: 'Playfair Display', serif;
-      font-size: 1.7rem; font-weight: 700; color: var(--text);
-      letter-spacing: -.02em; line-height: 1.2;
+      font-size: 1.85rem; font-weight: 700; color: var(--text);
+      letter-spacing: -.025em; line-height: 1.15;
     }
-    .ad-page-sub { font-size: .8rem; color: var(--muted); margin-top: .25rem; font-weight: 300; }
+    .ad-page-sub { font-size: .84rem; color: var(--muted); margin-top: .4rem; font-weight: 400; line-height: 1.55; max-width: 42rem; }
 
     /* ══════════════════════════════
        STAT CARDS — DataNest gradient style
     ══════════════════════════════ */
-    .ad-stat-row { display: grid; grid-template-columns: repeat(4,1fr); gap: 1rem; margin-bottom: 1.8rem; }
+    .ad-stat-row { display: grid; grid-template-columns: repeat(4,1fr); gap: 1.1rem; margin-bottom: 1.9rem; }
     .ad-stat-card {
-      border-radius: 16px; padding: 1.35rem 1.4rem;
+      border-radius: var(--radius-lg); padding: 1.4rem 1.45rem;
       position: relative; overflow: hidden;
       animation: _fadeUp .5s ease both;
-      transition: transform .2s, box-shadow .25s;
-      border: 1px solid transparent;
+      transition: transform .22s ease, box-shadow .25s ease, border-color .2s;
+      border: 1px solid var(--border);
+      background: var(--panel);
+      box-shadow: var(--shadow-card);
     }
-    .ad-stat-card:hover { transform: translateY(-3px); }
+    .ad-stat-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-elevated); }
 
-    /* Gradient card variants */
+    /* Accent-top classic cards — same palette, cleaner surface */
     .ad-stat-card.grad-gold {
-      background: linear-gradient(135deg, rgba(212,160,23,.22) 0%, rgba(120,80,10,.35) 60%, rgba(61,16,24,.9) 100%);
-      border-color: rgba(212,160,23,.3);
-      box-shadow: 0 4px 32px rgba(212,160,23,.1), inset 0 1px 0 rgba(212,160,23,.2);
+      border-color: rgba(212,160,23,.28);
+      background: linear-gradient(165deg, rgba(212,160,23,.08) 0%, var(--panel) 42%);
     }
-    .ad-stat-card.grad-gold:hover { box-shadow: 0 8px 40px rgba(212,160,23,.2), inset 0 1px 0 rgba(212,160,23,.3); }
+    .ad-stat-card.grad-gold:hover { border-color: rgba(212,160,23,.45); }
     .ad-stat-card.grad-green {
-      background: linear-gradient(135deg, rgba(34,197,94,.18) 0%, rgba(15,90,45,.35) 60%, rgba(61,16,24,.9) 100%);
-      border-color: rgba(34,197,94,.25);
-      box-shadow: 0 4px 32px rgba(34,197,94,.08), inset 0 1px 0 rgba(34,197,94,.15);
+      border-color: rgba(34,197,94,.22);
+      background: linear-gradient(165deg, rgba(34,197,94,.07) 0%, var(--panel) 42%);
     }
-    .ad-stat-card.grad-green:hover { box-shadow: 0 8px 40px rgba(34,197,94,.16), inset 0 1px 0 rgba(34,197,94,.25); }
+    .ad-stat-card.grad-green:hover { border-color: rgba(34,197,94,.38); }
     .ad-stat-card.grad-blue {
-      background: linear-gradient(135deg, rgba(96,165,250,.18) 0%, rgba(30,60,120,.35) 60%, rgba(61,16,24,.9) 100%);
-      border-color: rgba(96,165,250,.25);
-      box-shadow: 0 4px 32px rgba(96,165,250,.08), inset 0 1px 0 rgba(96,165,250,.15);
+      border-color: rgba(96,165,250,.22);
+      background: linear-gradient(165deg, rgba(96,165,250,.07) 0%, var(--panel) 42%);
     }
-    .ad-stat-card.grad-blue:hover { box-shadow: 0 8px 40px rgba(96,165,250,.16), inset 0 1px 0 rgba(96,165,250,.25); }
+    .ad-stat-card.grad-blue:hover { border-color: rgba(96,165,250,.38); }
     .ad-stat-card.grad-red {
-      background: linear-gradient(135deg, rgba(248,113,113,.18) 0%, rgba(120,20,20,.35) 60%, rgba(61,16,24,.9) 100%);
-      border-color: rgba(248,113,113,.25);
-      box-shadow: 0 4px 32px rgba(248,113,113,.08), inset 0 1px 0 rgba(248,113,113,.15);
+      border-color: rgba(248,113,113,.2);
+      background: linear-gradient(165deg, rgba(248,113,113,.06) 0%, var(--panel) 42%);
     }
-    .ad-stat-card.grad-red:hover { box-shadow: 0 8px 40px rgba(248,113,113,.16), inset 0 1px 0 rgba(248,113,113,.25); }
+    .ad-stat-card.grad-red:hover { border-color: rgba(248,113,113,.35); }
 
-    /* Corner glow on each card */
     .ad-stat-card::after {
       content: '';
-      position: absolute; top: -30px; right: -30px;
-      width: 90px; height: 90px; border-radius: 50%;
-      pointer-events: none;
-      animation: _cardGlow 3s ease-in-out infinite;
+      position: absolute; top: 0; left: 0; right: 0; height: 3px;
+      pointer-events: none; border-radius: var(--radius-lg) var(--radius-lg) 0 0;
     }
-    .grad-gold::after  { background: radial-gradient(circle, rgba(212,160,23,.35) 0%, transparent 70%); }
-    .grad-green::after { background: radial-gradient(circle, rgba(34,197,94,.28)  0%, transparent 70%); }
-    .grad-blue::after  { background: radial-gradient(circle, rgba(96,165,250,.28) 0%, transparent 70%); }
-    .grad-red::after   { background: radial-gradient(circle, rgba(248,113,113,.25) 0%, transparent 70%); }
+    .grad-gold::after  { background: linear-gradient(90deg, transparent, var(--mustard), transparent); opacity: .85; }
+    .grad-green::after { background: linear-gradient(90deg, transparent, var(--green), transparent); opacity: .75; }
+    .grad-blue::after  { background: linear-gradient(90deg, transparent, var(--blue), transparent); opacity: .75; }
+    .grad-red::after   { background: linear-gradient(90deg, transparent, var(--red), transparent); opacity: .7; }
 
     .ad-stat-card::before {
-      content: ''; position: absolute; top: 0; left: 10%; right: 10%; height: 1px;
-      background: linear-gradient(to right, transparent, rgba(255,255,255,.12), transparent);
-      pointer-events: none;
+      content: ''; position: absolute; bottom: 0; right: 0;
+      width: 64px; height: 64px; pointer-events: none; opacity: .35;
+      background: radial-gradient(circle at 100% 100%, currentColor 0%, transparent 70%);
     }
+    .grad-gold::before  { color: rgba(212,160,23,.15); }
+    .grad-green::before { color: rgba(34,197,94,.12); }
+    .grad-blue::before  { color: rgba(96,165,250,.12); }
+    .grad-red::before   { color: rgba(248,113,113,.1); }
     .ad-stat-icon {
-      width: 38px; height: 38px; border-radius: 10px;
-      display: grid; place-items: center; margin-bottom: .85rem;
+      width: 40px; height: 40px; border-radius: var(--radius-sm);
+      display: grid; place-items: center; margin-bottom: .9rem;
     }
     .ad-stat-icon svg { width: 17px; height: 17px; }
     .grad-gold  .ad-stat-icon { background: rgba(212,160,23,.18); border: 1px solid rgba(212,160,23,.3); color: var(--mustard); }
@@ -342,12 +371,34 @@ const Styles = () => (
     }
     .ad-stat-val {
       font-family: 'Playfair Display', serif;
-      font-size: 2.1rem; font-weight: 700; color: var(--text); line-height: 1;
+      font-size: 2.15rem; font-weight: 700; color: var(--text); line-height: 1;
+      font-variant-numeric: tabular-nums;
     }
     .grad-gold  .ad-stat-val { color: #f5c84a; }
     .grad-green .ad-stat-val { color: #4ade80; }
     .grad-blue  .ad-stat-val { color: #93c5fd; }
     .grad-red   .ad-stat-val { color: #fca5a5; }
+    .ad-stat-footer {
+      margin-top: 1.1rem;
+      padding: .85rem 1rem;
+      border-radius: var(--radius-md);
+      background: rgba(0,0,0,.15);
+      border: 1px solid var(--border2);
+      display: grid;
+      gap: .28rem;
+    }
+    .ad-stat-foot-line {
+      font-size: .9rem;
+      font-weight: 600;
+      color: var(--text);
+      line-height: 1.2;
+    }
+    .ad-stat-foot-meta {
+      font-size: .75rem;
+      color: rgba(255,255,255,.72);
+      line-height: 1.4;
+      font-family: 'DM Mono', monospace;
+    }
     .ad-stat-hint { font-size: .7rem; color: var(--muted); margin-top: .4rem; font-weight: 300; }
 
     /* ══════════════════════════════
@@ -356,31 +407,41 @@ const Styles = () => (
     .ad-panel {
       background: var(--panel);
       border: 1px solid var(--border);
-      border-radius: 16px; overflow: hidden;
-      margin-bottom: 1.4rem;
+      border-radius: var(--radius-lg); overflow: hidden;
+      margin-bottom: 1.5rem;
       position: relative;
+      box-shadow: var(--shadow-card);
     }
     .ad-panel::before {
-      content: ''; position: absolute; top: 0; left: 20%; right: 20%; height: 1px;
-      background: linear-gradient(to right, transparent, rgba(212,160,23,.2), transparent);
-      pointer-events: none;
+      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+      background: linear-gradient(to right, transparent, rgba(212,160,23,.25), transparent);
+      pointer-events: none; z-index: 1;
     }
     .ad-panel-head {
       display: flex; align-items: center; justify-content: space-between;
-      padding: 1.1rem 1.5rem; border-bottom: 1px solid var(--border2);
+      padding: 1.15rem 1.5rem;
+      border-bottom: 1px solid var(--border2);
+      background: rgba(0,0,0,.12);
     }
     .ad-panel-title {
       font-family: 'Playfair Display', serif;
-      font-size: .95rem; font-weight: 700; color: var(--text);
+      font-size: 1rem; font-weight: 700; color: var(--text);
+      letter-spacing: -.01em;
     }
     .ad-panel-action {
-      padding: .38rem .9rem; border-radius: 8px;
-      border: 1px solid rgba(212,160,23,.35); background: var(--msoft2);
+      padding: .42rem 1rem; border-radius: var(--radius-sm);
+      border: 1px solid rgba(212,160,23,.4);
+      background: linear-gradient(180deg, rgba(212,160,23,.1) 0%, var(--msoft2) 100%);
       color: var(--mustard); font-family: 'DM Sans', sans-serif;
       font-size: .76rem; font-weight: 600;
       cursor: pointer; transition: all .2s;
+      letter-spacing: .02em;
     }
-    .ad-panel-action:hover { background: var(--msoft); border-color: rgba(212,160,23,.6); }
+    .ad-panel-action:hover {
+      background: var(--msoft);
+      border-color: rgba(212,160,23,.65);
+      transform: translateY(-1px);
+    }
 
     /* ══════════════════════════════
        ANALYTICS SECTION HEADER — DataNest style
@@ -403,28 +464,30 @@ const Styles = () => (
     /* ══════════════════════════════
        CHART CARDS — enhanced with gradient
     ══════════════════════════════ */
-    .ad-chart-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 1.2rem; margin-bottom: 1.4rem; }
+    .ad-chart-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 1.15rem; margin-bottom: 1.5rem; }
     .ad-chart-card {
-      background: linear-gradient(145deg, rgba(61,16,24,.95) 0%, rgba(50,16,25,.98) 60%, rgba(42,10,15,1) 100%);
+      background: var(--panel);
       border: 1px solid var(--border);
-      border-radius: 16px; padding: 1.4rem 1.6rem; position: relative; overflow: hidden;
+      border-radius: var(--radius-lg);
+      padding: 1.45rem 1.55rem;
+      position: relative; overflow: hidden;
       transition: border-color .25s, transform .2s, box-shadow .25s;
+      box-shadow: var(--shadow-card);
     }
     .ad-chart-card:hover {
-      border-color: rgba(212,160,23,.35);
-      transform: translateY(-2px);
-      box-shadow: 0 8px 32px rgba(0,0,0,.3), 0 0 0 1px rgba(212,160,23,.1);
+      border-color: rgba(212,160,23,.32);
+      transform: translateY(-1px);
+      box-shadow: var(--shadow-elevated);
     }
     .ad-chart-card::before {
-      content: ''; position: absolute; top: 0; left: 10%; right: 10%; height: 1px;
-      background: linear-gradient(to right, transparent, rgba(212,160,23,.25), transparent);
+      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+      background: linear-gradient(90deg, transparent 5%, rgba(212,160,23,.35) 50%, transparent 95%);
     }
-    /* Ambient glow in corner */
     .ad-chart-card::after {
       content: '';
-      position: absolute; bottom: -40px; right: -40px;
-      width: 120px; height: 120px; border-radius: 50%;
-      background: radial-gradient(circle, rgba(212,160,23,.1) 0%, transparent 70%);
+      position: absolute; bottom: -50px; right: -50px;
+      width: 100px; height: 100px; border-radius: 50%;
+      background: radial-gradient(circle, rgba(212,160,23,.06) 0%, transparent 70%);
       pointer-events: none;
     }
     .ad-chart-eyebrow {
@@ -448,12 +511,15 @@ const Styles = () => (
        SEARCH
     ══════════════════════════════ */
     .ad-search {
-      display: flex; align-items: center; gap: .45rem;
+      display: flex; align-items: center; gap: .5rem;
       background: var(--input-bg); border: 1px solid var(--border);
-      border-radius: 9px; padding: .42rem .8rem;
-      transition: border-color .2s;
+      border-radius: var(--radius-sm); padding: .45rem .85rem;
+      transition: border-color .2s, box-shadow .2s;
     }
-    .ad-search:focus-within { border-color: rgba(212,160,23,.4); }
+    .ad-search:focus-within {
+      border-color: rgba(212,160,23,.45);
+      box-shadow: 0 0 0 3px rgba(212,160,23,.08);
+    }
     .ad-search svg { width: 13px; height: 13px; color: var(--muted); flex-shrink: 0; }
     .ad-search input {
       background: none; border: none; outline: none;
@@ -466,18 +532,21 @@ const Styles = () => (
     ══════════════════════════════ */
     .ad-table { width: 100%; border-collapse: collapse; }
     .ad-table th {
-      font-size: .63rem; letter-spacing: .1em; text-transform: uppercase;
-      color: var(--muted); font-weight: 600;
+      font-size: .62rem; letter-spacing: .11em; text-transform: uppercase;
+      color: rgba(212,160,23,.55); font-weight: 600;
       font-family: 'DM Mono', monospace;
-      padding: .75rem 1.4rem; text-align: left;
-      border-bottom: 1px solid var(--border2);
+      padding: .8rem 1.45rem; text-align: left;
+      border-bottom: 1px solid var(--border);
+      background: rgba(0,0,0,.18);
     }
     .ad-table td {
-      padding: .85rem 1.4rem; font-size: .82rem; color: rgba(255,248,240,.65);
-      border-bottom: 1px solid rgba(92,31,42,.25);
+      padding: .9rem 1.45rem; font-size: .83rem; color: rgba(255,248,240,.72);
+      border-bottom: 1px solid rgba(92,31,42,.2);
+      transition: background .15s;
     }
+    .ad-table tbody tr:nth-child(even) td { background: rgba(0,0,0,.06); }
     .ad-table tr:last-child td { border-bottom: none; }
-    .ad-table tr:hover td { background: rgba(212,160,23,.03); }
+    .ad-table tbody tr:hover td { background: rgba(212,160,23,.05); }
 
     .ad-cell-user { display: flex; align-items: center; gap: .7rem; }
     .ad-av {
@@ -556,10 +625,10 @@ const Styles = () => (
     }
     .ad-modal {
       background: var(--panel); border: 1px solid var(--border);
-      border-radius: 20px; padding: 2rem 2.2rem;
+      border-radius: var(--radius-lg); padding: 2rem 2.25rem;
       width: 100%; max-width: 460px;
       animation: _modalIn .28s cubic-bezier(.34,1.56,.64,1) both;
-      box-shadow: 0 40px 80px rgba(0,0,0,.65);
+      box-shadow: var(--shadow-elevated), 0 0 0 1px rgba(255,248,240,.04) inset;
       position: relative;
     }
     .ad-modal::before {
@@ -635,9 +704,10 @@ const Styles = () => (
     .ad-toast {
       position: fixed; bottom: 2rem; right: 2rem; z-index: 300;
       display: flex; align-items: center; gap: .7rem;
-      padding: .85rem 1.2rem; border-radius: 12px;
+      padding: .9rem 1.25rem; border-radius: var(--radius-md);
       background: var(--panel); border: 1px solid var(--border);
-      box-shadow: 0 20px 50px rgba(0,0,0,.55);
+      box-shadow: var(--shadow-elevated);
+      backdrop-filter: blur(12px);
       font-size: .83rem; font-weight: 600; max-width: 340px;
       animation: _toast 3.5s ease forwards;
     }
@@ -649,12 +719,15 @@ const Styles = () => (
        LEADERBOARD
     ══════════════════════════════ */
     .ad-lb-row {
-      display: flex; align-items: center; gap: .85rem;
-      padding: .85rem 1.4rem; border-bottom: 1px solid rgba(92,31,42,.25);
-      transition: background .15s; cursor: pointer;
+      display: flex; align-items: center; gap: .9rem;
+      padding: .9rem 1.45rem; border-bottom: 1px solid rgba(92,31,42,.2);
+      transition: background .15s, padding-left .15s; cursor: pointer;
     }
     .ad-lb-row:last-child { border-bottom: none; }
-    .ad-lb-row:hover { background: var(--msoft2); }
+    .ad-lb-row:hover {
+      background: rgba(212,160,23,.04);
+      padding-left: 1.6rem;
+    }
     .ad-lb-rank {
       width: 32px; text-align: center;
       font-family: 'Playfair Display', serif; font-size: .9rem; font-weight: 700;
@@ -696,17 +769,24 @@ const Styles = () => (
       color: rgba(212,160,23,.55); font-family: 'DM Mono', monospace;
       width: 100%;
     }
-    .ad-scope-tabs { display: flex; flex-wrap: wrap; gap: .4rem; }
+    .ad-scope-tabs {
+      display: inline-flex; flex-wrap: wrap; gap: 0;
+      padding: 3px; border-radius: var(--radius-sm);
+      background: rgba(0,0,0,.2); border: 1px solid var(--border2);
+    }
     .ad-scope-tab {
-      padding: .38rem .95rem; border-radius: 9px; cursor: pointer;
+      padding: .42rem 1rem; border-radius: 7px; cursor: pointer;
       font-size: .78rem; font-weight: 600;
-      border: 1px solid var(--border); background: rgba(255,255,255,.03);
+      border: 1px solid transparent; background: transparent;
       color: var(--muted); transition: all .18s;
       font-family: 'DM Sans', sans-serif;
     }
-    .ad-scope-tab:hover { border-color: rgba(212,160,23,.35); color: var(--text); }
+    .ad-scope-tab:hover { color: var(--text); }
     .ad-scope-tab.on {
-      background: var(--msoft); border-color: rgba(212,160,23,.45); color: var(--mustard);
+      background: var(--panel);
+      border-color: rgba(212,160,23,.35);
+      color: var(--mustard);
+      box-shadow: 0 1px 4px rgba(0,0,0,.2);
     }
 
     /* ══════════════════════════════
@@ -1009,6 +1089,18 @@ export default function AdminDashboard() {
     lbFilter === "all"
       ? leaderboardByProgram
       : leaderboardByProgram.filter((u) => u.section === lbFilter);
+
+  const topOverallStudent = leaderboard[0] || null;
+  const topCollegeStudent = leaderboard.find((u) => inferStudentProgram(u.course) === "college") || null;
+  const topShsStudent = leaderboard.find((u) => inferStudentProgram(u.course) === "seniorhigh") || null;
+  const getTeacherNames = (student) => {
+    if (!student) return "—";
+    const teachers = assignMap[sidKey(student.id)] || [];
+    return teachers.length > 0 ? teachers.map((t) => t.full_name).join(", ") : "Unassigned";
+  };
+  const formatStudentLabel = (student) =>
+    student ? student.full_name : "—";
+  const formatStudentSection = (student) => student?.section || "No section";
 
   const filterBySearch = arr => arr.filter(u=>
     u.full_name?.toLowerCase().includes(search.toLowerCase())||
@@ -1514,7 +1606,7 @@ export default function AdminDashboard() {
                         }]}
                         height={230}
                         margin={{top:8,right:100,bottom:8,left:16}}
-                        slotProps={{legend:{direction:"column",position:{vertical:"middle",horizontal:"right"},itemMarkWidth:10,itemMarkHeight:10,markGap:6,itemGap:10,labelStyle:{fill:"#b87a80",fontSize:11}}}}
+                        slotProps={{legend:{direction:"vertical",position:{vertical:"middle",horizontal:"end"},itemMarkWidth:10,itemMarkHeight:10,markGap:6,itemGap:10,labelStyle:{fill:"#b87a80",fontSize:11}}}}
                         sx={chartSx}
                       />
                     </div>
@@ -1539,7 +1631,7 @@ export default function AdminDashboard() {
                               }]}
                               height={230}
                               margin={{top:8,right:120,bottom:8,left:16}}
-                              slotProps={{legend:{direction:"column",position:{vertical:"middle",horizontal:"right"},itemMarkWidth:10,itemMarkHeight:10,markGap:6,itemGap:10,labelStyle:{fill:"#b87a80",fontSize:11}}}}
+                              slotProps={{legend:{direction:"vertical",position:{vertical:"middle",horizontal:"end"},itemMarkWidth:10,itemMarkHeight:10,markGap:6,itemGap:10,labelStyle:{fill:"#b87a80",fontSize:11}}}}
                               sx={chartSx}
                             />
                           ) : (
@@ -1560,7 +1652,7 @@ export default function AdminDashboard() {
                               }]}
                               height={230}
                               margin={{top:8,right:130,bottom:8,left:16}}
-                              slotProps={{legend:{direction:"column",position:{vertical:"middle",horizontal:"right"},itemMarkWidth:10,itemMarkHeight:10,markGap:6,itemGap:10,labelStyle:{fill:"#b87a80",fontSize:11}}}}
+                              slotProps={{legend:{direction:"vertical",position:{vertical:"middle",horizontal:"end"},itemMarkWidth:10,itemMarkHeight:10,markGap:6,itemGap:10,labelStyle:{fill:"#b87a80",fontSize:11}}}}
                               sx={chartSx}
                             />
                           ) : (
@@ -1791,16 +1883,23 @@ export default function AdminDashboard() {
                   </div>
                 </div>
 
-                <div className="ad-stat-row" style={{gridTemplateColumns:"repeat(3,1fr)"}}>
+                <div className="ad-stat-row" style={{gridTemplateColumns:"repeat(4,1fr)"}}>
                   {[
-                    {icon:I.Users,  label:"Total Students", value:leaderboardByProgram.length,                        grad:"grad-gold"},
-                    {icon:I.Trophy, label:"Top Score",       value:leaderboardByProgram[0]?.points?.toLocaleString()||"—", grad:"grad-green"},
-                    {icon:I.Chart,  label:"Sections",        value:sections.length,                           grad:"grad-blue"},
+                    {icon:I.Users,  label:"Total Students",      value:leaderboardByProgram.length,                        grad:"grad-gold"},
+                    {icon:I.Trophy, label:"College Top Score",   student:topCollegeStudent, score:topCollegeStudent?.points?.toLocaleString()||"—", grad:"grad-green"},
+                    {icon:I.Trophy, label:"Senior High Top Score", student:topShsStudent,    score:topShsStudent?.points?.toLocaleString()||"—",    grad:"grad-blue"},
+                    {icon:I.Trophy, label:"Overall Top Score",   student:topOverallStudent, score:topOverallStudent?.points?.toLocaleString()||"—", grad:"grad-gold"},
                   ].map((s,i)=>(
                     <div key={i} className={`ad-stat-card ${s.grad}`}>
                       <div className="ad-stat-icon">{s.icon}</div>
                       <p className="ad-stat-label">{s.label}</p>
-                      <p className="ad-stat-val">{lbLoading?"—":s.value}</p>
+                      <p className="ad-stat-val">{lbLoading?"—":s.score ?? s.value}</p>
+                      {!lbLoading && s.student && (
+                        <div className="ad-stat-footer">
+                          <div className="ad-stat-foot-line">{formatStudentLabel(s.student)}</div>
+                          <div className="ad-stat-foot-meta">{formatStudentSection(s.student)} · {getTeacherNames(s.student)}</div>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
