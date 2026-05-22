@@ -68,14 +68,27 @@ export const setAuthToken = (token) => {
 export const getToken = () => localStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
 export const getMyTeacherQuizzes = () => api('/api/quiz/my-quizzes');
 
-export const getUser = () => {
-  const token = getToken();
+const decodeBase64Url = (value) => {
+  const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
+  const padded = normalized + "=".repeat((4 - (normalized.length % 4)) % 4);
+  return atob(padded);
+};
+
+export const decodeJwtPayload = (token) => {
   if (!token) return null;
+  const parts = token.split(".");
+  if (parts.length < 2) return null;
+
   try {
-    return JSON.parse(atob(token.split('.')[1]));
+    return JSON.parse(decodeBase64Url(parts[1]));
   } catch {
     return null;
   }
+};
+
+export const getUser = () => {
+  const token = getToken();
+  return decodeJwtPayload(token);
 };
 
 export const getMyProfile = () => api('/api/admin/me');

@@ -2,7 +2,10 @@ import { useState, useEffect } from "react";
 import { useNavigate, Link, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { canAttemptAuth, isValidEmail, sanitizeEmail } from "../utils/security";
+<<<<<<< HEAD
 import { getFriendlyApiErrorMessage, setAuthToken, API_BASE_URL, forgotPasswordSend, forgotPasswordVerify, forgotPasswordComplete } from "../services/api";
+=======
+>>>>>>> c428fe1977041a811bebf1e076fe33ee4f1ada6b
 
 /* ─── Inline styles & keyframes injected once ─── */
 const GlobalStyles = () => (
@@ -497,7 +500,7 @@ function Login() {
       }
 
       if (data.token) {
-        setAuthToken(data.token);
+        localStorage.setItem("token", data.token);
         const payload = JSON.parse(atob(data.token.split(".")[1]));
         const dest = ROLE_HOME[payload.role];
         if (dest) {
